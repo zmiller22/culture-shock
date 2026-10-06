@@ -4,7 +4,7 @@ import math
 
 from ..canvas import Canvas
 from ..palette import BANANA as P
-from ..rig import Anchors, Arm, BodyPlan, Head, Legs, Pose, Torso
+from ..rig import Anchors, Arm, BodyPlan, Head, Legs, Pose, Torso, star
 
 SPECIES = "banana_dude"
 PREFIX, SUFFIX = "Bana", "nana"
@@ -53,7 +53,7 @@ class BananaLegs(Legs):
         for front in (False, True):
             s = pose.swing if front else -pose.swing
             fx = cx - 1 + 2 * s + (0 if front else -1)
-            lift = 1 if (pose.anim == "walk" and pose.swing == 0 and not front) else 0
+            lift = 0 if front else pose.lift
             foot_y = ground - 1 - lift
             c.line(cx - 1 + (0 if front else -1), hip, fx, foot_y - 1, P["limb"])
             shoe = P["shoe"] if front else P["dk"]
@@ -102,10 +102,12 @@ class BananaHead(Head):
 
 
 class BananaArm(Arm):
-    """Noodle arm with a cartoon glove. Front arm throws a thumbs-up while idling."""
+    """Noodle arm with a cartoon glove. Thumbs-up when idle, haymaker when angry."""
     species = SPECIES
+    reach = 7
+    fx_colors = (P["hi"], P["shoe"])
 
-    def draw(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
+    def draw_swing(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
         glove = P["glove"] if front else P["glove_sh"]
         if front and pose.anim == "idle":
             c.line(sx, sy, sx + 4, sy + 3, P["limb"])
@@ -117,6 +119,21 @@ class BananaArm(Arm):
         hx, hy = sx + 1 + dx, sy + 6
         c.line(sx, sy, hx, hy, P["limb"])
         c.rect(hx - 1, hy, 3, 3, glove)
+
+    def draw_limb(self, c: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose, front: bool, mode: str) -> None:
+        glove = P["glove"] if front else P["glove_sh"]
+        c.line(sx, sy, hx, hy, P["limb"])
+        big = front and mode in ("strike", "follow")
+        c.rect(hx - 1, hy - 1, 4 if big else 3, 3, glove)
+        if big:
+            c.vline(hx + 2, hy - 1, hy + 1, P["glove_sh"])     # knuckle line
+
+    def attack_fx(self, fx: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose) -> None:
+        if pose.fx == "impact":                                # POW
+            star(fx, hx + 7, hy, P["hi"], P["shoe"], r=4)
+            fx.rect(hx + 6, hy - 1, 3, 3, P["shoe"])
+        else:
+            super().attack_fx(fx, sx, sy, hx, hy, pose)
 
 
 GENES = dict(legs=BananaLegs(), torso=BananaTorso(), head=BananaHead(), arm=BananaArm())

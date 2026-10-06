@@ -4,10 +4,11 @@
     python -m sprites.build --mutants 12 --seed 500   # ...plus 12 random splices
 
 Outputs (under --out, default ./assets):
-    sprites/<slug>.png      sheet: one row per animation, one 48x48 cell per frame
-    sprites/atlas.json      frame size, rows, frame counts, fps, recipes
-    previews/lineup.png     the whole cast, scaled up
-    previews/<slug>.gif     idle + walk loop, scaled up
+    sprites/<slug>.png          sheet: one row per animation state, one 48x48 cell per frame
+    sprites/atlas.json          frame size, rows, frame counts, fps, looping, recipes
+    previews/lineup.png         the whole cast, scaled up
+    previews/<slug>.gif         every state in sequence, scaled up
+    previews/states/<slug>.png  labeled grid of every state, scaled up
 """
 
 from __future__ import annotations
@@ -22,9 +23,21 @@ from .canvas import Canvas
 from .characters import Character, roster
 from .font import draw_text, draw_text_centered, text_width
 from .palette import LAB_BG, LAB_DIM, LAB_FLOOR, LAB_GRID, LAB_TEXT, MUTANT
-from .rig import ANIMATIONS, FPS, GROUND, SIZE
+from .rig import ANIMATIONS, FPS, GROUND, LOOP, SIZE
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# How each state is used in-game; copied into the atlas for whoever writes the engine side.
+STATE_NOTES = {
+    "idle": "loop while standing still",
+    "walk": "loop while moving",
+    "run": "loop while moving fast",
+    "jump": "0 = crouch on take-off, 1 = rising, 2 = apex, 3 = falling; pick by vertical velocity. "
+            "Height is not baked in: move the sprite with physics.",
+    "attack": "play once; the hit lands on frame 2 (impact effect)",
+    "hurt": "play once on taking damage; frame 1 is the white hit-flash",
+    "death": "play once and hold the last frame (puddle of goo)",
+}
 
 
 def sheet(frames: dict[str, list[Canvas]]) -> Image.Image:
@@ -44,20 +57,48 @@ def lab_floor(c: Canvas, x: int, y: int, w: int, scroll: int = 0) -> None:
             c.vline(gx, y, y + 2, LAB_GRID)
 
 
+# (state, times through) for the preview GIF, plus jump-arc heights for show
+GIF_SEQUENCE = [("idle", 2), ("walk", 2), ("run", 3), ("jump", 1), ("attack", 2), ("hurt", 2), ("death", 1)]
+JUMP_ARC = [0, 6, 10, 5]
+HEADROOM = 12
+
+
 def gif(ch: Character, path: Path, scale: int) -> None:
     images, durations = [], []
-    for anim, repeats in (("idle", 2), ("walk", 3)):
+    scroll = 0
+    for anim, repeats in GIF_SEQUENCE:
         frames = ch.frames(anim)
-        for r in range(repeats):
+        for _ in range(repeats):
             for i, frame in enumerate(frames):
-                c = Canvas(SIZE, SIZE + 2)
+                scroll += {"walk": 1, "run": 3}.get(anim, 0)
+                c = Canvas(SIZE, SIZE + 2 + HEADROOM)
                 c.rect(0, 0, c.w, c.h, LAB_BG)
-                step = (r * len(frames) + i) * 2 if anim == "walk" else 0
-                lab_floor(c, 0, GROUND + 2, c.w, scroll=step)
-                c.paste(frame)
+                lab_floor(c, 0, HEADROOM + GROUND + 2, c.w, scroll=scroll)
+                lift = JUMP_ARC[i] if anim == "jump" else 0
+                c.paste(frame, 0, HEADROOM - lift)
+                draw_text(c, 2, 2, anim, LAB_DIM)
                 images.append(c.to_image(scale).convert("RGB"))
                 durations.append(1000 // FPS[anim])
+    durations[-1] = 1500                                     # linger on the puddle
     images[0].save(path, save_all=True, append_images=images[1:], duration=durations, loop=0, disposal=2)
+
+
+def state_sheet(ch: Character) -> Image.Image:
+    """Labeled grid: one row per state, for eyeballing every frame at once."""
+    label_w, row_h = 30, SIZE + 4
+    frames = ch.all_frames()
+    cols = max(len(f) for f in frames.values())
+    c = Canvas(label_w + cols * SIZE + 4, 14 + len(frames) * row_h)
+    c.rect(0, 0, c.w, c.h, LAB_BG)
+    draw_text(c, 4, 4, ch.name, LAB_TEXT)
+    for row, anim in enumerate(frames):
+        y = 14 + row * row_h
+        draw_text(c, 4, y + SIZE // 2 - 2, anim, MUTANT["fluid"])
+        for col, frame in enumerate(frames[anim]):
+            x = label_w + col * SIZE
+            lab_floor(c, x + 2, y + GROUND + 2, SIZE - 4)
+            c.paste(frame, x, y)
+    return c.to_image(4)
 
 
 def lineup(chars: list[Character], cols: int = 7) -> Image.Image:
@@ -92,26 +133,28 @@ def lineup(chars: list[Character], cols: int = 7) -> Image.Image:
 
 def build(out: Path, mutants: int, seed: int, scale: int) -> None:
     sprites_dir, previews_dir = out / "sprites", out / "previews"
-    sprites_dir.mkdir(parents=True, exist_ok=True)
-    previews_dir.mkdir(parents=True, exist_ok=True)
+    for d in (sprites_dir, previews_dir / "states"):
+        d.mkdir(parents=True, exist_ok=True)
 
     chars = roster(mutants=mutants, seed=seed)
     atlas = {
         "frame_size": [SIZE, SIZE],
         "facing": "right",
         "ground_row": GROUND,
+        "states": STATE_NOTES,
         "characters": {},
     }
     for ch in chars:
         frames = ch.all_frames()
         sheet(frames).save(sprites_dir / f"{ch.slug}.png")
         gif(ch, previews_dir / f"{ch.slug}.gif", scale)
+        state_sheet(ch).save(previews_dir / "states" / f"{ch.slug}.png")
         atlas["characters"][ch.slug] = {
             "name": ch.name,
             "kind": ch.kind,
             "sheet": f"{ch.slug}.png",
             "animations": {
-                anim: {"row": row, "frames": len(frames[anim]), "fps": FPS[anim]}
+                anim: {"row": row, "frames": len(frames[anim]), "fps": FPS[anim], "loop": LOOP[anim]}
                 for row, anim in enumerate(ANIMATIONS)
             },
             **ch.meta,

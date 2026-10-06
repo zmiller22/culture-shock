@@ -5,7 +5,7 @@ import math
 
 from ..canvas import Canvas
 from ..palette import INK, MUTANT as P
-from ..rig import Anchors, Arm, Head, Legs, Pose, Torso
+from ..rig import Anchors, Arm, Head, Legs, Pose, Torso, elbow, star
 
 
 def eyeball(c: Canvas, x: int, y: int, pose: Pose, iris: str = P["iris"]) -> None:
@@ -25,7 +25,7 @@ class TentacleLegs(Legs):
 
     def draw(self, c: Canvas, cx: int, hip: int, ground: int, pose: Pose) -> None:
         phase = 2 * math.pi * pose.frame / pose.n
-        speed = 1.6 if pose.anim == "walk" else 0.8
+        speed = {"walk": 1.6, "run": 2.4}.get(pose.anim, 0.8)
         for j in range(4):
             back = j % 2 == 0
             base = cx - 3 + 2 * j
@@ -116,10 +116,12 @@ class EyestalkHead(Head):
 
 
 class ClawArm(Arm):
-    """Crustacean pincer. Snaps open and shut."""
+    """Crustacean pincer. Snaps open and shut; attacks by snapping hard."""
     species = "claw"
+    reach = 9
+    fx_colors = ("#fff27a", P["claw_hi"])
 
-    def draw(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
+    def draw_swing(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
         base, hi = (P["claw"], P["claw_hi"]) if front else (P["claw_sh"], P["claw"])
         dy = -pose.swing if front else pose.swing
         open_ = pose.frame % 2
@@ -132,11 +134,35 @@ class ClawArm(Arm):
         for k in range(2):                                     # shell segments
             c.set(sx + 1 + k, sy + 2 + 2 * k, P["claw_sh"] if front else INK)
 
+    def draw_limb(self, c: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose, front: bool, mode: str) -> None:
+        base, hi = (P["claw"], P["claw_hi"]) if front else (P["claw_sh"], P["claw"])
+        d = 1 if hx >= sx else -1
+        ex, ey = elbow(sx, sy, hx, hy, 1.5)
+        c.stroke(sx, sy, ex, ey, base, 3)
+        c.stroke(ex, ey, hx, hy, base, 3)
+        c.oval(hx - 2, hy - 2, 5, 5, base)
+        gape = 0 if mode in ("strike", "follow") else 2       # wide open, then SNAP
+        c.stroke(hx + 2 * d, hy - 1, hx + 5 * d, hy - 1 - gape, base, 2)
+        c.stroke(hx + 2 * d, hy + 1, hx + 4 * d, hy + 1 + gape, base, 2)
+        c.set(hx, hy - 1, hi)
+        c.set(ex, ey, P["claw_sh"] if front else INK)          # shell joint
+
+    def attack_fx(self, fx: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose) -> None:
+        if pose.fx == "impact":                                # snap sparks at the pincer tips
+            star(fx, hx + 8, hy, *self.fx_colors, r=2)
+            fx.set(hx + 7, hy - 4, "#ffffff")
+            fx.set(hx + 7, hy + 4, "#ffffff")
+        else:
+            super().attack_fx(fx, sx, sy, hx, hy, pose)
+
 
 class TentacleArm(Arm):
+    """Wiggly tentacle. Attacks with a whip crack."""
     species = "tentacle"
+    reach = 12
+    fx_colors = (P["tent_hi"], P["sucker"])
 
-    def draw(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
+    def draw_swing(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
         col = P["tent"] if front else P["tent_sh"]
         phase = 2 * math.pi * pose.frame / pose.n
         for i in range(12):
@@ -148,3 +174,27 @@ class TentacleArm(Arm):
             c.rect(x, y + 1, 1, w, col)
             if front and i % 3 == 1:
                 c.set(x, y + w + 1 - 1, P["sucker"])
+
+    def draw_limb(self, c: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose, front: bool, mode: str) -> None:
+        col = P["tent"] if front else P["tent_sh"]
+        dx, dy = hx - sx, hy - sy
+        length = math.hypot(dx, dy) or 1
+        px, py = -dy / length, dx / length
+        whip = 0.4 if mode in ("strike", "follow") else 1.0   # snaps straight when striking
+        phase = 2 * math.pi * pose.frame / pose.n
+        for i in range(15):
+            t = i / 14
+            wob = whip * 2.2 * math.sin(t * 6 + phase) * t
+            x = round(sx + dx * t + px * wob)
+            y = round(sy + dy * t + py * wob)
+            c.rect(x, y, 2 if t < 0.6 else 1, 2 if t < 0.6 else 1, col)
+            if front and i % 4 == 2:
+                c.set(x, y + 1, P["sucker"])
+
+    def attack_fx(self, fx: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose) -> None:
+        if pose.fx == "impact":                                # crack!
+            for dx, dy in ((3, -2), (4, 0), (3, 2)):
+                fx.line(hx + dx, hy + dy, hx + dx + 2, hy + dy * 2, self.fx_colors[0])
+            fx.set(hx + 2, hy, "#ffffff")
+        else:
+            super().attack_fx(fx, sx, sy, hx, hy, pose)

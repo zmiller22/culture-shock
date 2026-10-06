@@ -5,6 +5,15 @@
   ],
   "facing": "right",
   "ground_row": 45,
+  "states": {
+    "idle": "loop while standing still",
+    "walk": "loop while moving",
+    "run": "loop while moving fast",
+    "jump": "0 = crouch on take-off, 1 = rising, 2 = apex, 3 = falling; pick by vertical velocity. Height is not baked in: move the sprite with physics.",
+    "attack": "play once; the hit lands on frame 2 (impact effect)",
+    "hurt": "play once on taking damage; frame 1 is the white hit-flash",
+    "death": "play once and hold the last frame (puddle of goo)"
+  },
   "characters": {
     "tech_bro": {
       "name": "Tech Bro",
@@ -14,12 +23,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       }
     },
@@ -31,12 +72,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       }
     },
@@ -48,12 +121,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       }
     },
@@ -65,12 +170,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       }
     },
@@ -82,12 +219,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       },
       "specimen": 1,
@@ -110,12 +279,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       },
       "specimen": 2,
@@ -136,12 +337,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       },
       "specimen": 3,
@@ -164,12 +397,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       },
       "specimen": 4,
@@ -192,12 +457,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       },
       "specimen": 5,
@@ -222,12 +519,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       },
       "specimen": 6,
@@ -250,12 +579,44 @@
         "idle": {
           "row": 0,
           "frames": 4,
-          "fps": 4
+          "fps": 4,
+          "loop": true
         },
         "walk": {
           "row": 1,
           "frames": 4,
-          "fps": 8
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
         }
       },
       "specimen": 7,

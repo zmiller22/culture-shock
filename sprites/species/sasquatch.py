@@ -2,7 +2,7 @@
 
 from ..canvas import Canvas
 from ..palette import INK, SASQUATCH as P
-from ..rig import Anchors, Arm, BodyPlan, Head, Legs, Pose, Torso
+from ..rig import GROUND, Anchors, Arm, BodyPlan, Head, Legs, Pose, Torso, elbow, star
 
 SPECIES = "sasquatch"
 PREFIX, SUFFIX = "Squatch", "squatch"
@@ -26,7 +26,7 @@ class SasquatchLegs(Legs):
         for front in (False, True):
             s = pose.swing if front else -pose.swing
             fx = cx - 3 + 3 * s
-            lift = 1 if (pose.anim == "walk" and pose.swing == 0 and not front) else 0
+            lift = 0 if front else pose.lift
             foot_y = ground - 1 - lift
             fur = P["fur"] if front else P["fur_dk"]
             c.line(cx - 3, hip, fx, foot_y - 2, fur, width=5)
@@ -88,9 +88,20 @@ class SasquatchHead(Head):
 
 
 class SasquatchArm(Arm):
+    """Knuckle-dragging arms. Attacks with an overhead ground-pound."""
     species = SPECIES
+    reach = 13
+    fx_colors = ("#f4f0e0", P["fur_hi"])
+    targets = {
+        "windup": ((-0.25, -1.0), (-0.45, 0.85)),            # raise it high...
+        "strike": ((0.8, 0.6), (-0.6, 0.7)),                  # ...and bring it down
+        "follow": ((0.75, 0.7), (-0.5, 0.8)),
+        "reach": ((0.95, -0.15), (-0.8, -0.3)),               # long arms: keep them below the face
+        "out": ((0.95, 0.1), (-0.9, 0.1)),
+        "up": ((0.7, -0.45), (-0.4, -0.8)),
+    }
 
-    def draw(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
+    def draw_swing(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
         fur = P["fur"] if front else P["fur_dk"]
         dx = (-2 if front else 2) * pose.swing
         ex, ey = sx + 2 + dx // 2, sy + 7                      # elbow
@@ -106,6 +117,26 @@ class SasquatchArm(Arm):
             c.set(sx - 1, sy + 3, P["fur_dk"])
             c.set(sx, sy + 5, P["fur_dk"])
             c.set(hx, hy + 2, P["foot_hi"])
+
+    def draw_limb(self, c: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose, front: bool, mode: str) -> None:
+        fur = P["fur"] if front else P["fur_dk"]
+        ex, ey = elbow(sx, sy, hx, hy, 2)
+        c.oval(sx - 2, sy - 2, 6, 6, fur)
+        c.stroke(sx, sy, ex, ey, fur, 4)
+        c.stroke(ex, ey, hx, hy, fur, 3)
+        c.rect(hx - 1, hy - 1, 4, 3, P["foot"])
+        if front:
+            c.line(sx + 1, sy - 1, ex + 1, ey - 1, P["fur_hi"])
+            c.set(hx, hy + 1, P["foot_hi"])
+
+    def attack_fx(self, fx: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose) -> None:
+        if pose.fx == "swoosh":
+            super().attack_fx(fx, sx, sy, hx, hy, pose)
+            return
+        for x, w in ((hx - 1, 5), (hx + 4, 3), (hx - 7, 4)):  # dust kicked up by the slam
+            fx.oval(x, GROUND - 2, w, 3, "#c8b090")
+            fx.set(x + 1, GROUND - 2, "#f4f0e0")
+        star(fx, hx + 3, hy + 2, *self.fx_colors)
 
 
 GENES = dict(legs=SasquatchLegs(), torso=SasquatchTorso(), head=SasquatchHead(), arm=SasquatchArm())

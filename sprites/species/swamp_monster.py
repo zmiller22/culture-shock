@@ -2,7 +2,7 @@
 
 from ..canvas import Canvas
 from ..palette import SWAMP as P
-from ..rig import Anchors, Arm, BodyPlan, Head, Legs, Pose, Torso
+from ..rig import Anchors, Arm, BodyPlan, Head, Legs, Pose, Torso, elbow
 
 SPECIES = "swamp_monster"
 PREFIX, SUFFIX = "Swamp", "slurp"
@@ -16,7 +16,7 @@ class SwampLegs(Legs):
         for front in (False, True):
             s = pose.swing if front else -pose.swing
             fx = cx - 2 + 2 * s
-            lift = 1 if (pose.anim == "walk" and pose.swing == 0 and not front) else 0
+            lift = 0 if front else pose.lift
             foot_y = ground - 1 - lift
             col = P["base"] if front else P["dark"]
             c.line(cx - 2, hip, fx, foot_y - 1, col, width=4)
@@ -89,10 +89,12 @@ class SwampHead(Head):
 
 
 class SwampArm(Arm):
-    """Long zombie-reach arm with claws."""
+    """Long zombie-reach arm with claws. Attacks with a slimy three-claw slash."""
     species = SPECIES
+    reach = 10
+    fx_colors = (P["slime"], P["claw"])
 
-    def draw(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
+    def draw_swing(self, c: Canvas, sx: int, sy: int, pose: Pose, front: bool) -> None:
         col = P["base"] if front else P["dark"]
         dy = (-pose.swing if front else pose.swing)
         ex, ey = sx + 3, sy + 5
@@ -107,6 +109,25 @@ class SwampArm(Arm):
             c.line(ex, ey, hx, hy, P["hi"])
             if pose.frame % 2:
                 c.set(hx, hy + 2, P["slime"])
+
+    def draw_limb(self, c: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose, front: bool, mode: str) -> None:
+        col = P["base"] if front else P["dark"]
+        ex, ey = elbow(sx, sy, hx, hy, 2)
+        c.stroke(sx, sy, ex, ey, col, 3)
+        c.stroke(ex, ey, hx, hy, col, 2)
+        d = 1 if hx >= sx else -1
+        for cx_, cy_ in ((2, -1), (2, 1), (1, 2)):             # claws point where the hand goes
+            c.set(hx + d * cx_, hy + cy_, P["claw"])
+        if front:
+            c.line(ex, ey, hx, hy, P["hi"])
+
+    def attack_fx(self, fx: Canvas, sx: int, sy: int, hx: int, hy: int, pose: Pose) -> None:
+        if pose.fx == "swoosh":                                # claw marks
+            for k in range(3):
+                fx.line(hx + 3 + 2 * k, hy - 5, hx + 1 + 2 * k, hy + 3, "#ffffff" if k == 1 else P["slime"])
+        else:                                                  # slime splatter
+            for dx, dy in ((4, -3), (6, 0), (5, 3), (8, -2), (8, 2), (3, 4)):
+                fx.set(hx + dx, hy + dy, P["slime"])
 
 
 GENES = dict(legs=SwampLegs(), torso=SwampTorso(), head=SwampHead(), arm=SwampArm())

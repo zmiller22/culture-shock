@@ -67,6 +67,12 @@ class Canvas:
             for i in range(width):
                 self.set(x + i, y, c)
 
+    def stroke(self, x0: int, y0: int, x1: int, y1: int, c: str | None, w: int = 1) -> None:
+        """Line drawn with a square w x w brush (good for limbs at any angle)."""
+        o = (w - 1) // 2
+        for x, y in line_points(x0, y0, x1, y1):
+            self.rect(x - o, y - o, w, w, c)
+
     def oval(self, x: int, y: int, w: int, h: int, c: str | None) -> None:
         """Filled ellipse inscribed in the box (x, y, w, h)."""
         cx, cy = x + w / 2, y + h / 2
@@ -98,14 +104,18 @@ class Canvas:
         nbrs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
         if diagonal:
             nbrs += [(1, 1), (-1, -1), (1, -1), (-1, 1)]
-        edge = [
-            (x, y)
-            for y in range(self.h)
-            for x in range(self.w)
-            if self.px[y][x] is None and any(self.opaque(x + dx, y + dy) for dx, dy in nbrs)
-        ]
+        w, h, px = self.w, self.h, self.px
+        edge = set()
+        for y, row in enumerate(px):          # visit filled pixels, mark empty neighbors
+            for x, p in enumerate(row):
+                if p is None:
+                    continue
+                for dx, dy in nbrs:
+                    xx, yy = x + dx, y + dy
+                    if 0 <= xx < w and 0 <= yy < h and px[yy][xx] is None:
+                        edge.add((xx, yy))
         for x, y in edge:
-            self.px[y][x] = c
+            px[y][x] = c
 
     def tint(self, c: str, t: float) -> None:
         for y in range(self.h):
