@@ -1,0 +1,10 @@
+name: 8-bit
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11      # matches Raspberry Pi OS (Bookworm) system Python
+  - pillow
+  - numpy
+  - pip
+  - pip:
+      - pygame-ce    # used by the animated sprite viewer; also runs well on the Pi 5

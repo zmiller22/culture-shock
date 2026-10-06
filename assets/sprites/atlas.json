@@ -1,0 +1,275 @@
+{
+  "frame_size": [
+    48,
+    48
+  ],
+  "facing": "right",
+  "ground_row": 45,
+  "characters": {
+    "tech_bro": {
+      "name": "Tech Bro",
+      "kind": "control",
+      "sheet": "tech_bro.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      }
+    },
+    "swamp_monster": {
+      "name": "Swamp Monster",
+      "kind": "control",
+      "sheet": "swamp_monster.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      }
+    },
+    "sasquatch": {
+      "name": "Sasquatch",
+      "kind": "control",
+      "sheet": "sasquatch.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      }
+    },
+    "banana_dude": {
+      "name": "Banana Dude",
+      "kind": "control",
+      "sheet": "banana_dude.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      }
+    },
+    "kronenberg_001_brosquatch": {
+      "name": "Brosquatch",
+      "kind": "kronenberg",
+      "sheet": "kronenberg_001_brosquatch.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      },
+      "specimen": 1,
+      "recipe": {
+        "legs": "sasquatch",
+        "torso": "sasquatch",
+        "head": "tech_bro",
+        "front_arm": "tech_bro",
+        "back_arm": "sasquatch"
+      },
+      "mutations": [
+        "neck bolts"
+      ]
+    },
+    "kronenberg_002_banaclaw": {
+      "name": "Banaclaw",
+      "kind": "kronenberg",
+      "sheet": "kronenberg_002_banaclaw.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      },
+      "specimen": 2,
+      "recipe": {
+        "legs": "tentacle",
+        "torso": "swamp_monster",
+        "head": "banana_dude",
+        "front_arm": "claw",
+        "back_arm": "swamp_monster"
+      },
+      "mutations": []
+    },
+    "kronenberg_003_brainpus": {
+      "name": "Brainpus",
+      "kind": "kronenberg",
+      "sheet": "kronenberg_003_brainpus.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      },
+      "specimen": 3,
+      "recipe": {
+        "legs": "swamp_monster",
+        "torso": "tech_bro",
+        "head": "brain",
+        "front_arm": "tentacle",
+        "back_arm": "tech_bro"
+      },
+      "mutations": [
+        "radioactive legs"
+      ]
+    },
+    "kronenberg_004_eyenana": {
+      "name": "Eyenana",
+      "kind": "kronenberg",
+      "sheet": "kronenberg_004_eyenana.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      },
+      "specimen": 4,
+      "recipe": {
+        "legs": "banana_dude",
+        "torso": "blob",
+        "head": "eyestalk",
+        "front_arm": "banana_dude",
+        "back_arm": "banana_dude"
+      },
+      "mutations": [
+        "2 extra eyes"
+      ]
+    },
+    "kronenberg_005_swampclaw": {
+      "name": "Swampclaw",
+      "kind": "kronenberg",
+      "sheet": "kronenberg_005_swampclaw.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      },
+      "specimen": 5,
+      "recipe": {
+        "legs": "sasquatch",
+        "torso": "blob",
+        "head": "swamp_monster",
+        "front_arm": "claw",
+        "back_arm": "swamp_monster",
+        "extra_head": "sasquatch"
+      },
+      "mutations": [
+        "second head (sasquatch)",
+        "ultraviolet extra heads"
+      ]
+    },
+    "kronenberg_006_squatchbro": {
+      "name": "Squatchbro",
+      "kind": "kronenberg",
+      "sheet": "kronenberg_006_squatchbro.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      },
+      "specimen": 6,
+      "recipe": {
+        "legs": "tech_bro",
+        "torso": "banana_dude",
+        "head": "sasquatch",
+        "front_arm": "banana_dude",
+        "back_arm": "sasquatch"
+      },
+      "mutations": [
+        "neck bolts"
+      ]
+    },
+    "kronenberg_007_twofacebro": {
+      "name": "Twofacebro",
+      "kind": "kronenberg",
+      "sheet": "kronenberg_007_twofacebro.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8
+        }
+      },
+      "specimen": 7,
+      "recipe": {
+        "legs": "tentacle",
+        "torso": "blob",
+        "head": "tech_bro",
+        "front_arm": "tech_bro",
+        "back_arm": "tentacle",
+        "extra_head": "banana_dude"
+      },
+      "mutations": [
+        "second head (banana_dude)"
+      ]
+    }
+  }
+}
