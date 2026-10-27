@@ -37,6 +37,8 @@ STATE_NOTES = {
     "attack": "play once; the hit lands on frame 2 (impact effect)",
     "hurt": "play once on taking damage; frame 1 is the white hit-flash",
     "death": "play once and hold the last frame (puddle of goo)",
+    "crouch": "play once and hold the last frame while DOWN is held; no walking while crouched",
+    "interact": "play once on UP (doors, switches); the press lands on frame 1",
 }
 
 
@@ -58,7 +60,7 @@ def lab_floor(c: Canvas, x: int, y: int, w: int, scroll: int = 0) -> None:
 
 
 # (state, times through) for the preview GIF, plus jump-arc heights for show
-GIF_SEQUENCE = [("idle", 2), ("walk", 2), ("run", 3), ("jump", 1), ("attack", 2), ("hurt", 2), ("death", 1)]
+GIF_SEQUENCE = [("idle", 2), ("walk", 2), ("run", 3), ("jump", 1), ("attack", 2), ("crouch", 1), ("interact", 1), ("hurt", 2), ("death", 1)]
 JUMP_ARC = [0, 6, 10, 5]
 HEADROOM = 12
 
@@ -85,8 +87,8 @@ def gif(ch: Character, path: Path, scale: int) -> None:
 
 def state_sheet(ch: Character) -> Image.Image:
     """Labeled grid: one row per state, for eyeballing every frame at once."""
-    label_w, row_h = 30, SIZE + 4
     frames = ch.all_frames()
+    label_w, row_h = max(30, max(text_width(a) for a in frames) + 6), SIZE + 4
     cols = max(len(f) for f in frames.values())
     c = Canvas(label_w + cols * SIZE + 4, 14 + len(frames) * row_h)
     c.rect(0, 0, c.w, c.h, LAB_BG)

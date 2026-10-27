@@ -2,14 +2,16 @@
 
     python -m sprites.viewer [--fullscreen] [--scale 4]
 
-Controls:
-    LEFT / RIGHT   walk (hold SHIFT to run)
-    SPACE / Z      jump
-    X              attack
+Controls (keyboard, or an arcade stick / gamepad):
+    LEFT / RIGHT   walk (hold SHIFT to run)                stick left / right
+    SPACE / Z      jump                                     button 0
+    X              attack                                   button 1
     H              take a hit
     K              die (melts, then respawns)
-    UP / DOWN      previous / next character
-    M              splice a brand-new random Kronenberg
+    DOWN           crouch (hold)                            stick down
+    UP             interact (doors, switches)               stick up
+    TAB            next character (SHIFT+TAB: previous)
+    M              splice a brand-new random Kronenberg     button 3
     ESC / Q        quit
 """
 
@@ -35,17 +37,31 @@ JUMP_VELOCITY = 260      # px/s upward at take-off
 GRAVITY = 900            # px/s^2
 CROUCH_TIME = 1 / FPS["jump"]
 RESPAWN_DELAY = 1.5      # seconds the puddle lingers
+STICK_THRESHOLD = 0.5    # arcade sticks are digital; this also ignores floating axes
+JOY_JUMP, JOY_ATTACK, JOY_MUTATE = 0, 1, 3   # button indices as reported by tools/controller_test.py
+
+
+def stick(joy: pygame.joystick.JoystickType) -> tuple[int, int]:
+    """Stick direction as (x, y) in -1/0/+1, y down. Reads hat 0 if the encoder
+    reports one, otherwise axes 0/1."""
+    if joy.get_numhats() and joy.get_hat(0) != (0, 0):
+        hx, hy = joy.get_hat(0)
+        return hx, -hy
+    axis = lambda i: joy.get_axis(i) if joy.get_numaxes() > i else 0.0
+    zone = lambda v: (v > STICK_THRESHOLD) - (v < -STICK_THRESHOLD)
+    return zone(axis(0)), zone(axis(1))
 
 
 class Actor:
     """Animation state machine for one character. No pygame in here, so the same
     logic can be lifted straight into the game.
 
-    Call `update(dt, move, run, jump, attack, hurt, die)` once per tick, then read
+    Call `update(dt, move, run, jump, attack, hurt, die, crouch, interact)` once
+    per tick (`crouch` is held, the rest are presses), then read
     `state`, `frame` (index into that state's row) and `height` (px above floor).
     """
 
-    ONE_SHOTS = ("attack", "hurt", "death")
+    ONE_SHOTS = ("attack", "hurt", "death", "interact")
 
     def __init__(self) -> None:
         self.state, self.t = "idle", 0.0
@@ -64,7 +80,8 @@ class Actor:
         return self.t * FPS[self.state] >= len(ANIMATIONS[self.state])
 
     def update(self, dt: float, move: int = 0, run: bool = False, jump: bool = False,
-               attack: bool = False, hurt: bool = False, die: bool = False) -> None:
+               attack: bool = False, hurt: bool = False, die: bool = False,
+               crouch: bool = False, interact: bool = False) -> None:
         self.t += dt
         if die and self.state != "death":
             self._enter("death")
@@ -74,9 +91,17 @@ class Actor:
             self._enter("attack")
         elif jump and self.grounded and self.state not in self.ONE_SHOTS + ("jump",):
             self._enter("jump")
+        elif interact and self.grounded and self.state not in self.ONE_SHOTS + ("jump",):
+            self._enter("interact")
+
+        # crouch while DOWN is held on the ground; stand back up on release
+        if crouch and self.grounded and self.state in ("idle", "walk", "run"):
+            self._enter("crouch")
+        elif self.state == "crouch" and not crouch:
+            self._enter("idle")
 
         # one-shots end on their own; death lingers, then respawns
-        if self.state in ("attack", "hurt") and self._done():
+        if self.state in ("attack", "hurt", "interact") and self._done():
             self._enter("idle")
         if self.state == "death" and self.t * FPS["death"] >= len(ANIMATIONS["death"]) + RESPAWN_DELAY * FPS["death"]:
             self.__init__()
@@ -98,7 +123,8 @@ class Actor:
             self.dx = -self.facing * 40
         elif self.state not in self.ONE_SHOTS and move:
             self.facing = move
-            self.dx = move * (RUN_SPEED if run else WALK_SPEED)
+            if self.state != "crouch":                     # crouched: turn, but stay put
+                self.dx = move * (RUN_SPEED if run else WALK_SPEED)
         if self.state in ("idle", "walk", "run"):
             self._enter("run" if move and run else "walk" if move else "idle")
 
@@ -158,6 +184,10 @@ def draw_lab(screen: pygame.Surface, scroll: float) -> None:
     pygame.draw.line(screen, hex_to_rgba(LAB_GRID), (0, FLOOR_Y), (W, FLOOR_Y), 1)
 
 
+def mutant() -> Loaded:
+    return Loaded(from_specimen(random_specimen(random.randrange(1000, 9999))))
+
+
 def run(scale: int = 4, fullscreen: bool = False, max_ticks: int | None = None, screenshot: str | None = None) -> None:
     pygame.init()
     flags = pygame.FULLSCREEN | pygame.SCALED if fullscreen else pygame.SCALED
@@ -167,36 +197,57 @@ def run(scale: int = 4, fullscreen: bool = False, max_ticks: int | None = None, 
     clock = pygame.time.Clock()
 
     cast = [Loaded(ch) for ch in roster()]
-    help_text = text_surface("ARROWS+SHIFT: MOVE  SPACE: JUMP  X: ATTACK  H: HIT  K: DIE  M: MUTATE", LAB_DIM)
+    help_text = text_surface("ARROWS: MOVE/CROUCH/USE  SPACE: JUMP  X: ATTACK  TAB: NEXT  H K M", LAB_DIM)
     idx, scroll = 0, 0.0
     actor = Actor()
+    pads: dict[int, pygame.joystick.JoystickType] = {}
+    last_y = 0                                  # stick up acts on the edge, like a key press
     ticks = 0
     running = True
     while running:
         dt = clock.tick(60) / 1000
         pressed = set()
+        joy_pressed = set()
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key in (pygame.K_ESCAPE, pygame.K_q)):
                 running = False
             elif ev.type == pygame.KEYDOWN:
                 pressed.add(ev.key)
-                if ev.key == pygame.K_DOWN:
-                    idx = (idx + 1) % len(cast)
-                elif ev.key == pygame.K_UP:
-                    idx = (idx - 1) % len(cast)
+                if ev.key == pygame.K_TAB:
+                    idx = (idx + (-1 if ev.mod & pygame.KMOD_SHIFT else 1)) % len(cast)
                 elif ev.key == pygame.K_m:
-                    cast.append(Loaded(from_specimen(random_specimen(random.randrange(1000, 9999)))))
+                    cast.append(mutant())
                     idx = len(cast) - 1
+            elif ev.type == pygame.JOYDEVICEADDED:
+                joy = pygame.joystick.Joystick(ev.device_index)
+                pads[joy.get_instance_id()] = joy
+            elif ev.type == pygame.JOYDEVICEREMOVED:
+                pads.pop(ev.instance_id, None)
+            elif ev.type == pygame.JOYBUTTONDOWN:
+                joy_pressed.add(ev.button)
+                if ev.button == JOY_MUTATE:
+                    cast.append(mutant())
+                    idx = len(cast) - 1
+
+        # Any connected pad drives the actor (one player for now).
+        sx, sy = 0, 0
+        for joy in pads.values():
+            jx, jy = stick(joy)
+            sx, sy = sx or jx, sy or jy
+        interact = sy < 0 and last_y >= 0
+        last_y = sy
 
         keys = pygame.key.get_pressed()
         actor.update(
             dt,
-            move=keys[pygame.K_RIGHT] - keys[pygame.K_LEFT],
+            move=max(-1, min(1, keys[pygame.K_RIGHT] - keys[pygame.K_LEFT] + sx)),
             run=keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT],
-            jump=bool(pressed & {pygame.K_SPACE, pygame.K_z}),
-            attack=pygame.K_x in pressed,
+            jump=bool(pressed & {pygame.K_SPACE, pygame.K_z}) or JOY_JUMP in joy_pressed,
+            attack=pygame.K_x in pressed or JOY_ATTACK in joy_pressed,
             hurt=pygame.K_h in pressed,
             die=pygame.K_k in pressed,
+            crouch=bool(keys[pygame.K_DOWN]) or sy > 0,
+            interact=pygame.K_UP in pressed or interact,
         )
         scroll += actor.dx * dt
 

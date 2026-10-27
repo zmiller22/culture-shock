@@ -68,9 +68,17 @@ ANIMATIONS: dict[str, list[dict]] = {
     "hurt": [dict(_HURT), dict(_HURT, lean=-3, flash=True)],
     # recoil, then melt into a puddle of lab goo
     "death": [dict(_HURT, flash=True)] + [dict(_HURT, melt=t) for t in (0.25, 0.5, 0.75, 0.9, 1.0)],
+    # dropping down / held low (hold the last frame while DOWN is held)
+    "crouch": [dict(swing=1, bob=3, lean=1, arm="crouch"), dict(swing=1, bob=5, lean=1, arm="crouch")],
+    # reach / press / hold / recover: doors, switches, levers
+    "interact": [dict(lean=1, arm="reach", back_arm="recover"),
+                 dict(swing=1, lean=2, arm="use", back_arm="recover"),
+                 dict(swing=1, lean=2, arm="use", back_arm="recover"),
+                 dict(lean=1, arm="recover")],
 }
-FPS = {"idle": 4, "walk": 8, "run": 12, "jump": 8, "attack": 12, "hurt": 10, "death": 8}
-LOOP = {"idle": True, "walk": True, "run": True, "jump": False, "attack": False, "hurt": False, "death": False}
+FPS = {"idle": 4, "walk": 8, "run": 12, "jump": 8, "attack": 12, "hurt": 10, "death": 8, "crouch": 12, "interact": 10}
+LOOP = {"idle": True, "walk": True, "run": True, "jump": False, "attack": False, "hurt": False, "death": False,
+        "crouch": False, "interact": False}
 
 
 def poses(anim: str) -> list[Pose]:
@@ -126,6 +134,7 @@ ARM_TARGETS: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {
     "follow":  ((0.95, 0.3), (-0.6, 0.7)),
     "recover": ((0.55, 0.75), (-0.25, 0.95)),
     "flail":   ((-0.7, 0.5), (-0.9, -0.4)),      # flung back by the hit
+    "use":     ((1.0, -0.2), (-0.4, 0.85)),      # flat-out press at chest height
 }
 
 

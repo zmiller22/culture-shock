@@ -12,7 +12,9 @@
     "jump": "0 = crouch on take-off, 1 = rising, 2 = apex, 3 = falling; pick by vertical velocity. Height is not baked in: move the sprite with physics.",
     "attack": "play once; the hit lands on frame 2 (impact effect)",
     "hurt": "play once on taking damage; frame 1 is the white hit-flash",
-    "death": "play once and hold the last frame (puddle of goo)"
+    "death": "play once and hold the last frame (puddle of goo)",
+    "crouch": "play once and hold the last frame while DOWN is held; no walking while crouched",
+    "interact": "play once on UP (doors, switches); the press lands on frame 1"
   },
   "characters": {
     "tech_bro": {
@@ -60,6 +62,18 @@
           "row": 6,
           "frames": 6,
           "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
           "loop": false
         }
       }
@@ -110,6 +124,18 @@
           "frames": 6,
           "fps": 8,
           "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
         }
       }
     },
@@ -158,6 +184,18 @@
           "row": 6,
           "frames": 6,
           "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
           "loop": false
         }
       }
@@ -208,6 +246,18 @@
           "frames": 6,
           "fps": 8,
           "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
         }
       }
     },
@@ -256,6 +306,18 @@
           "row": 6,
           "frames": 6,
           "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
           "loop": false
         }
       },
@@ -317,6 +379,18 @@
           "frames": 6,
           "fps": 8,
           "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
         }
       },
       "specimen": 2,
@@ -374,6 +448,18 @@
           "row": 6,
           "frames": 6,
           "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
           "loop": false
         }
       },
@@ -435,6 +521,18 @@
           "frames": 6,
           "fps": 8,
           "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
         }
       },
       "specimen": 4,
@@ -494,6 +592,18 @@
           "row": 6,
           "frames": 6,
           "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
           "loop": false
         }
       },
@@ -557,6 +667,18 @@
           "frames": 6,
           "fps": 8,
           "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
         }
       },
       "specimen": 6,
@@ -616,6 +738,18 @@
           "row": 6,
           "frames": 6,
           "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
           "loop": false
         }
       },

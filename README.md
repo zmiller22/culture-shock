@@ -35,6 +35,8 @@ Every character, including every random splice, gets all of these:
 | `attack` | 4 | 12 | once | wind-up, strike, impact, recover. The hit lands on frame 2. |
 | `hurt` | 2 | 10 | once | recoil, then white hit-flash |
 | `death` | 6 | 8 | once, hold last | flash, then melts into a puddle of lab goo (one eyeball survives) |
+| `crouch` | 2 | 12 | once, hold last | drop into a wide squat; held while DOWN is held, no walking |
+| `interact` | 4 | 10 | once | reach, press, hold, recover. For doors and switches. |
 
 Each species attacks in its own way. The move belongs to the arm, so a spliced
 creature attacks however its front arm does:
@@ -71,12 +73,25 @@ Add random Kronenbergs to the build (each seed always produces the same creature
 python -m sprites.build --mutants 12 --seed 500
 ```
 
-Open the interactive viewer. **Arrows** walk (hold **Shift** to run), **Space** jumps,
-**X** attacks, **H** takes a hit, **K** dies, **Up/Down** swaps characters, and **M** splices a new mutant:
+Open the interactive viewer:
 
 ```bash
 python -m sprites.viewer
 ```
+
+| Action | Keyboard | Arcade stick |
+|---|---|---|
+| Walk | Left / Right (hold Shift to run) | stick left / right |
+| Jump | Space or Z | button 0 |
+| Attack | X | button 1 |
+| Crouch (hold) | Down | stick down |
+| Interact (doors, switches) | Up | stick up |
+| Next character | Tab (Shift+Tab: previous) | |
+| Splice a new mutant | M | button 3 |
+| Take a hit / die | H / K | |
+| Quit | Esc or Q | |
+
+On the cabinet, `./play.sh` launches the game fullscreen on the monitor. It also works over SSH.
 
 ## Output format
 
