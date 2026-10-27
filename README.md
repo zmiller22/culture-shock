@@ -143,6 +143,52 @@ classes. An arm needs `draw_swing`, `draw_limb` and, optionally, its own
 `attack_fx`. Then register it in `characters.py` and `species/kronenberg.py`, and
 it joins the gene pool automatically.
 
+## Mini-games
+
+Mini-games live in `minigames/`. Each one is built and tested on its own before
+it joins the main game. Each uses the same canvas, palette, font and outline as
+the cast, and the same 320×180 window and controls as the viewer.
+
+### Stork Bomber
+
+Fly the stork and drop the baby into the target strolling along the bottom of the
+screen. Deliver 3 of 5 babies to win. The target speeds up after every delivery.
+A dropped baby keeps the stork's momentum, so lead your shot. If it falls within
+arm's reach of the target, the arms grab it, pull it in and eat it.
+
+Once it's eaten a baby, the target chews on it while DNA helices swirl
+around. A few seconds later it spits out a fully grown hairy man in a diaper. He
+runs off the screen. He's built from rig genes like the rest of the cast
+(`minigames/stork_bomber/hairy_man.py`), so he can join the roster later.
+Babies that land on the target while it's chewing bounce off.
+
+Deliver 3 babies in a row, with no misses or steals in between, and once the man
+pops out, the target squirts all over the place. It sprays in pulses that splash
+the stork and leave puddles on the floor for a few seconds. The streak shows
+under the score. Tune it with `STREAK` and the `SQUIRT_*` constants.
+
+Every so often the **Flying Spaghetti Monster** drifts in ("INCOMING PASTA!") and
+chases the bundle for a few seconds. It's slower than the stork but turns well,
+so keep moving. If its noodles reach the bundle, in the beak or falling, it steals
+the baby and flies off with it. That baby is lost. Tune it with the `FSM_*`
+constants at the top of `game.py`.
+
+```bash
+python -m minigames.stork_bomber             # windowed; add --fullscreen on the cabinet
+python -m minigames.stork_bomber --demo      # the computer plays
+```
+
+| Action | Keyboard | Arcade stick |
+|---|---|---|
+| Fly | Arrows | stick |
+| Drop the baby / start / continue | Space, Z or Enter | button 0 |
+| Quit | Esc or Q | |
+
+To plug a mini-game into the main game, drive the game object directly. Call
+`update(dt, inp)` and `draw(screen)` every tick, and when `done` goes true, read
+`result` (`"win"` or `"lose"`). `minigames/shell.py` describes the interface and
+runs a mini-game standalone.
+
 ## Hardware
 
 ![cabinet wiring](docs/hardware-wiring.png)
