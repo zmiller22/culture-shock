@@ -128,6 +128,41 @@ classes. An arm needs `draw_swing`, `draw_limb` and, optionally, its own
 `attack_fx`. Then register it in `characters.py` and `species/kronenberg.py`, and
 it joins the gene pool automatically.
 
+## Hardware
+
+![cabinet wiring](docs/hardware-wiring.png)
+
+A Pi 5 runs on its 27 W supply. A switched power strip also powers the monitor
+(micro-HDMI to HDMI) and the powered speakers, which take 3.5 mm audio from a USB
+sound card. Each player's joystick and buttons connect to a USB encoder that the Pi
+sees as a gamepad. A power button is wired to the J2 pins.
+
+### Testing controllers
+
+Plug in an encoder, then run:
+
+```bash
+python3 tools/controller_test.py
+```
+
+Every pad is listed with its axis, button and hat counts, and every input is
+logged to the terminal. The window shows the stick position and a lamp for each
+button. Add `--headless` to log without opening a window (for example, over SSH).
+
+Work through this checklist:
+
+1. Push the stick in all four directions and the diagonals. You should see axes 0/1 reach about ±1.00, or hat 0 change.
+2. Press each button once. Each one should light a single lamp, and no two buttons should share an index. Write down which index each physical button gets, because the game's mapping will use those numbers.
+3. Unplug the encoder and plug it back in. You should see `REMOVED` and then `ADDED`.
+
+If something doesn't register:
+
+* **No pad listed**: run `lsusb`. A zero-delay encoder shows up as `0079:0006 DragonRise`. If it's missing, try another cable or port.
+* **One button is dead**: the microswitch wires go on **COM** and **NO**, not NC. Check that the harness is fully seated in the encoder.
+* **Directions are swapped or mirrored**: the 5-pin joystick harness is plugged in rotated, or the stick is mounted turned. Either fix the hardware or flip it in the game's mapping.
+
+To check below pygame, install the kernel-level tools with `sudo apt install joystick evtest`, then run `jstest /dev/input/js0`.
+
 ## Raspberry Pi 5
 
 Raspberry Pi OS (Bookworm) ships Python 3.11, which is the same version as this
