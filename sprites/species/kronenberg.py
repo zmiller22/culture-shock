@@ -15,14 +15,23 @@ from dataclasses import dataclass, field
 
 from ..canvas import Canvas
 from ..palette import INK, MUTANT as M, OUTLINE, TINTS
-from ..rig import CX, GROUND, SIZE, BodyPlan, Pose
-from . import banana_dude, sasquatch, swamp_monster, tech_bro
+from ..rig import ANIMATIONS, CX, GROUND, SIZE, BodyPlan, Pose, poses
+from . import (alien, banana_dude, centaur, cowboy, crawling_baby, detective, dominatrix, fairy,
+               fly_man, ghost, giant_slug, gimp, headless_horseman, jazz_sax, katana_chick, medusa,
+               mermaid, pageant_queen, puppet, sasquatch, sassquatch, spider, stephen_hawking,
+               stoner, succubus, swamp_monster, tech_bro, technoviking, wyvern, zombie)
 from .mutant_parts import (BlobTorso, BrainJarHead, ClawArm, EyestalkHead, TentacleArm,
                            TentacleLegs, eyeball)
 
+# every species that donates genes (a module may donate only some kinds)
+DONORS = (tech_bro, swamp_monster, sasquatch, banana_dude, sassquatch, fly_man, alien, zombie,
+          mermaid, medusa, giant_slug, centaur, wyvern, katana_chick, pageant_queen, succubus,
+          fairy, cowboy, spider, stoner, crawling_baby, technoviking, jazz_sax, ghost,
+          headless_horseman, detective, puppet, dominatrix, gimp, stephen_hawking)
+
 # gene pool: kind -> species -> gene
 POOL: dict[str, dict[str, object]] = {"legs": {}, "torso": {}, "head": {}, "arm": {}}
-for mod in (tech_bro, swamp_monster, sasquatch, banana_dude):
+for mod in DONORS:
     for kind, gene in mod.GENES.items():
         POOL[kind][mod.SPECIES] = gene
 POOL["legs"]["tentacle"] = TentacleLegs()
@@ -34,10 +43,7 @@ POOL["arm"]["tentacle"] = TentacleArm()
 
 # syllables used to name a hybrid: prefix from the first donor, suffix from the last
 SYLLABLES = {
-    tech_bro.SPECIES: (tech_bro.PREFIX, tech_bro.SUFFIX),
-    swamp_monster.SPECIES: (swamp_monster.PREFIX, swamp_monster.SUFFIX),
-    sasquatch.SPECIES: (sasquatch.PREFIX, sasquatch.SUFFIX),
-    banana_dude.SPECIES: (banana_dude.PREFIX, banana_dude.SUFFIX),
+    **{mod.SPECIES: (mod.PREFIX, mod.SUFFIX) for mod in DONORS},
     "tentacle": ("Tenta", "pus"),
     "blob": ("Blob", "blob"),
     "brain": ("Brain", "brain"),
@@ -184,24 +190,37 @@ def splice(
     return Specimen(name or hybrid_name(recipe), number, plan, recipe, mutations)
 
 
+def fits(sp: Specimen) -> bool:
+    """True if every frame of every animation stays inside the frame (1px margin for the outline)."""
+    for anim in ANIMATIONS:
+        for pose in poses(anim):
+            box = sp.render(pose).bbox()
+            if box and (box[0] <= 0 or box[1] <= 0 or box[2] >= SIZE - 1):
+                return False
+    return True
+
+
 def random_specimen(seed: int) -> Specimen:
-    """Roll a random hybrid. Guaranteed to draw from at least three donors."""
+    """Roll a random hybrid. Guaranteed to draw from at least three donors, and to
+    fit the frame: tall genes stacked on tall genes get rerolled (same seed, same result)."""
     rng = random.Random(seed)
     while True:
         r = {k: rng.choice(sorted(POOL[k])) for k in ("legs", "torso", "head")}
         r["front_arm"] = rng.choice(sorted(POOL["arm"]))
         r["back_arm"] = r["front_arm"] if rng.random() < 0.5 else rng.choice(sorted(POOL["arm"]))
-        if len(set(r.values())) >= 3:
-            break
-    tint_layer = rng.choice(["legs", "torso", "front_arm", "head"])
-    return splice(
-        **r,
-        number=seed,
-        extra_head=rng.choice(sorted(POOL["head"])) if rng.random() < 0.2 else None,
-        eyes=rng.choice([0, 0, 1, 2, 3]),
-        bolts=rng.random() < 0.4,
-        irradiated={tint_layer: rng.choice(sorted(TINTS))} if rng.random() < 0.35 else None,
-    )
+        if len(set(r.values())) < 3:
+            continue
+        tint_layer = rng.choice(["legs", "torso", "front_arm", "head"])
+        sp = splice(
+            **r,
+            number=seed,
+            extra_head=rng.choice(sorted(POOL["head"])) if rng.random() < 0.2 else None,
+            eyes=rng.choice([0, 0, 1, 2, 3]),
+            bolts=rng.random() < 0.4,
+            irradiated={tint_layer: rng.choice(sorted(TINTS))} if rng.random() < 0.35 else None,
+        )
+        if fits(sp):
+            return sp
 
 
 # Hand-picked specimens from the lab notebook.

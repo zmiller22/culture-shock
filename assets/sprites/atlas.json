@@ -261,6 +261,1592 @@
         }
       }
     },
+    "sassquatch": {
+      "name": "Sassquatch",
+      "kind": "control",
+      "sheet": "sassquatch.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "fly_man": {
+      "name": "Fly Man",
+      "kind": "control",
+      "sheet": "fly_man.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "alien": {
+      "name": "Alien",
+      "kind": "control",
+      "sheet": "alien.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "zombie": {
+      "name": "Zombie",
+      "kind": "control",
+      "sheet": "zombie.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "mermaid": {
+      "name": "Mermaid",
+      "kind": "control",
+      "sheet": "mermaid.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "medusa": {
+      "name": "Medusa",
+      "kind": "control",
+      "sheet": "medusa.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "giant_slug": {
+      "name": "Giant Slug",
+      "kind": "control",
+      "sheet": "giant_slug.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "centaur": {
+      "name": "Centaur",
+      "kind": "control",
+      "sheet": "centaur.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "wyvern": {
+      "name": "Wyvern",
+      "kind": "control",
+      "sheet": "wyvern.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "katana_chick": {
+      "name": "Katana Chick",
+      "kind": "control",
+      "sheet": "katana_chick.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "pageant_queen": {
+      "name": "Pageant Queen",
+      "kind": "control",
+      "sheet": "pageant_queen.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "succubus": {
+      "name": "Succubus",
+      "kind": "control",
+      "sheet": "succubus.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "fairy": {
+      "name": "Fairy",
+      "kind": "control",
+      "sheet": "fairy.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "cowboy": {
+      "name": "Cowboy",
+      "kind": "control",
+      "sheet": "cowboy.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "spider": {
+      "name": "Spider",
+      "kind": "control",
+      "sheet": "spider.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "stoner": {
+      "name": "Stoner",
+      "kind": "control",
+      "sheet": "stoner.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "crawling_baby": {
+      "name": "Crawling Baby",
+      "kind": "control",
+      "sheet": "crawling_baby.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "technoviking": {
+      "name": "Technoviking",
+      "kind": "control",
+      "sheet": "technoviking.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "jazz_sax": {
+      "name": "Jazz Saxophonist",
+      "kind": "control",
+      "sheet": "jazz_sax.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "ghost": {
+      "name": "Ghost",
+      "kind": "control",
+      "sheet": "ghost.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "headless_horseman": {
+      "name": "Headless Horseman",
+      "kind": "control",
+      "sheet": "headless_horseman.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "detective": {
+      "name": "Detective",
+      "kind": "control",
+      "sheet": "detective.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "puppet": {
+      "name": "Puppet",
+      "kind": "control",
+      "sheet": "puppet.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "dominatrix": {
+      "name": "Dominatrix",
+      "kind": "control",
+      "sheet": "dominatrix.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "gimp": {
+      "name": "Gimp",
+      "kind": "control",
+      "sheet": "gimp.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
+    "stephen_hawking": {
+      "name": "Stephen Hawking",
+      "kind": "control",
+      "sheet": "stephen_hawking.png",
+      "animations": {
+        "idle": {
+          "row": 0,
+          "frames": 4,
+          "fps": 4,
+          "loop": true
+        },
+        "walk": {
+          "row": 1,
+          "frames": 4,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "row": 2,
+          "frames": 4,
+          "fps": 12,
+          "loop": true
+        },
+        "jump": {
+          "row": 3,
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "attack": {
+          "row": 4,
+          "frames": 4,
+          "fps": 12,
+          "loop": false
+        },
+        "hurt": {
+          "row": 5,
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "row": 6,
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "crouch": {
+          "row": 7,
+          "frames": 2,
+          "fps": 12,
+          "loop": false
+        },
+        "interact": {
+          "row": 8,
+          "frames": 4,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    },
     "kronenberg_001_brosquatch": {
       "name": "Brosquatch",
       "kind": "kronenberg",

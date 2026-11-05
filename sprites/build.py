@@ -9,6 +9,7 @@ Outputs (under --out, default ./assets):
     previews/lineup.png         the whole cast, scaled up
     previews/<slug>.gif         every state in sequence, scaled up
     previews/states/<slug>.png  labeled grid of every state, scaled up
+    levels/<level>/             level art, collision data and boss sheet (see sprites/levels/)
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from PIL import Image
 from .canvas import Canvas
 from .characters import Character, roster
 from .font import draw_text, draw_text_centered, text_width
+from .levels import courthouse
 from .palette import LAB_BG, LAB_DIM, LAB_FLOOR, LAB_GRID, LAB_TEXT, MUTANT
 from .rig import ANIMATIONS, FPS, GROUND, LOOP, SIZE
 
@@ -103,6 +105,15 @@ def state_sheet(ch: Character) -> Image.Image:
     return c.to_image(4)
 
 
+def label_lines(name: str, width: int) -> list[str]:
+    """One line if it fits, else split at the space closest to the middle."""
+    words = name.split()
+    if text_width(name) <= width or len(words) < 2:
+        return [name]
+    k = min(range(1, len(words)), key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))))
+    return [" ".join(words[:k]), " ".join(words[k:])]
+
+
 def lineup(chars: list[Character], cols: int = 7) -> Image.Image:
     cell_w, cell_h, margin = 56, 66, 8
     sections = [
@@ -126,7 +137,8 @@ def lineup(chars: list[Character], cols: int = 7) -> Image.Image:
             lab_floor(c, x0 + 2, y0 + GROUND + 2, SIZE - 4)
             c.paste(ch.frames("idle")[0], x0, y0)
             cx = margin + col * cell_w + cell_w // 2
-            draw_text_centered(c, cx, y0 + 51, ch.name, LAB_TEXT)
+            for k, line in enumerate(label_lines(ch.name, cell_w - 2)):
+                draw_text_centered(c, cx, y0 + 51 + 6 * k, line, LAB_TEXT)
             if ch.kind == "kronenberg":
                 draw_text_centered(c, cx, y0 + 58, f"NO. {ch.meta['specimen']:03d}", LAB_DIM)
         y += -(-len(members) // cols) * cell_h
@@ -165,7 +177,8 @@ def build(out: Path, mutants: int, seed: int, scale: int) -> None:
     (sprites_dir / "atlas.json").write_text(json.dumps(atlas, indent=2) + "\n")
     img = lineup(chars)
     img.resize((img.width * 4, img.height * 4), Image.NEAREST).save(previews_dir / "lineup.png")
-    print(f"wrote {len(chars)} characters to {out}")
+    courthouse.build(out)
+    print(f"wrote {len(chars)} characters and 1 level to {out}")
 
 
 def main() -> None:

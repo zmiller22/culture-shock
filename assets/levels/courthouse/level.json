@@ -1,0 +1,473 @@
+{
+ "name": "The Court House",
+ "tile": 16,
+ "size": [
+  1920,
+  192
+ ],
+ "view": [
+  320,
+  180
+ ],
+ "camera_y": 12,
+ "floor_y": 160,
+ "layers": [
+  {
+   "image": "far.png",
+   "parallax": 0.5,
+   "repeat_x": true
+  },
+  {
+   "image": "level.png",
+   "parallax": 1.0
+  }
+ ],
+ "map": [
+  "M......................................................................................................................M",
+  "M......................................................................................................................M",
+  "M......................................................................................................................M",
+  "M......................................................................................................................M",
+  "M......................................................................................................................M",
+  "M..............MMMM....................................................................................................M",
+  "M......................................................................................................................M",
+  "M................................^.CC...............--.................................................................M",
+  "M...............................CC.CC.....HH....--.....................................................................M",
+  "M............PP.......^..^.^.CC.CCCCC...HHHH==..........==.............................................................M",
+  "############################################~~~~~~~~~~~~~~###################################<<<<<<<####################",
+  "############################################~~~~~~~~~~~~~~##############################################################"
+ ],
+ "legend": {
+  "#": {
+   "tile": "court",
+   "collider": "solid"
+  },
+  "M": {
+   "tile": "marble",
+   "collider": "solid"
+  },
+  "H": {
+   "tile": "hay",
+   "collider": "solid"
+  },
+  "C": {
+   "tile": "case",
+   "collider": "solid"
+  },
+  "-": {
+   "tile": "ruler",
+   "collider": "oneway"
+  },
+  "=": {
+   "tile": "dock",
+   "collider": "oneway"
+  },
+  "P": {
+   "tile": "legal_pad",
+   "collider": "bounce"
+  },
+  "<": {
+   "tile": "conveyor",
+   "collider": "conveyor"
+  },
+  "^": {
+   "tile": "banana_peel",
+   "collider": "hazard"
+  },
+  "~": {
+   "tile": "water",
+   "collider": "water"
+  }
+ },
+ "colliders": [
+  {
+   "type": "solid",
+   "x": 0,
+   "y": 0,
+   "w": 16,
+   "h": 160,
+   "tile": "marble"
+  },
+  {
+   "type": "solid",
+   "x": 1904,
+   "y": 0,
+   "w": 16,
+   "h": 160,
+   "tile": "marble"
+  },
+  {
+   "type": "solid",
+   "x": 240,
+   "y": 80,
+   "w": 64,
+   "h": 16,
+   "tile": "marble"
+  },
+  {
+   "type": "hazard",
+   "x": 528,
+   "y": 123,
+   "w": 16,
+   "h": 5,
+   "tile": "banana_peel"
+  },
+  {
+   "type": "solid",
+   "x": 560,
+   "y": 112,
+   "w": 32,
+   "h": 32,
+   "tile": "case"
+  },
+  {
+   "type": "oneway",
+   "x": 832,
+   "y": 112,
+   "w": 32,
+   "h": 5,
+   "tile": "ruler"
+  },
+  {
+   "type": "solid",
+   "x": 512,
+   "y": 128,
+   "w": 32,
+   "h": 16,
+   "tile": "case"
+  },
+  {
+   "type": "solid",
+   "x": 672,
+   "y": 128,
+   "w": 32,
+   "h": 16,
+   "tile": "hay"
+  },
+  {
+   "type": "oneway",
+   "x": 768,
+   "y": 128,
+   "w": 32,
+   "h": 5,
+   "tile": "ruler"
+  },
+  {
+   "type": "bounce",
+   "x": 208,
+   "y": 154,
+   "w": 32,
+   "h": 6,
+   "tile": "legal_pad",
+   "launch": 420
+  },
+  {
+   "type": "hazard",
+   "x": 352,
+   "y": 155,
+   "w": 16,
+   "h": 5,
+   "tile": "banana_peel"
+  },
+  {
+   "type": "hazard",
+   "x": 400,
+   "y": 155,
+   "w": 16,
+   "h": 5,
+   "tile": "banana_peel"
+  },
+  {
+   "type": "hazard",
+   "x": 432,
+   "y": 155,
+   "w": 16,
+   "h": 5,
+   "tile": "banana_peel"
+  },
+  {
+   "type": "solid",
+   "x": 464,
+   "y": 144,
+   "w": 32,
+   "h": 16,
+   "tile": "case"
+  },
+  {
+   "type": "solid",
+   "x": 512,
+   "y": 144,
+   "w": 80,
+   "h": 16,
+   "tile": "case"
+  },
+  {
+   "type": "solid",
+   "x": 640,
+   "y": 144,
+   "w": 64,
+   "h": 16,
+   "tile": "hay"
+  },
+  {
+   "type": "oneway",
+   "x": 704,
+   "y": 144,
+   "w": 32,
+   "h": 5,
+   "tile": "dock"
+  },
+  {
+   "type": "oneway",
+   "x": 896,
+   "y": 144,
+   "w": 32,
+   "h": 5,
+   "tile": "dock"
+  },
+  {
+   "type": "solid",
+   "x": 0,
+   "y": 160,
+   "w": 704,
+   "h": 32,
+   "tile": "court"
+  },
+  {
+   "type": "water",
+   "x": 704,
+   "y": 165,
+   "w": 224,
+   "h": 27,
+   "tile": "water"
+  },
+  {
+   "type": "solid",
+   "x": 928,
+   "y": 160,
+   "w": 560,
+   "h": 16,
+   "tile": "court"
+  },
+  {
+   "type": "conveyor",
+   "x": 1488,
+   "y": 160,
+   "w": 112,
+   "h": 16,
+   "tile": "conveyor",
+   "push": -60
+  },
+  {
+   "type": "solid",
+   "x": 1600,
+   "y": 160,
+   "w": 320,
+   "h": 16,
+   "tile": "court"
+  },
+  {
+   "type": "solid",
+   "x": 928,
+   "y": 176,
+   "w": 992,
+   "h": 16,
+   "tile": "court"
+  },
+  {
+   "type": "oneway",
+   "x": 96,
+   "y": 136,
+   "w": 72,
+   "h": 4
+  },
+  {
+   "type": "oneway",
+   "x": 998,
+   "y": 134,
+   "w": 100,
+   "h": 4
+  },
+  {
+   "type": "oneway",
+   "x": 1010,
+   "y": 144,
+   "w": 10,
+   "h": 3
+  },
+  {
+   "type": "oneway",
+   "x": 1040,
+   "y": 144,
+   "w": 10,
+   "h": 3
+  },
+  {
+   "type": "oneway",
+   "x": 1070,
+   "y": 144,
+   "w": 10,
+   "h": 3
+  },
+  {
+   "type": "oneway",
+   "x": 1226,
+   "y": 127,
+   "w": 28,
+   "h": 4
+  },
+  {
+   "type": "oneway",
+   "x": 1304,
+   "y": 134,
+   "w": 64,
+   "h": 4
+  },
+  {
+   "type": "oneway",
+   "x": 1303,
+   "y": 104,
+   "w": 66,
+   "h": 4
+  },
+  {
+   "type": "oneway",
+   "x": 1400,
+   "y": 106,
+   "w": 24,
+   "h": 4
+  },
+  {
+   "type": "oneway",
+   "x": 1744,
+   "y": 148,
+   "w": 48,
+   "h": 3
+  }
+ ],
+ "collider_types": {
+  "solid": "blocks from every side",
+  "oneway": "stand on the top edge; jump up through it",
+  "bounce": "oneway, and landing launches you upward at `launch` px/s",
+  "conveyor": "solid, and pushes anything standing on it `push` px/s",
+  "hazard": "banana peel: touching it while grounded makes you slip (hurt)",
+  "water": "fall in and you're done (death, respawn at the last checkpoint)"
+ },
+ "spawn": [
+  32,
+  160
+ ],
+ "checkpoints": [
+  [
+   32,
+   160
+  ],
+  [
+   608,
+   160
+  ],
+  [
+   928,
+   160
+  ],
+  [
+   1280,
+   160
+  ],
+  [
+   1600,
+   160
+  ]
+ ],
+ "zones": [
+  {
+   "name": "LOBBY",
+   "x0": 0,
+   "x1": 320
+  },
+  {
+   "name": "COURT OF APPEALS",
+   "x0": 320,
+   "x1": 640
+  },
+  {
+   "name": "THE DOCK",
+   "x0": 640,
+   "x1": 960
+  },
+  {
+   "name": "THE BAR",
+   "x0": 960,
+   "x1": 1280
+  },
+  {
+   "name": "WITNESS STAND",
+   "x0": 1280,
+   "x1": 1600
+  },
+  {
+   "name": "THE BENCH",
+   "x0": 1600,
+   "x1": 1920
+  }
+ ],
+ "boss": {
+  "slug": "spaghetti_judge",
+  "name": "The Honorable Judge Spaghetti",
+  "sheet": "spaghetti_judge.png",
+  "frame_size": [
+   80,
+   80
+  ],
+  "facing": "right",
+  "home": [
+   1792,
+   84
+  ],
+  "arena": [
+   1600,
+   1904
+  ],
+  "hits": 6,
+  "attack_point": [
+   70,
+   74
+  ],
+  "animations": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "fps": 6,
+    "loop": true,
+    "notes": "hover in place (the bob is baked in)"
+   },
+   "fly": {
+    "row": 1,
+    "frames": 4,
+    "fps": 10,
+    "loop": true,
+    "notes": "loop while moving; noodles trail behind"
+   },
+   "attack": {
+    "row": 2,
+    "frames": 4,
+    "fps": 10,
+    "loop": false,
+    "notes": "gavel slam: wind-up, swing, impact, recover. The hit lands on frame 2 at `attack_point`. Draw ORDER! over it yourself (text baked into a sprite would read backwards when flipped)"
+   },
+   "hurt": {
+    "row": 3,
+    "frames": 2,
+    "fps": 10,
+    "loop": false,
+    "notes": "play once; frame 1 is the white hit-flash"
+   },
+   "death": {
+    "row": 4,
+    "frames": 6,
+    "fps": 6,
+    "loop": false,
+    "notes": "play once and hold the last frame (a plate of spaghetti, wig on top)"
+   }
+  }
+ }
+}
