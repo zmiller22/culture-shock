@@ -35,7 +35,7 @@ from ..shell import Input, run
 from ..stork_bomber import art as stork_art
 from . import art, people
 
-NEED = 3                        # critters in the soup to bring it to life
+NEED = 4                        # critters in the soup to bring it to life
 TIME_LIMIT = 45.0               # seconds before the diners lose patience
 
 # the room (floor coordinates are where feet touch)
@@ -44,15 +44,17 @@ Y_MIN, Y_MAX = art.FLOOR_TOP + 6, art.WALL_B - 2
 POT_X, POT_Y = 160, 122         # pot's feet
 POT_FOOT = (POT_X, POT_Y - 5, 29, 9)            # floor ellipse it blocks: cx, cy, rx, ry
 POT_RIM_Z = art.POT_FEET - art.POT_RIM[1] - 2   # height of the rim above the floor
-BENCHES = [(30, 100, 56, 18, 1), (234, 100, 56, 18, 2), (56, 160, 44, 14, 3), (220, 160, 44, 14, 4)]
+BENCHES = [(30, 100, 56, 18, 1), (234, 100, 56, 18, 2)]
 # (x, bottom row, width, depth, seed): each blocks the floor rect x..x+w, bottom-depth..bottom
+TESLA_FOOT = (art.TESLA[0], art.TESLA[1] - 4, 13, 5)
+TANK_FOOT = (art.TANK[0], art.TANK[1] - 4, 16, 5)
+ROUND = [POT_FOOT, TESLA_FOOT, TANK_FOOT]       # floor ellipses nothing walks through
 
-CHEF_ACCEL = 900                # px/s^2
-CHEF_DRAG = 9.0
-CHEF_MAX = 82                   # px/s, a bit less while carrying
-CARRY_MAX = 70
+CHEF_MAX = 84                   # px/s, a bit less while carrying
+CARRY_MAX = 72
+CHEF_GRIP = 30.0                # how fast he gets to the stick's speed (1/s): high = tight, arcade-y
+GREASE_GRIP = 1.6               # ...and on grease, not very
 DEPTH = 0.8                     # up/down moves a bit slower than left/right (it's a 3/4 view)
-GREASE_DRAG, GREASE_ACCEL = 0.8, 0.35
 FEET_R = 6                      # half-width of feet for collisions
 
 LUNGE_T = 0.34                  # pounce duration
@@ -64,12 +66,34 @@ THROW_SPEED = 115
 THROW_UP = 150                  # px/s up at release
 GRAVITY = 420
 HAND_Z = 18                     # height of the hands
-AIM_RANGE = 90                  # throw toward the pot from this close and it goes in
+AIM_RANGE = 70                  # throw toward the pot from this close and it goes in
 STUN_T = 0.9
 
 CRIT_SPEED = (44, 60)
-CRIT_PANIC = 52                 # flee once the chef is this close
+CRIT_PANIC = 62                 # flee once the chef is this close
 CRIT_STUN = 0.8
+CRITTERS_PER_ROUND = 7
+# each kind's personality: speed multiplier, hops along, taunts you from a distance
+PERSONALITY = {
+    "eyeball": (1.0, False), "legfish": (1.3, False), "amoeba": (0.75, False), "brainbug": (1.05, False),
+    "jello": (0.9, True), "egg": (0.85, True), "hotdog": (1.1, False), "trilobite": (0.95, False),
+    "wiener": (1.15, True), "vulva": (1.0, False),
+}
+TAUNT_RANGE = 95                # taunts only when the chef is at least this far away
+TAUNT_EVERY = (3.0, 7.0)
+TAUNT_T = 0.9
+
+TESLA_EVERY = (3.0, 5.0)        # s between zaps
+TESLA_WARN = 0.7                # it crackles this long before firing
+TESLA_REACH = 62                # px from the coil it'll arc to
+ZAP_T = 0.22                    # how long a bolt stays on screen
+ZAP_STUN = 0.75
+
+STAFF = ("sous", "scientist", "intern")
+STAFF_SPEED = {"sous": 34, "scientist": 26, "intern": 92}
+STAFF_R = 8                     # half-width they take up on the floor
+BUMP_SPEED = 120                # px/s the chef gets shoved
+BUMP_T = 0.3
 
 TOOL_FIRST = (6.0, 9.0)         # s before the first tool flies off the rack
 TOOL_EVERY = (6.0, 10.0)
@@ -97,6 +121,23 @@ STAB_LINES = ["STAB!", "SHANK!", "FORKED!", "STAB!", "SLICE!", "POKE!"]
 ANGRY_LINES = ["WHERE'S OUR SOUP?!", "45 MINUTES?!", "I WANT THE MANAGER!", "ORDER UP?!"]
 AFTER_LINES = ["TOO SALTY.", "ONE STAR.", "STILL HUNGRY.", "NEEDS MORE CHEF."]
 EAT_LINES = ["NOM!", "GLORP!", "SLURP!"]
+SQUEAL_LINES = {
+    "eyeball": ["EYE OBJECT!", "I SEE WHAT YOU'RE DOING!"], "legfish": ["MY LEGS!", "I JUST GOT THESE!"],
+    "amoeba": ["SACRE BLEU!", "I'LL SPLIT!"], "brainbug": ["I'M TOO SMART FOR SOUP!", "EUREKA... NO!"],
+    "jello": ["THERE'S ALWAYS ROOM FOR... NO!", "WOBBLE!"], "egg": ["AAAAAA!", "I'M NOT EVEN BORN!"],
+    "hotdog": ["I'M A SANDWICH!", "UNHAND ME!"], "trilobite": ["I'VE SEEN EXTINCTIONS!", "NOT COOL!"],
+    "wiener": ["NOT THE BALLS!", "IT'S COLD IN HERE!", "I'M A GROWER!"],
+    "vulva": ["BUY ME DINNER FIRST!", "HANDS OFF!", "WHERE'S MY STORK?!"],
+}
+TAUNT_LINES = ["NYAH!", "CAN'T CATCH ME!", "BLEH!", "TOO SLOW!", "OVER HERE!", "EAT A SALAD!"]
+SOUP_CRIES = ["BLUB BLUB", "IT'S WARM!", "HOT HOT HOT!"]
+ZAP_LINES = ["ZZZAP!", "BZZZT!", "KRZZZK!"]
+BUMP_LINES = {"sous": ["WATCH IT!", "COMING THROUGH!", "BEHIND!"],
+              "scientist": ["MIND THE SAMPLE!", "FASCINATING...", "CAREFUL!"],
+              "intern": ["AAAAAH!", "I'M ON FIRE!", "HOT HOT HOT!", "SORRY!"]}
+STAFF_LINES = {"sous": ["YES CHEF!", "HEARD!", "TABLE NINE!"],
+               "scientist": ["IT NEEDS MORE VOLTAGE!", "HYPOTHESIS: SOUP!", "MWAHAHA!"],
+               "intern": ["AAAAAH!", "IS THIS NORMAL?!", "WHERE'S THE EXTINGUISHER?!"]}
 
 
 @dataclass
@@ -123,6 +164,25 @@ class Critter:
     speed: float = 50.0
     facing: int = 1
     aim: bool = False           # thrown at the pot
+    hop: bool = False           # bounces along instead of scuttling
+    taunt: float = 0.0          # counts down while it's taunting you
+    taunt_in: float = 5.0
+
+
+@dataclass
+class Staff:
+    """Another cook or scientist going about their business. They're in the way."""
+    who: str
+    x: float
+    y: float
+    goal: tuple[float, float] = (0.0, 0.0)
+    state: str = "walk"         # walk | pause | hurt | flee | eaten
+    t: float = 0.0
+    pause: float = 0.0
+    facing: int = 1
+    vx: float = 0.0
+    vy: float = 0.0
+    talk_in: float = 4.0
 
 
 @dataclass
@@ -180,6 +240,7 @@ class Slime:
     hat: bool = False
     eaten: list[str] = field(default_factory=list)
     facing: int = 1
+    snacks: list[str] = field(default_factory=list)   # staff it swallowed
 
 
 def both(c: Canvas) -> dict[int, pygame.Surface]:
@@ -226,6 +287,11 @@ class Art:
                                     for i, kw in enumerate(ANIMATIONS[base])]
         self.diners = [{a: [both(f) for f in fr] for a, fr in people.diner_frames(look).items()}
                        for look in people.DINER_LOOKS]
+        staff = {who: people.staff_frames(who) for who in STAFF}
+        self.staff_raw = {who: f["hurt"][0] for who, f in staff.items()}
+        self.staff = {who: {a: [both(x) for x in fr] for a, fr in f.items()} for who, f in staff.items()}
+        self.tesla = [to_surface(art.tesla_coil(q)) for q in (0.0, 0.5, 1.0)]
+        self.tank = [to_surface(art.specimen_tank(f)) for f in range(4)]
         self._slime: dict[tuple, dict[int, pygame.Surface]] = {}
 
     @staticmethod
@@ -244,6 +310,8 @@ class Art:
             for i, (kind, amount) in enumerate(inside):
                 if kind == "chef":
                     things.append((self.chef_raw[frame % 2], 0, -6 - frame % 2, amount))
+                elif kind.startswith("staff:"):
+                    things.append((self.staff_raw[kind[6:]], (i * 17) % 24 - 12, -8, amount))
                 else:
                     things.append((art.critter(kind, 2 + frame % 2), (i * 13) % 30 - 15, -h // 2 + (i * 7) % 12, 0.2))
             self._slime[key] = both(art.slime(w, h, frame, mouth, hat, things))
@@ -280,11 +348,25 @@ class PrimordialSoup:
         self.whoa = False
 
         self.critters: list[Critter] = []
-        for kind in art.CRITTERS:
+        for kind in self.rng.sample(art.CRITTERS, CRITTERS_PER_ROUND):
             x, y = self._free_spot()
-            c = Critter(kind, x, y, speed=self.rng.uniform(*CRIT_SPEED), facing=self.rng.choice((-1, 1)))
+            speed, hop = PERSONALITY.get(kind, (1.0, False))
+            c = Critter(kind, x, y, speed=self.rng.uniform(*CRIT_SPEED) * speed, facing=self.rng.choice((-1, 1)),
+                        hop=hop, taunt_in=self.rng.uniform(*TAUNT_EVERY))
             c.goal = self._free_spot()
             self.critters.append(c)
+        self.staff: list[Staff] = []
+        for who in STAFF:
+            x, y = self._free_spot(12)
+            st = Staff(who, x, y, talk_in=self.rng.uniform(3, 9))
+            st.goal = self._free_spot(12)
+            self.staff.append(st)
+        self.bump = 0.0
+        self.tesla_in = self.rng.uniform(*TESLA_EVERY)
+        self.bolts: list[list] = []                   # [points, t]
+        self.flash = 0.0
+        self.ding_in = self.rng.uniform(8, 14)
+        self.vents: list[list[float]] = []           # [x, y, t]
         self.in_soup = 0
         self.slicks = []
         for i in range(2):
@@ -312,9 +394,9 @@ class PrimordialSoup:
     def _blocked(self, x: float, y: float, r: float = FEET_R) -> bool:
         if not (X_MIN <= x <= X_MAX and Y_MIN <= y <= Y_MAX):
             return True
-        cx, cy, rx, ry = POT_FOOT
-        if ((x - cx) / (rx + r)) ** 2 + ((y - cy) / (ry + 3)) ** 2 <= 1:
-            return True
+        for cx, cy, rx, ry in ROUND:
+            if ((x - cx) / (rx + r)) ** 2 + ((y - cy) / (ry + 3)) ** 2 <= 1:
+                return True
         for bx, bottom, bw, depth, _ in BENCHES:
             if bx - r <= x <= bx + bw + r and bottom - depth - 2 <= y <= bottom + 2:
                 return True
@@ -368,6 +450,9 @@ class PrimordialSoup:
         self.anim_t += dt
         self.shake = max(0.0, self.shake - dt)
 
+        self.flash = max(0.0, self.flash - dt)
+        self._update_staff(dt)
+        self._update_lab(dt)
         if self.phase == "title":
             self._update_critters(dt)
             if inp.action and self.phase_t > 0.3:
@@ -378,6 +463,7 @@ class PrimordialSoup:
             self.clock = max(0.0, self.clock - dt)
             self._update_chef(dt, inp)
             self._update_tools(dt)
+            self._update_tesla(dt)
             if self.in_soup >= NEED and not any(c.state == "air" for c in self.critters):
                 self._start_alive()
             elif self.clock <= 0:
@@ -408,19 +494,22 @@ class PrimordialSoup:
             self._popup("WHOA!", self.x, self.y - 50, "#f0d27a", life=0.8)
         elif not slick:
             self.whoa = False
-        accel = CHEF_ACCEL * (GREASE_ACCEL if slick else 1)
-        drag = CHEF_DRAG * (GREASE_DRAG / CHEF_DRAG if slick else 1)
-        if self.lunge <= 0:
-            self.vx += inp.x * accel * dt
-            self.vy += inp.y * accel * DEPTH * dt
-        self.vx -= self.vx * drag * dt
-        self.vy -= self.vy * drag * dt
-        top = CARRY_MAX if self.held else CHEF_MAX
-        if self.lunge > 0:
-            top = LUNGE_SPEED
-        speed = math.hypot(self.vx, self.vy)
-        if speed > top:
-            self.vx, self.vy = self.vx * top / speed, self.vy * top / speed
+        self.bump = max(0.0, self.bump - dt)
+        if self.lunge <= 0 and self.bump <= 0:
+            ix, iy = inp.x, inp.y * DEPTH
+            n = math.hypot(inp.x, inp.y)
+            if n > 1:                                                  # diagonals aren't faster
+                ix, iy = ix / n, iy / n
+            top = CARRY_MAX if self.held else CHEF_MAX
+            k = min(1.0, (GREASE_GRIP if slick else CHEF_GRIP) * dt)
+            self.vx += (ix * top - self.vx) * k
+            self.vy += (iy * top - self.vy) * k
+        elif self.lunge > 0:
+            self.vx -= self.vx * 4 * dt
+            self.vy -= self.vy * 4 * dt
+        else:                                                          # shoved: skid to a stop
+            self.vx -= self.vx * 6 * dt
+            self.vy -= self.vy * 6 * dt
         self.x, self.y, bx, by = self._move(self.x, self.y, self.vx * dt, self.vy * dt)
         if bx:
             self.vx = 0.0
@@ -444,6 +533,7 @@ class PrimordialSoup:
                     self.held = c
                     self.lunge = min(self.lunge, 0.08)
                     self._popup(self.rng.choice(GRAB_LINES), self.x, self.y - 52)
+                    self._popup(self.rng.choice(SQUEAL_LINES.get(c.kind, ["EEK!"])), self.x, self.y - 62, "#5ff3ff")
                     break
             else:
                 if self.lunge <= dt:
@@ -497,7 +587,7 @@ class PrimordialSoup:
                     c.vx, c.vy = -c.vx * 0.4, -c.vy * 0.4
                     nx, ny = c.x, c.y
                     self._popup("CLANG!", c.x, c.y - 30, LAB_DIM, life=0.6)
-                if self._blocked(nx, ny, 3) and not over_pot:
+                if not c.aim and c.z < 12 and not over_pot and self._blocked(nx, ny, 3):   # only low throws hit things
                     c.vx, c.vy = -c.vx * 0.3, -c.vy * 0.3
                 else:
                     c.x, c.y = nx, ny
@@ -516,6 +606,21 @@ class PrimordialSoup:
             # roam: wander, but bolt from the chef when he gets close
             dx, dy = c.x - self.x, c.y - self.y
             d = math.hypot(dx, dy) or 1
+            if c.hop:                                                  # boing, boing
+                c.z = abs(math.sin(c.t * 7)) * 5 if math.hypot(c.vx, c.vy) > 10 else 0.0
+            if self.phase == "play":
+                c.taunt_in -= dt
+                if c.taunt > 0:                                        # standing there, wiggling at you
+                    c.taunt -= dt
+                    c.facing = -1 if dx > 0 else 1
+                    c.vx = c.vy = 0.0
+                    if d >= CRIT_PANIC:
+                        continue
+                    c.taunt = 0.0
+                elif c.taunt_in <= 0 and d > TAUNT_RANGE:
+                    c.taunt, c.taunt_in = TAUNT_T, self.rng.uniform(*TAUNT_EVERY)
+                    self._popup(self.rng.choice(TAUNT_LINES), c.x, c.y - 26, "#ff9ab8", life=0.9)
+                    continue
             panic = self.phase in ("play", "alive", "mob") and d < CRIT_PANIC and self.held is not c
             if self.slime and self.slime.state in ("hop", "land", "leap"):
                 sdx, sdy = c.x - self.slime.x, c.y - self.slime.y
@@ -528,7 +633,7 @@ class PrimordialSoup:
                     tx, ty = tx * 0.3, (1 if c.y < (Y_MIN + Y_MAX) / 2 else -1)
                 if c.y < Y_MIN + 12 or c.y > Y_MAX - 12:
                     tx, ty = (1 if c.x < W / 2 else -1), ty * 0.3
-                speed = c.speed * 1.25
+                speed = c.speed * 1.4
             else:
                 gx, gy = c.goal
                 tx, ty = gx - c.x, gy - c.y
@@ -553,8 +658,150 @@ class PrimordialSoup:
         self.in_soup += 1
         line = "NOTHING BUT SOUP!" if not c.aim else self.rng.choice(SOUP_LINES)
         self._popup(line, POT_X, POT_Y - 70, art.GOO_HI)
+        self._popup(self.rng.choice(SOUP_CRIES), POT_X + self.rng.uniform(-20, 20), POT_Y - 60, "#5ff3ff", life=1.0)
         self._splash(POT_X, POT_Y - 4, POT_RIM_Z, 10, "broth" if self.in_soup < NEED else "soup")
         self.dna.append([POT_X + self.rng.uniform(-10, 10), POT_Y - POT_RIM_Z, 0.0])
+
+    def _update_staff(self, dt: float) -> None:
+        s = self.slime
+        for st in self.staff:
+            st.t += dt
+            if st.state == "eaten":
+                continue
+            if st.state == "hurt":
+                if st.t > 0.7:
+                    st.state, st.t = "walk", 0.0
+                continue
+            speed = STAFF_SPEED[st.who]
+            if s and s.state not in ("pot",) and self.phase in ("alive", "won"):   # RUN
+                dx, dy = st.x - s.x, st.y - s.y
+                d = math.hypot(dx, dy) or 1
+                if d < 90:
+                    st.state = "flee"
+                    st.goal = (st.x + dx / d * 40, st.y + dy / d * 40)
+                    speed = max(speed, 80)
+            elif self.phase in ("mob", "lost"):
+                st.state = "pause"                                     # stop and stare
+                st.facing = 1 if self.x > st.x else -1
+                continue
+            if st.state == "pause":
+                st.pause -= dt
+                if st.pause <= 0:
+                    st.state, st.goal = "walk", self._free_spot(12)
+                continue
+            gx, gy = st.goal
+            dx, dy = gx - st.x, gy - st.y
+            d = math.hypot(dx, dy)
+            if d < 4:
+                if st.who == "intern":                                 # never stops screaming
+                    st.goal = self._free_spot(12)
+                else:
+                    st.state, st.pause, st.t = "pause", self.rng.uniform(0.8, 2.2), 0.0
+                continue
+            nvx, nvy = dx / d * speed, dy / d * speed * DEPTH
+            st.x, st.y, bx, by = self._move(st.x, st.y, nvx * dt, nvy * dt, STAFF_R - 2)
+            st.vx, st.vy = nvx, nvy
+            if bx and by:
+                st.goal = self._free_spot(12)
+            if abs(dx) > 1:
+                st.facing = 1 if dx > 0 else -1
+            st.talk_in -= dt
+            if st.talk_in <= 0 and self.phase in ("play", "title"):
+                st.talk_in = self.rng.uniform(5, 11)
+                self._popup(self.rng.choice(STAFF_LINES[st.who]), st.x, st.y - 50, LAB_DIM, life=1.1)
+            # they don't walk through the chef: whoever's in the way gets shoved
+            if self.phase == "play" and self.stun <= 0:
+                ddx, ddy = self.x - st.x, (self.y - st.y) * 1.6
+                dd = math.hypot(ddx, ddy)
+                if dd < STAFF_R + FEET_R and self.bump <= 0:
+                    nx, ny = (ddx / dd, ddy / dd) if dd > 0.1 else (st.facing, 0.0)
+                    self.vx, self.vy = nx * BUMP_SPEED, ny * BUMP_SPEED * 0.6
+                    self.bump = BUMP_T
+                    self._popup(self.rng.choice(BUMP_LINES[st.who]), st.x, st.y - 50, "#f0d27a", life=0.8)
+                    if st.who == "intern" and self.held:               # he's on fire, it's chaos
+                        self._drop_held()
+                    st.goal = self._free_spot(12)
+        # and the chef can't walk through them either
+        for st in self.staff:
+            if st.state == "eaten":
+                continue
+            ddx, ddy = self.x - st.x, (self.y - st.y) * 1.6
+            dd = math.hypot(ddx, ddy)
+            if 0.1 < dd < STAFF_R + FEET_R - 1:
+                push = (STAFF_R + FEET_R - 1 - dd)
+                nx, ny = self._move(self.x, self.y, ddx / dd * push, ddy / dd * push / 1.6)[:2]
+                self.x, self.y = nx, ny
+
+    def _update_tesla(self, dt: float) -> None:
+        self.tesla_in -= dt
+        if self.tesla_in > 0:
+            return
+        self.tesla_in = self.rng.uniform(*TESLA_EVERY)
+        tx, ty = art.TESLA
+        top = (tx - art.TESLA_W // 2 + art.TESLA_TOP[0], ty - art.TESLA_H + 2 + art.TESLA_TOP[1])
+        # who's closest gets it: the chef, a critter, a coworker, or just the floor
+        targets = [(math.hypot(self.x - tx, (self.y - ty) * 1.4), "chef", None)]
+        targets += [(math.hypot(c.x - tx, (c.y - ty) * 1.4), "crit", c) for c in self.critters if c.state in ("roam", "stun")]
+        targets += [(math.hypot(st.x - tx, (st.y - ty) * 1.4), "staff", st) for st in self.staff if st.state != "eaten"]
+        d, kind, obj = min(targets, key=lambda t: t[0])
+        if d > TESLA_REACH:
+            a = self.rng.uniform(-math.pi, 0)
+            end = (tx + math.cos(a) * 40, ty + 6 + math.sin(a) * -12)
+            kind = "floor"
+        elif kind == "chef":
+            end = (self.x, self.y - 22)
+            self.stun = ZAP_STUN
+            self.vx = self.vy = 0.0
+            self._drop_held()
+            self._popup(self.rng.choice(ZAP_LINES), self.x, self.y - 60, "#dff8ff")
+        elif kind == "crit":
+            end = (obj.x, obj.y - 6)
+            obj.state, obj.t = "stun", -0.8                            # extra crispy: stunned longer
+            self._popup("FRIED!", obj.x, obj.y - 24, "#dff8ff", life=0.8)
+        else:
+            end = (obj.x, obj.y - 22)
+            obj.state, obj.t = "hurt", 0.0
+            self._popup("YOWCH!", obj.x, obj.y - 52, "#dff8ff", life=0.8)
+        self._bolt(top, end)
+        self.flash = 0.08
+        self.shake = max(self.shake, 0.1)
+
+    def _bolt(self, a: tuple[float, float], b: tuple[float, float]) -> None:
+        pts = [a]
+        n = 7
+        for k in range(1, n):
+            t = k / n
+            pts.append((a[0] + (b[0] - a[0]) * t + self.rng.uniform(-6, 6),
+                        a[1] + (b[1] - a[1]) * t + self.rng.uniform(-4, 4)))
+        pts.append(b)
+        self.bolts.append([pts, 0.0])
+
+    @property
+    def tesla_charge(self) -> float:
+        if self.phase != "play":
+            return 0.0
+        return max(0.0, 1 - self.tesla_in / TESLA_WARN)
+
+    def _update_lab(self, dt: float) -> None:
+        for b in self.bolts:
+            b[1] += dt
+        self.bolts = [b for b in self.bolts if b[1] < ZAP_T]
+        if self.tesla_charge > 0 and self.rng.random() < 12 * dt:      # crackling before it fires
+            tx, ty = art.TESLA
+            top = (tx - art.TESLA_W // 2 + art.TESLA_TOP[0], ty - art.TESLA_H + 2 + art.TESLA_TOP[1])
+            a = self.rng.uniform(0, math.tau)
+            self._bolt(top, (top[0] + math.cos(a) * 12, top[1] + math.sin(a) * 6))
+        self.ding_in -= dt
+        if self.ding_in <= 0:
+            self.ding_in = self.rng.uniform(9, 16)
+            wx, wy, ww, _ = art.MICRO_WIN
+            self._popup("DING!", wx + ww / 2, wy - 8, "#ffd93a", life=0.9)
+        if self.rng.random() < 0.7 * dt:
+            vx, vy = self.rng.choice(art.VENTS)
+            self.vents.append([vx, vy, 0.0])
+        for v in self.vents:
+            v[2] += dt
+        self.vents = [v for v in self.vents if v[2] < 0.9]
 
     def _update_tools(self, dt: float) -> None:
         for i, t in enumerate(self.rehang):
@@ -594,9 +841,17 @@ class PrimordialSoup:
         self.tools = live
 
     # -- the soup comes alive -------------------------------------------------------------
+    def _ground_tools(self) -> None:
+        """An ending is starting: tools in the air drop where they are, rattling ones settle back."""
+        for tool in self.tools:
+            if tool.state == "shake":
+                self.hanging[tool.spot] = True
+        self.tools = [t for t in self.tools if t.state == "floor"]
+
     def _start_alive(self) -> None:
         self.phase, self.phase_t, self.result = "alive", 0.0, "win"
         self.slime = Slime(POT_X, POT_Y - 2, state="pot")
+        self._ground_tools()
         self._popup("IT'S... ALIVE?", POT_X, POT_Y - 74, art.GOO_HI, life=1.6)
         if self.held:
             self._drop_held()
@@ -628,10 +883,10 @@ class PrimordialSoup:
 
     def _next_hop(self) -> None:
         s = self.slime
-        prey = [c for c in self.critters if c.state in ("roam", "stun")]
-        if prey and self.rng.random() < 0.6:
-            c = min(prey, key=lambda c: math.hypot(c.x - s.x, c.y - s.y))
-            tx, ty = c.x, c.y
+        prey = [(c.x, c.y) for c in self.critters if c.state in ("roam", "stun")]
+        prey += [(st.x, st.y) for st in self.staff if st.state != "eaten"]
+        if prey and self.rng.random() < 0.7:
+            tx, ty = min(prey, key=lambda p: math.hypot(p[0] - s.x, p[1] - s.y))
         else:
             tx, ty = self._free_spot(20)
         d = math.hypot(tx - s.x, ty - s.y)
@@ -679,6 +934,11 @@ class PrimordialSoup:
                 c.state = "eaten"
                 s.eaten.append(c.kind)
                 self._popup(self.rng.choice(EAT_LINES), s.x, s.y - 76, art.GOO_HI, life=0.8)
+        for st in self.staff:
+            if st.state != "eaten" and math.hypot(st.x - s.x, (st.y - s.y) * 1.4) < 32:
+                st.state = "eaten"
+                s.snacks.append(st.who)
+                self._popup("CRUNCH!", s.x, s.y - 84, art.GOO_HI, life=0.9)
         roll = self.rng.random()
         if roll < 0.4 and any(self.hanging):                           # the rack comes down
             spot = self.rng.choice([i for i, h in enumerate(self.hanging) if h])
@@ -696,6 +956,7 @@ class PrimordialSoup:
         self.phase, self.phase_t, self.result = "mob", 0.0, "lose"
         self.popups.append(Popup(big_text("TIME'S UP!", "#ff5f5f"), W / 2, 66, life=1.8))
         self._drop_held()
+        self._ground_tools()
         self.vx = self.vy = 0.0
         self.stun = 0.0
         self.diner_in = 0.6
@@ -821,6 +1082,11 @@ class PrimordialSoup:
         for i, (bx, bottom, bw, depth, _) in enumerate(BENCHES):
             items.append((bottom, 0, ("bench", i)))
         items.append((POT_Y, 1, ("pot", None)))
+        items.append((art.TESLA[1], 1, ("tesla", None)))
+        items.append((art.TANK[1], 1, ("tank", None)))
+        for st in self.staff:
+            if st.state != "eaten":
+                items.append((st.y, 3, ("staff", st)))
         for c in self.critters:
             if c.state not in ("held", "soup", "eaten"):
                 items.append((c.y, 2, ("crit", c)))
@@ -843,9 +1109,17 @@ class PrimordialSoup:
             img = a.dna[int(self.time * 6) % stork_art.DNA_FRAMES]
             if t < 1.3 or int(t * 20) % 2:
                 frame.blit(img, (round(x + 4 * math.sin(t * 5)) - stork_art.DNA_W // 2, round(y - t * 40) - 24))
+        for pts, t in self.bolts:                                          # lightning
+            ipts = [(round(x), round(y)) for x, y in pts]
+            pygame.draw.lines(frame, hex_to_rgba("#5ff3ff"), False, [(x + 1, y) for x, y in ipts], 1)
+            pygame.draw.lines(frame, hex_to_rgba("#ffffff"), False, ipts, 1)
         for p in self.popups:
             if p.t < p.life - 0.3 or int(p.t * 20) % 2:
                 frame.blit(p.text, (round(p.x) - p.text.get_width() // 2, round(p.y)))
+        if self.flash > 0:
+            glare = pygame.Surface((W, H), pygame.SRCALPHA)
+            glare.fill((220, 248, 255, 90))
+            frame.blit(glare, (0, 0))
         if frame is not screen:
             screen.fill(hex_to_rgba(LAB_BG))
             screen.blit(frame, (ox, oy))
@@ -858,6 +1132,23 @@ class PrimordialSoup:
                 h = 2 + (int(self.time * 12) + k) % 3
                 pygame.draw.line(screen, hex_to_rgba(art.FLAME[1]), (fx + k, fy - 1), (fx + k, fy - 1 - h))
                 pygame.draw.line(screen, hex_to_rgba(art.FLAME[0]), (fx + k, fy - 1), (fx + k, fy - h + 1))
+        for i, (lx, ly) in enumerate(art.LEDS):                            # the control panel blinks away
+            h = (i * 7919 + int(self.time * (2 + i % 3))) % 5
+            if h < 3:
+                pygame.draw.rect(screen, hex_to_rgba(("#39ff14", "#e83b3b", "#ffd93a")[h]), (lx, ly, 2, 1))
+        wx, wy, ww, wh = art.MICRO_WIN                                     # something rotating in the microwave
+        pygame.draw.rect(screen, (60, 50, 20), (wx, wy, ww, wh))
+        pygame.draw.rect(screen, (110, 90, 30), (wx + 2, wy + wh - 3, ww - 4, 2))
+        n = int(self.time / 6) % (len(art.CRITTERS) + 1)
+        item = self.art.tools["dildo"] if n == len(art.CRITTERS) else self.art.crit[art.CRITTERS[n]][2][1]
+        spin = pygame.transform.rotate(item, (self.time * 90) % 360)
+        clip = screen.get_clip()
+        screen.set_clip(pygame.Rect(wx, wy, ww, wh))
+        screen.blit(spin, (wx + ww // 2 - spin.get_width() // 2, wy + wh // 2 - spin.get_height() // 2))
+        screen.set_clip(clip)
+        for vx, vy, t in self.vents:                                       # steam puffs from the pipes
+            st = self.art.steam[min(2, int(t * 3.4))]
+            screen.blit(st, (vx - 5, round(vy - 10 - t * 10)))
         for i, (sx, sy) in enumerate(art.HANG_SPOTS):
             if self.hanging[i]:
                 screen.blit(a.tools[art.UTENSILS[i]], (sx, sy))
@@ -877,6 +1168,30 @@ class PrimordialSoup:
             door = 1                                                    # the diners are getting restless
         screen.blit(a.doors[door], (art.DOOR_X, art.DOOR_Y))
 
+    def _draw_tesla(self, screen: pygame.Surface, _: object) -> None:
+        q = self.tesla_charge
+        img = self.art.tesla[0 if q <= 0 else 1 if q < 0.6 else 2]
+        tx, ty = art.TESLA
+        screen.blit(img, (tx - art.TESLA_W // 2, ty - art.TESLA_H + 2))
+
+    def _draw_tank(self, screen: pygame.Surface, _: object) -> None:
+        img = self.art.tank[int(self.time * 3) % 4]
+        tx, ty = art.TANK
+        screen.blit(img, (tx - art.TANK_W // 2, ty - art.TANK_H + 2))
+
+    def _draw_staff(self, screen: pygame.Surface, st: Staff) -> None:
+        fr = self.art.staff[st.who]
+        if st.state == "hurt":
+            img = fr["hurt"][int(st.t * 10) % 2][st.facing]
+        elif st.state == "pause":
+            anim = "pour" if st.who == "scientist" else "idle"
+            img = fr[anim][int(st.t * 4) % 4][st.facing]
+        else:
+            fps = 14 if st.who == "intern" or st.state == "flee" else 8
+            img = fr["walk"][int(st.t * fps) % 4][st.facing]
+        self._shadow(screen, st.x, st.y + 1, 14)
+        screen.blit(img, (round(st.x) - SIZE // 2, round(st.y) - GROUND))
+
     def _draw_bench(self, screen: pygame.Surface, i: int) -> None:
         bx, bottom = BENCHES[i][0], BENCHES[i][1]
         img = self.art.benches[i]
@@ -885,7 +1200,7 @@ class PrimordialSoup:
     def _draw_pot(self, screen: pygame.Surface, _: object) -> None:
         a = self.art
         px, py = POT_X - art.POT_RIM[0], POT_Y - art.POT_FEET
-        level = min(3, self.in_soup) if not (self.slime and self.slime.state != "pot") else 0
+        level = min(3, math.ceil(self.in_soup * 3 / NEED)) if not (self.slime and self.slime.state != "pot") else 0
         f = int(self.time * (6 + 4 * level)) % 4
         screen.blit(a.pot_back[level][f], (px, py))
         s = self.slime
@@ -912,6 +1227,8 @@ class PrimordialSoup:
             f = 2 + int(c.t * 12) % 2
         elif c.state == "stun":
             f = 0
+        elif c.taunt > 0:                                                  # wiggling, mouth open
+            f = 2 + int(c.t * 12) % 2
         else:
             moving = math.hypot(c.vx, c.vy) > 8
             f = int(c.t * 10) % 2 if moving else 0
@@ -920,7 +1237,7 @@ class PrimordialSoup:
         if c.state == "stun":
             a = self.time * 8
             for k in (0, math.pi):
-                screen.blit(self.art.stars, (round(c.x + 7 * math.cos(a + k)) - 3, round(c.y - 16 + 2 * math.sin(a + k))))
+                screen.blit(self.art.stars, (round(c.x + 7 * math.cos(a + k)) - 3, round(c.y - 18 + 2 * math.sin(a + k))))
 
     def _chef_frame(self) -> tuple[str, int]:
         if self.dead_t >= 0:
@@ -1027,6 +1344,7 @@ class PrimordialSoup:
         if s.state == "engulf":
             inside.append(("chef", round(min(1.0, s.t / DIGEST) * 4) / 4))
         inside += [(k, 0.2) for k in s.eaten[-4:]]
+        inside += [(f"staff:{who}", 0.25) for who in s.snacks[-2:]]
         img = self.art.slime(w, h, f, mouth, s.hat, tuple(inside))[s.facing]
         shadow_w = w + 8
         pygame.draw.ellipse(screen, (16, 10, 30), (round(s.x) - shadow_w // 2, round(s.y) - 3, shadow_w, 7))
@@ -1040,13 +1358,14 @@ class PrimordialSoup:
                                               "MOVE: STICK   POUNCE / THROW: BUTTON",
                                               "PRESS BUTTON TO START" if int(self.time * 2) % 2 == 0 else ""])
             return
-        panel = pygame.Surface((70, 17), pygame.SRCALPHA)
-        panel.fill((20, 15, 38, 210))
-        screen.blit(panel, (2, 2))
-        screen.blit(text_surface(f"SOUP {min(self.in_soup, NEED)}/{NEED}", art.GOO_HI if self.in_soup else LAB_TEXT), (5, 4))
+        panel = pygame.Surface((76, 9), pygame.SRCALPHA)                    # bottom-left, over the near wall
+        panel.fill((20, 15, 38, 220))
+        screen.blit(panel, (2, H - 10))
+        screen.blit(text_surface(f"SOUP {min(self.in_soup, NEED)}/{NEED}", art.GOO_HI if self.in_soup else LAB_TEXT),
+                    (5, H - 8))
         secs = math.ceil(self.clock)
         col = "#ff5f5f" if secs <= 10 and int(self.time * 4) % 2 else LAB_DIM
-        screen.blit(text_surface(f"TIME {secs:02d}", col), (5, 11))
+        screen.blit(text_surface(f"TIME {secs:02d}", col), (44, H - 8))
         if self.phase == "won":
             self._banner(screen, "IT'S ALIVE!", ["LIFE FROM SOUP. SCIENCE!", "THE CHEF WAS AN INGREDIENT",
                                                  "PRESS BUTTON"])
@@ -1091,6 +1410,8 @@ def autopilot(game: PrimordialSoup) -> Input:
     dx, dy = tx - game.x, ty - game.y
     inp.x = (dx > 3) - (dx < -3)
     inp.y = (dy > 3) - (dy < -3)
+    if not game.held and not inp.x and prey:                               # close enough: turn to face it
+        inp.x = 1 if c.x > game.x else -1
     if abs(game.vx) + abs(game.vy) < 5 and game.time % 1.0 < 0.3:            # wriggle free of corners
         inp.y = 1 if game.y < (Y_MIN + Y_MAX) / 2 else -1
     return inp

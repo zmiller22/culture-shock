@@ -276,32 +276,59 @@ python -m minigames.stork_bomber --demo      # the computer plays
 ### Primordial Soup
 
 A play on the primordial soup theory of how life began. The lab's critters have
-escaped into the kitchen: an eyeball on legs, a walking fish, an amoeba, a
-trilobite and a brain bug. You play the chef. Catch 3 of them and throw them in
-the stockpot before the 45-second clock on the wall runs out. The game is seen
-from above, arcade-style, in a room that's half kitchen and half mad-science
-lab, with lab benches to run around.
+escaped into the kitchen, and you play the chef. Catch 4 of them and throw them
+in the stockpot before the 45-second clock on the wall runs out. The game is seen
+from above, arcade-style, in a room that's half kitchen and half mad-science lab.
+
+Each round 7 critters get loose, picked from 10 kinds:
+- an eyeball in a top hat
+- a fish on human legs in sneakers
+- an amoeba with a moustache
+- a brain in a propeller beanie
+- a jello cube
+- a screaming egg
+- an angry hot dog
+- a trilobite in shades
+- a walking wiener
+- a little vulva in red sneakers (the Stork Bomber target's cousin)
+
+The jello, egg and wiener hop. They flee when you get close, dodge along the
+walls, and stop to taunt you from across the room ("NYAH!"). Each kind has its
+own lines when you grab it.
 
 Pounce on a critter to grab it, then throw it. Throw it toward the pot from close
 enough and it lands in. Wild throws from further away can still drop in, or
-clang off the side. Critters flee when you get close and juke along the walls.
-The kitchen is haunted: every so often a tool rattles on the wall rack and
-flies at you. A red ring marks where it'll land. If it hits, you're dazed and
-the critter you're carrying gets away. Grease slicks make you slide.
+clang off the side. The room fights back:
+- **Tesla coil:** every few seconds it arcs to whoever's closest. It might be
+  you (dazed, and you drop your critter), a critter (fried and stunned for a
+  while) or a coworker.
+- **Wall rack:** a tool rattles and flies at you, with a red ring marking where
+  it'll land. One of the tools is a dildo. Don't ask.
+- **Staff:** a sous-chef with a tray, a mad scientist with a bubbling flask, and
+  an intern whose hair is on fire wander around. They shove you if you're in the
+  way, and if the intern runs into you, you drop your critter.
+- **Grease:** slicks make you slide. The chef otherwise has tight arcade
+  controls and stops dead when you let go.
+
+The rest is decoration: a brain blinking in the specimen tank, a critter (or the
+dildo) spinning in the microwave under the "NO DILDOS IN THE MICROWAVE" note,
+steam puffing from the pipes, a blinking control panel, and a penis in one of
+the specimen jars.
 
 **Win:** the soup comes alive. It boils, rises out of the pot as a slime monster
 with too many eyes, leaps on the chef and digests him. Then it puts on his hat
-and trashes the kitchen, eating any critters left and knocking tools and plates
-everywhere.
+and trashes the kitchen, eating any critters and staff it lands on and knocking
+tools and plates everywhere.
 
 **Lose:** the diners burst through the door wanting their soup. They surround
 the chef and stab him to death with forks and steak knives until he melts into
 goo.
 
-The chef and diners are rig characters like the cast
+The chef, staff and diners are rig characters like the cast
 (`minigames/primordial_soup/people.py`), so they have every animation state.
 The diners come in six looks. Tune the game with the constants at the top of
-`minigames/primordial_soup/game.py` (`NEED`, `TIME_LIMIT`, `TOOL_*`, `CRIT_*`).
+`minigames/primordial_soup/game.py`: `NEED`, `TIME_LIMIT`, `AIM_RANGE`, and the
+`CRIT_*`, `TESLA_*`, `STAFF_*`, `TOOL_*` and `PERSONALITY` groups.
 
 ```bash
 python -m minigames.primordial_soup            # windowed; add --fullscreen on the cabinet
