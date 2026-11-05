@@ -273,6 +273,47 @@ python -m minigames.stork_bomber --demo      # the computer plays
 | Drop the baby / start / continue | Space, Z or Enter | button 0 |
 | Quit | Esc or Q | |
 
+### Primordial Soup
+
+A play on the primordial soup theory of how life began. The lab's critters have
+escaped into the kitchen: an eyeball on legs, a walking fish, an amoeba, a
+trilobite and a brain bug. You play the chef. Catch 3 of them and throw them in
+the stockpot before the 45-second clock on the wall runs out. The game is seen
+from above, arcade-style, in a room that's half kitchen and half mad-science
+lab, with lab benches to run around.
+
+Pounce on a critter to grab it, then throw it. Throw it toward the pot from close
+enough and it lands in. Wild throws from further away can still drop in, or
+clang off the side. Critters flee when you get close and juke along the walls.
+The kitchen is haunted: every so often a tool rattles on the wall rack and
+flies at you. A red ring marks where it'll land. If it hits, you're dazed and
+the critter you're carrying gets away. Grease slicks make you slide.
+
+**Win:** the soup comes alive. It boils, rises out of the pot as a slime monster
+with too many eyes, leaps on the chef and digests him. Then it puts on his hat
+and trashes the kitchen, eating any critters left and knocking tools and plates
+everywhere.
+
+**Lose:** the diners burst through the door wanting their soup. They surround
+the chef and stab him to death with forks and steak knives until he melts into
+goo.
+
+The chef and diners are rig characters like the cast
+(`minigames/primordial_soup/people.py`), so they have every animation state.
+The diners come in six looks. Tune the game with the constants at the top of
+`minigames/primordial_soup/game.py` (`NEED`, `TIME_LIMIT`, `TOOL_*`, `CRIT_*`).
+
+```bash
+python -m minigames.primordial_soup            # windowed; add --fullscreen on the cabinet
+python -m minigames.primordial_soup --demo     # the computer plays
+```
+
+| Action | Keyboard | Arcade stick |
+|---|---|---|
+| Run around | Arrows | stick |
+| Pounce / throw / start / continue | Space, Z or Enter | button 0 |
+| Quit | Esc or Q | |
+
 To plug a mini-game into the main game, drive the game object directly. Call
 `update(dt, inp)` and `draw(screen)` every tick, and when `done` goes true, read
 `result` (`"win"` or `"lose"`). `minigames/shell.py` describes the interface and
