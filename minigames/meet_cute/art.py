@@ -290,16 +290,22 @@ def enemy(kind: str, frame: int, look: tuple[int, int]) -> Canvas:
             c.set(6 + round(math.cos(a) * 5), 6 + round(math.sin(a) * 5), "#ffffff")
         _eyes(c, 3, 4, look)
         c.hline(5, 7, 8, "#c8407f")
-    elif kind == "spermicide":                           # gel blob, dripping
-        col = "#6ad84a"
-        c.oval(1, 1, 11, 9, col)
-        c.oval(3, 2, 4, 2, "#b8ff8a")
-        for i, x in enumerate((2, 5, 8, 10)):
-            drop = 2 + (frame + i) % 3
-            c.vline(x, 8, 8 + drop, col)
-            c.set(x, 9 + drop, "#3a9a2a")
-        _eyes(c, 2, 3, look)
-        c.hline(4, 8, 7, "#1e5a14")
+    elif kind == "spermicide":                           # squeeze tube of gel, oozing
+        tin, ridge, tube, gel, dark = "#c8ccd8", "#8a90a0", "#f4f4f4", "#6ad84a", "#2f8a20"
+        c.rect(1, 0, 11, 2, tin)                         # crimped end
+        for x in range(2, 11, 2):
+            c.set(x, 1, ridge)
+        squeeze = frame % 2
+        c.rect(2, 2, 9, 7, tube)
+        c.vline(2 + squeeze, 5, 6, None if squeeze else tube)    # pinched in the middle
+        c.vline(10 - squeeze, 5, 6, None if squeeze else tube)
+        c.hline(3, 9, 9, tube)                           # shoulder
+        c.rect(2 + squeeze, 6, 9 - 2 * squeeze, 3, gel)  # the label
+        c.hline(5, 7, 7, dark)
+        c.hline(5, 7, 10, dark)                          # nozzle
+        c.hline(5, 7, 11, gel)                           # gel oozing out
+        c.hline(4 + squeeze, 8 - squeeze, 12, gel)
+        _eyes(c, 3, 2, look)
     elif kind == "iud":                                  # copper T
         cu, sh = "#e08a4a", "#a85a2a"
         c.rect(0, 1, 13, 3, cu)
