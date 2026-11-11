@@ -341,6 +341,66 @@ python -m minigames.primordial_soup --demo     # the computer plays
 | Pounce / throw / start / continue | Space, Z or Enter | button 0 |
 | Quit | Esc or Q | |
 
+### Womb Rave
+
+A rhythm game. It opens in a dark gallery with a big pink sculpture of a womb
+(*Untitled ('Home')*, mixed media), with tubes and ovaries curling up like ram's
+horns. Your character walks up to the door at its foot, which dilates, and gets
+slurped in. Inside, they float in an amniotic sac in the middle of the womb and
+dance to the mother's heartbeat.
+
+Things come at the membrane around the sac along four lanes, and each lane is
+a part of the womb:
+
+| Lane | What comes down it | Hit |
+|---|---|---|
+| Left / right | eggs rolling down the fallopian tubes from the ovaries | stick left / right |
+| Up | mom's cravings (pickles, ice cream, pizza, donuts) sliding down the umbilical cord from the placenta | stick up |
+| Down | sperm swimming up from the cervix | stick down |
+| Squeeze | a contraction: a ring of flesh closes in from the walls | button |
+
+Hit each one as it touches the membrane. Stick diagonals hit two lanes at once.
+Every hit makes the dancer move: a step left or right, a hop, a squat, or their
+species attack on a squeeze. The whole room keeps time. The flesh tunnel throbs
+on every lub-dub, squeezes on every contraction, and club lights sweep the walls
+in the choruses.
+
+The soundtrack is a 120 BPM chiptune generated from code, like the art
+(`minigames/womb_rave/music.py`). The kick is a heartbeat, the lead plays exactly
+on the stick notes, and every squeeze has a contraction *womp* baked in. The
+chart is dealt from a fixed seed, so it's the same every time and can be learned.
+The song runs through the first, second and third trimester, a contractions
+breakdown and a final PUSH, about 45 seconds in all.
+
+Hits are judged PERFECT, GREAT or OK. Each one fills your vitals and builds the
+combo; each miss drains them.
+
+**Win:** finish the song. Your water breaks, you slide out the bottom, and the
+sculpture shoots you back into the gallery in a shower of pink and blue
+confetti: *IT'S A TECH BRO!* You get a grade (S to D) from how in sync you were.
+
+**Lose:** your vitals run out. The record scratches, the lights go red, and the
+womb evicts you. You land on the gallery floor with a thud.
+
+Any cast member can go in. By default it's someone random from the control
+group. Tune it with the constants at the top of `minigames/womb_rave/game.py`:
+`APPROACH` (how long notes take to arrive), `WINDOWS` (timing windows), the
+`LIFE_*` values, and `AUDIO_LAG`. If every hit feels early or late on the
+cabinet's speakers, adjust `AUDIO_LAG`. To change the song or the chart, edit
+`SECTIONS` and `PATTERNS` in `music.py`.
+
+```bash
+python -m minigames.womb_rave                          # windowed; add --fullscreen on the cabinet
+python -m minigames.womb_rave --character technoviking  # pick who goes in
+python -m minigames.womb_rave --demo                   # the computer plays
+```
+
+| Action | Keyboard | Arcade stick |
+|---|---|---|
+| Dance (left, right, up, down) | Arrows | stick |
+| Squeeze / start / continue | Space, Z or Enter | button 0 |
+| Quit | Esc or Q | |
+
 To plug a mini-game into the main game, drive the game object directly. Call
 `update(dt, inp)` and `draw(screen)` every tick, and when `done` goes true, read
 `result` (`"win"` or `"lose"`). `minigames/shell.py` describes the interface and
