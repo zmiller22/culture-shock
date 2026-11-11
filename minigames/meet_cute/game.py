@@ -1,6 +1,10 @@
 """Meet Cute: a two-player maze chase. The egg and the sperm start at opposite
 ends of the reproductive tract and have to find each other.
 
+Each round opens with the delivery: the ovary ovulates the egg up the fallopian
+tube into the top-left of the maze, and a penis slides in at the bottom right
+and shoots the sperm in (along with a spray of others who don't make it).
+
     python -m minigames.meet_cute [--fullscreen] [--scale 4] [--demo] [--seed N]
 
 Controls (keyboard, or one arcade stick / gamepad per player):
@@ -13,11 +17,12 @@ It's co-op. Both of you eat the nutrients lining the tubes. Once you've eaten
 enough between you, the egg is RIPE, and the round is won the moment you two
 touch. Bump into each other before that and she isn't ready yet.
 
-The immune system patrols the maze and wants you apart:
-    MACROPHAGE   a white blood cell. Chases whoever is closest.
-    ANTIBODY     cuts the egg off: aims a few tiles ahead of her.
+Contraception patrols the maze and wants you apart:
+    CONDOM       chases whoever is closest.
+    THE PILL     a dial pack. Cuts the egg off: aims a few tiles ahead of her.
     SPERMICIDE   cuts the sperm off the same way.
     COPPER IUD   parks itself halfway between you two.
+Later in the round a diaphragm, a sponge and a patch join in and chase too.
 Get caught and you lose a heart and go back to your start. Eat a folic-acid
 capsule and for a few seconds they're scared of you, and you can eat them.
 
@@ -44,10 +49,11 @@ from . import art
 from .art import F, TILE
 
 # -- tuning ------------------------------------------------------------------------
-COLS, ROWS = 39, 21              # tiles; odd so the maze has walls on the edges
+COLS, ROWS = 31, 21              # tiles; COLS // 2 must be odd so the maze mirrors on a corridor
 OX, OY = (W - COLS * TILE) // 2, H - ROWS * TILE - 1    # where tile (0, 0) sits on screen
+HALF = COLS // 2                 # the middle column
 TIME_LIMIT = 90.0                # s before it all comes out as a period
-RIPE_SHARE = 0.6                 # share of the maze's nutrients the two of you eat before she's ready
+RIPE_SHARE = 0.7                 # share of the maze's nutrients the two of you eat before she's ready
 LIVES = 3                        # shared hearts
 EGG_SPEED, SPERM_SPEED = 5.4, 6.8              # tiles/s. Sperm swim faster, eggs roll.
 ENEMY_SPEED, ENEMY_SPEED_MAX = 5.0, 6.4        # they speed up over the round
@@ -55,7 +61,7 @@ SCARED_SPEED, EYES_SPEED = 3.0, 12.0
 SCARED_TIME, SCARED_FLASH = 6.0, 2.0
 RELEASE = (0.0, 3.0, 8.0, 14.0)  # s into the round each enemy leaves the pen
 MODES = ((6.0, "scatter"), (18.0, "chase"), (5.0, "scatter"), (999.0, "chase"))
-EXTRA_SPAWN = 30.0               # s between extra macrophages once all four are out (0 = never)
+EXTRA_SPAWN = 30.0               # s between extra contraceptives once all four are out (0 = never)
 EXTRA_MAX = 3
 INVULN = 2.0                     # s of blinking after respawning
 CAUGHT_FREEZE = 1.0
@@ -63,15 +69,25 @@ TOUCH = 0.7                      # tiles: how close counts as touching
 POINTS_DOT, POINTS_PILL, POINTS_EAT, POINTS_MEET = 10, 50, 200, 1000
 EXTRA_DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
-PEN = (15, 9, 9, 3)              # x, y, w, h of the pen's inside (tiles); the loop round it lands on odd tiles
-PEN_HOME = (19, 10)              # where eaten enemies go to re-form
-DOOR = (19, 8)
-PEN_EXIT = (19, 7)
+PEN = (HALF - 4, 9, 9, 3)        # x, y, w, h of the pen's inside (tiles); the loop round it lands on odd tiles
+PEN_HOME = (HALF, 10)            # where eaten enemies go to re-form
+DOOR = (HALF, 8)
+PEN_EXIT = (HALF, 7)
 EGG_START, SPERM_START = (1, 1), (COLS - 2, ROWS - 2)
 TUNNEL_ROWS = (5, 15)
 
+# the delivery, in screen pixels: the egg comes up a fallopian tube in the left
+# margin, the sperm out of a penis in the right margin
+INTRO = 3.2                      # s
+OVARY = (OX // 2, OY + 62)
+TUBE_MOUTH = (OX - 1, OY + EGG_START[1] * TILE + TILE // 2)
+PENIS_AT = (OX + COLS * TILE - 1 - art.PENIS_TIP[0], OY + SPERM_START[1] * TILE + TILE // 2 - art.PENIS_TIP[1])
+OVULATE = (0.35, 1.5, 1.8)       # s: egg leaves the ovary, reaches the tube mouth, lands in the maze
+EJACULATE = (1.55, 1.85)         # s: sperm leaves the tip, lands in the maze
+
 NOT_YET = ["NOT YET!", "SHE'S NOT READY", "TOO SOON!", "EAT MORE!", "SLOW DOWN!"]
-CAUGHT = {"macrophage": "ENGULFED!", "antibody": "TAGGED!", "spermicide": "DISSOLVED!", "iud": "BLOCKED!"}
+CAUGHT = {"condom": "BAGGED!", "pill": "SUPPRESSED!", "spermicide": "DISSOLVED!", "iud": "BLOCKED!",
+          "diaphragm": "CAPPED!", "sponge": "SPONGED!", "patch": "PATCHED!"}
 EAT_LINES = ["CHOMP!", "YOINK!", "NOM!", "GET REKT"]
 
 
@@ -186,7 +202,7 @@ class Player(Mover):
 
 @dataclass
 class Enemy(Mover):
-    kind: str = "macrophage"
+    kind: str = "condom"
     state: str = "pen"           # pen, leave, roam, eyes
     release: float = 0.0
     corner: tuple[int, int] = (0, 0)
@@ -225,7 +241,8 @@ class Art:
                       (0, -1): [pygame.transform.rotate(s, 90) for s in sperm],
                       (0, 1): [pygame.transform.rotate(s, -90) for s in sperm]}
         looks = list(EXTRA_DIRS) + [(0, 0)]
-        self.enemy = {(k, f, lk): to_surface(art.enemy(k, f, lk)) for k in art.ENEMIES for f in range(2) for lk in looks}
+        self.enemy = {(k, f, lk): to_surface(art.enemy(k, f, lk))
+                      for k in art.ENEMIES + art.EXTRAS for f in range(2) for lk in looks}
         self.scared = {(f, fl): to_surface(art.scared(f, fl)) for f in range(2) for fl in (False, True)}
         self.eyes = {lk: to_surface(art.eyes_only(lk)) for lk in looks}
         self.nutrient = [to_surface(art.nutrient(f)) for f in range(2)]
@@ -236,6 +253,10 @@ class Art:
         self.pop = {c: [to_surface(art.pop(f, c)) for f in range(4)] for c in ("#ff4a6a", "#5ff3ff", "#ffe14d")}
         self.door = to_surface(art.pen_door(TILE))
         self.overlay = pygame.Surface((W, H), pygame.SRCALPHA)
+        self.tube = to_surface(art.fallopian(W, H, TUBE_MOUTH, OVARY))
+        self.tube_path = art.tube_path(TUBE_MOUTH, OVARY)
+        self.penis = [to_surface(art.penis(i / 4)) for i in range(5)]
+        self.penis_squirt = to_surface(art.penis(0, squirt=True))
 
 
 _ART: Art | None = None
@@ -251,7 +272,9 @@ class MeetCute:
         self.art = _ART
         self.rng = random.Random(seed)
         self.grid = make_maze(self.rng)
-        self.maze = to_surface(art.maze(["".join(r) for r in self.grid], OX, OY, W, H, self.rng.randrange(1 << 30)))
+        look = [row[:] for row in self.grid]          # drawn with openings where the organs plug in
+        look[EGG_START[1]][0] = look[SPERM_START[1]][COLS - 1] = "."
+        self.maze = to_surface(art.maze(["".join(r) for r in look], OX, OY, W, H, self.rng.randrange(1 << 30)))
         self.dots = {(x, y) for y in range(ROWS) for x in range(COLS) if self.grid[y][x] == "."}
         self.dots -= {EGG_START, SPERM_START, PEN_EXIT, (0, TUNNEL_ROWS[0]), (COLS - 1, TUNNEL_ROWS[0]),
                       (0, TUNNEL_ROWS[1]), (COLS - 1, TUNNEL_ROWS[1])}
@@ -265,11 +288,14 @@ class MeetCute:
         self.sperm = Player(*map(float, SPERM_START), SPERM_SPEED, kind="sperm", start=SPERM_START, face=(-1, 0))
         self.players = (self.egg, self.sperm)
         px, py, pw, ph = PEN
-        spots = [(px + 2, py + 1), (px + 4, py + 1), (px + 6, py + 1), (px + 4, py + 2)]
+        spots = [(px + 1, py + 1), (px + 3, py + 1), (px + 5, py + 1), (px + 7, py + 1)]
         corners = [(1, -3), (COLS - 2, -3), (1, ROWS + 2), (COLS - 2, ROWS + 2)]
         self.enemies = [Enemy(*map(float, spots[i]), ENEMY_SPEED, kind=k, release=RELEASE[i], corner=corners[i])
                         for i, k in enumerate(art.ENEMIES)]
         self.extra_t = 0.0
+        self.extra_n = 0
+        self.decoys: list[Bit] = []                   # the sperm that didn't make it
+        self.cues: set[str] = set()
 
         self.need = round(len(self.dots) * RIPE_SHARE)
         self.eaten = 0
@@ -282,7 +308,7 @@ class MeetCute:
         self.popups: list[Popup] = []
         self.bits: list[Bit] = []
         self.pops: list[tuple[float, float, str, float]] = []
-        self.phase = "title" if show_title else "ready"
+        self.phase = "title" if show_title else "intro"
         self.phase_t = 0.0
         self.lose_reason = ""
         self.meet_at = (0.0, 0.0)
@@ -390,11 +416,11 @@ class MeetCute:
         if self.mode() == "scatter":
             return e.corner
         live = [p for p in self.players if p.invuln <= 0] or list(self.players)
-        if e.kind == "macrophage":
+        if e.kind == "condom" or e.kind in art.EXTRAS:
             p = min(live, key=lambda p: math.dist((p.fx, p.fy), (e.fx, e.fy)))
             return p.fx, p.fy
-        if e.kind in ("antibody", "spermicide"):
-            p = self.egg if e.kind == "antibody" else self.sperm
+        if e.kind in ("pill", "spermicide"):
+            p = self.egg if e.kind == "pill" else self.sperm
             return p.fx + p.face[0] * 4, p.fy + p.face[1] * 4
         return (self.egg.fx + self.sperm.fx) / 2, (self.egg.fy + self.sperm.fy) / 2   # the IUD: in the way
 
@@ -422,7 +448,9 @@ class MeetCute:
         self._update_fx(dt)
         if self.phase == "title":
             if inp.action or any(p.action for p in inp.players):
-                self._enter("ready")
+                self._enter("intro")
+        elif self.phase == "intro":
+            self._update_intro(dt)
         elif self.phase == "ready":
             if self.phase_t >= 1.6:
                 self._enter("play")
@@ -448,6 +476,35 @@ class MeetCute:
             if self.phase_t > 0.6 and (inp.action or any(p.action for p in inp.players)):
                 self.done = True
 
+    def _cue(self, name: str, at: float) -> bool:
+        """True once, the first tick the intro passes `at` seconds."""
+        if self.phase_t >= at and name not in self.cues:
+            self.cues.add(name)
+            return True
+        return False
+
+    def _update_intro(self, dt: float) -> None:
+        if self._cue("ovulate", OVULATE[0]):
+            self._popup("OVULATION!", OVARY[0] + 22, OVARY[1] - 8, "#ff9ac8")
+        if self._cue("squirt", EJACULATE[0]):
+            tx, ty = PENIS_AT[0] + art.PENIS_TIP[0], PENIS_AT[1] + art.PENIS_TIP[1]
+            for _ in range(7):
+                self.decoys.append(Bit(tx, ty, self.rng.uniform(-150, -50), self.rng.uniform(-110, 10),
+                                       (0, 0, 0), life=self.rng.uniform(0.6, 1.0)))
+            self._burst(tx, ty, ["#ffffff", "#e8e8f8", "#d0d0e8"], n=16, speed=70)
+            self._popup("SPLOOSH!", tx - 30, ty - 12, "#ffffff")
+        if self._cue("odds", 2.1):
+            x, y = screen_pos(*SPERM_START)
+            self._popup("1 IN 200 MILLION", x - 40, y - 26, "#5ff3ff", life=1.4)
+        for d in self.decoys:
+            d.t += dt
+            d.x += d.vx * dt
+            d.y += d.vy * dt
+            d.vy += 260 * dt
+        self.decoys = [d for d in self.decoys if d.t < d.life]
+        if self.phase_t >= INTRO:
+            self._enter("ready")
+
     def _update_play(self, dt: float, inp: Input) -> None:
         self.clock += dt
         if self.clock >= TIME_LIMIT:
@@ -472,9 +529,11 @@ class MeetCute:
             self.extra_t += dt
             if self.extra_t >= EXTRA_SPAWN:
                 self.extra_t = 0.0
-                self.enemies.append(Enemy(*map(float, PEN_HOME), speed, kind="macrophage",
-                                          release=self.clock, corner=(COLS // 2, -3)))
-                self._popup("MORE WHITE CELLS!", W / 2, OY + PEN[1] * TILE - 6, "#f0eef8")
+                kind = art.EXTRAS[self.extra_n % len(art.EXTRAS)]
+                self.extra_n += 1
+                self.enemies.append(Enemy(*map(float, PEN_HOME), speed, kind=kind,
+                                          release=self.clock, corner=(HALF, -3)))
+                self._popup(f"MORE PROTECTION: {kind.upper()}!", W / 2, OY + PEN[1] * TILE - 6, "#5ab8ff")
         for e in self.enemies:
             if e.state == "pen":
                 e.anim += dt * 3
@@ -572,6 +631,7 @@ class MeetCute:
         pulse = 0.5 + 0.5 * math.sin(t * 2.2)
         screen.fill((26 + int(10 * pulse), 4, 16 + int(4 * pulse)), (OX, OY, COLS * TILE, ROWS * TILE))
         screen.blit(self.maze, (0, 0))
+        screen.blit(self.art.tube, (0, 0))
         screen.blit(self.art.door, (OX + DOOR[0] * TILE, OY + DOOR[1] * TILE + 3))
 
         blink = int(t * 4) % 2
@@ -584,7 +644,12 @@ class MeetCute:
 
         if self.phase not in ("won", "end") or self.result != "win":
             self._draw_enemies(screen, t)
-            self._draw_players(screen, t)
+            if self.phase == "intro":
+                self._draw_intro(screen, t)
+            elif self.phase != "title":
+                self._draw_players(screen, t)
+            if self.phase == "ready" or (self.phase == "intro" and self.phase_t > OVULATE[2]):
+                self._draw_labels(screen, t)
         else:
             self._draw_meet(screen, t)
 
@@ -608,7 +673,7 @@ class MeetCute:
         if self.phase == "title":
             self._banner(screen, "MEET CUTE", ["P1 EGG: WASD OR STICK 1     P2 SPERM: ARROWS OR STICK 2",
                                                f"EAT {self.need} NUTRIENTS BETWEEN YOU TO RIPEN THE EGG",
-                                               "THEN FIND EACH OTHER. DODGE THE IMMUNE SYSTEM!",
+                                               "THEN FIND EACH OTHER. DODGE THE CONTRACEPTION!",
                                                "", "PRESS START" if blink else ""])
         elif self.phase == "ready":
             s = big_text("READY..." if self.phase_t < 1.0 else "GO!", "#ffe14d")
@@ -621,8 +686,54 @@ class MeetCute:
                 self._banner(screen, "TIME'S UP. PERIOD.", ["THE EGG WAITED. NOBODY CAME.",
                                                            f"SCORE {self.score}", "", "PRESS START" if blink else ""])
             else:
-                self._banner(screen, "MISSED CONNECTION", ["THE IMMUNE SYSTEM WINS THIS ONE.",
+                self._banner(screen, "MISSED CONNECTION", ["PROTECTION WORKED. THIS TIME.",
                                                           f"SCORE {self.score}", "", "PRESS START" if blink else ""])
+
+    def _draw_intro(self, screen: pygame.Surface, t: float) -> None:
+        k = self.phase_t
+        ease = lambda u: 0.5 - 0.5 * math.cos(math.pi * max(0.0, min(1.0, u)))
+        # the egg, up the tube and out of its mouth
+        a, b, c = OVULATE
+        if k >= a:
+            if k < b:
+                pts = self.art.tube_path
+                x, y = pts[round(ease((k - a) / (b - a)) * (len(pts) - 1))]
+            else:
+                ex, ey = screen_pos(*EGG_START)
+                u = ease((k - b) / (c - b))
+                x, y = TUBE_MOUTH[0] + (ex - TUBE_MOUTH[0]) * u, TUBE_MOUTH[1] + (ey - TUBE_MOUTH[1]) * u
+            s = self.art.egg[int(k * 8) % 4]
+            screen.blit(s, (round(x - s.get_width() / 2), round(y - s.get_height() / 2)))
+        # the penis: slides in, throbs, shoots, wilts, slides out
+        dx = 44 * (1 - ease(k / 0.5)) + 44 * ease((k - 2.5) / 0.6)
+        if 0.8 < k < EJACULATE[0]:
+            dx += int(k * 30) % 2
+        if EJACULATE[0] <= k < EJACULATE[0] + 0.25:
+            pen = self.art.penis_squirt
+        else:
+            pen = self.art.penis[min(4, int(ease((k - 1.9) / 0.5) * 4.99))]
+        screen.blit(pen, (PENIS_AT[0] + dx, PENIS_AT[1]))
+        for d in self.decoys:                          # the ones that didn't make it
+            s = self.art.sperm[(-1, 0)][int(k * 12) % 4].copy()
+            s.set_alpha(int(255 * (1 - d.t / d.life)))
+            screen.blit(s, (round(d.x - s.get_width() / 2), round(d.y - s.get_height() / 2)))
+        a, b = EJACULATE
+        if k >= a:                                     # and the one that did
+            sx, sy = screen_pos(*SPERM_START)
+            tx, ty = PENIS_AT[0] + art.PENIS_TIP[0], PENIS_AT[1] + art.PENIS_TIP[1]
+            u = min(1.0, (k - a) / (b - a))
+            x, y = tx + (sx - tx) * u, ty + (sy - ty) * u - math.sin(math.pi * u) * 12
+            s = self.art.sperm[(-1, 0)][int(k * 14) % 4]
+            screen.blit(s, (round(x - s.get_width() / 2), round(y - s.get_height() / 2)))
+
+    def _draw_labels(self, screen: pygame.Surface, t: float) -> None:
+        if int(t * 5) % 4 == 0:
+            return
+        ex, ey = screen_pos(*EGG_START)
+        screen.blit(text_surface("P1 EGG", "#ff9ac8"), (ex + 9, ey - 3))
+        sx, sy = screen_pos(*SPERM_START)
+        s = text_surface("P2 SPERM", "#5ff3ff")
+        screen.blit(s, (sx - 10 - s.get_width(), sy - 3))
 
     def _draw_players(self, screen: pygame.Surface, t: float) -> None:
         for p in self.players:

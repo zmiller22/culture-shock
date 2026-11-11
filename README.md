@@ -408,30 +408,36 @@ at opposite corners of a maze of fleshy tubes and have to find each other.
 Every round is a new maze: mirrored left to right, with no dead ends, a pen in
 the middle, and a wrap-around tunnel on each side.
 
+Each round opens with the delivery. The ovary in the left margin ovulates the
+egg up its fallopian tube and into the top-left corner of the maze. A penis
+slides in on the right, throbs, and shoots the sperm into the bottom-right
+corner, along with a spray of others who fade away (*1 IN 200 MILLION*). Then it
+wilts and slides back out. Each player is labelled until the round starts.
+
 It's co-op. You both eat the nutrients lining the tubes, and once you've eaten
-60% of them between you, the egg is **ripe**: she blushes and glows. Touch
+70% of them between you, the egg is **ripe**: she blushes and glows. Touch
 before that and you bounce off (*NOT YET!*). Touch after it and you win. The
 sperm swims faster than the egg rolls.
 
-The immune system leaves the pen one at a time and wants to keep you apart:
+Contraception leaves the pen one at a time and wants to keep you apart:
 
 | Enemy | What it does |
 |---|---|
-| Macrophage | A white blood cell. Chases whichever of you is closer. |
-| Antibody | Cuts the egg off by aiming a few tiles ahead of her. |
+| Condom | Chases whichever of you is closer. |
+| The pill | A birth-control dial pack. Cuts the egg off by aiming a few tiles ahead of her. |
 | Spermicide | Cuts the sperm off the same way. |
 | Copper IUD | Parks itself halfway between you two. |
+| Diaphragm, sponge, patch | Join one at a time later in the round and chase whoever is closer. |
 
 They take turns scattering to the corners and chasing, and they speed up over
-the round. After the first 14 seconds, an extra macrophage joins every 30
-seconds. Get caught and you lose one of your three shared hearts and go back to
+the round. After the first 14 seconds, another one joins every 30 seconds. Get caught and you lose one of your three shared hearts and go back to
 your start. Eat a folic-acid capsule (one near each corner) and they turn blue
 and scared for a few seconds, and you can eat them for points.
 
 **Win:** meet once she's ripe. The sperm burrows in and the zygote divides
 into 2, 4 and 8 cells under a shower of hearts: *IT'S CONCEPTION!*
 
-**Lose:** all three hearts go (*MISSED CONNECTION*), or the 90-second clock
+**Lose:** all three hearts go (*MISSED CONNECTION: PROTECTION WORKED*), or the 90-second clock
 runs out and a red tide rises up the screen (*TIME'S UP. PERIOD.*).
 
 Tune it with the constants at the top of `minigames/meet_cute/game.py`:

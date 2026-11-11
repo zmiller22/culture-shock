@@ -1,5 +1,5 @@
-"""Meet Cute art: the reproductive-tract maze, the two lovebirds and the
-immune system that wants to keep them apart.
+"""Meet Cute art: the reproductive-tract maze, the two lovebirds, the organs
+that deliver them, and the contraception that wants to keep them apart.
 
 Drawn with the same canvas, palette and 1px outline as the main cast. The maze
 walls are fleshy tubes in the womb's flesh ramp, and every sprite faces right so
@@ -12,10 +12,9 @@ import math
 import random
 
 from sprites.canvas import Canvas, mix
-from sprites.palette import INK, OUTLINE
+from sprites.palette import INK, OUTLINE, TECH_BRO
 
-from ..womb_rave.art import F, egg  # noqa: F401  (egg is re-exported for the game)
-from ..stork_bomber.art import poly
+from ..womb_rave.art import F
 
 TILE = 8
 
@@ -107,6 +106,31 @@ def folic(frame: int) -> Canvas:
 
 # -- the lovebirds -----------------------------------------------------------------
 
+OVUM = {"corona": "#ffe0a0", "zona": "#fff4ec", "cyto": "#ffc4b0", "cyto_sh": "#f09a90",
+        "nucleus": "#e0708a", "blush": "#ff6a8a", "mouth": "#c85a6a"}
+
+
+def egg(frame: int) -> Canvas:
+    """An ovum: a big round cell in its clear shell, ringed with follicle cells,
+    nucleus showing. Rolls rather than swims."""
+    c = Canvas(13, 13)
+    for i in range(10):                                  # corona radiata
+        a = i * math.tau / 10 + frame * 0.4
+        c.set(6 + round(math.cos(a) * 5.6), 6 + round(math.sin(a) * 5.6), OVUM["corona"])
+    c.oval(1, 1, 11, 11, OVUM["zona"])
+    c.oval(2, 2, 9, 9, OVUM["cyto"])
+    for x in range(4, 9):
+        c.set(x, 10, OVUM["cyto_sh"])
+    c.oval(7, 2, 3, 3, OVUM["nucleus"])
+    hx, hy = [(4, 3), (3, 5), (4, 4), (5, 3)][frame % 4]
+    c.set(hx, hy, "#ffffff")
+    c.set(4, 6, INK)
+    c.set(8, 6, INK)
+    c.set(6, 8, OVUM["mouth"])
+    c.outline(OUTLINE)
+    return c
+
+
 def sperm(frame: int, look: tuple[int, int] = (1, 0)) -> Canvas:
     """Swimming right, tail lashing behind. Determined."""
     c = Canvas(16, 11)
@@ -129,8 +153,8 @@ def sperm(frame: int, look: tuple[int, int] = (1, 0)) -> Canvas:
 def egg_blush(frame: int) -> Canvas:
     """The egg, flushed: she's spotted him."""
     c = egg(frame)
-    c.set(3, 7, "#ff7a9a")
-    c.set(9, 7, "#ff7a9a")
+    c.set(3, 7, OVUM["blush"])
+    c.set(9, 7, OVUM["blush"])
     return c
 
 
@@ -139,17 +163,18 @@ def zygote(cells: int, frame: int) -> Canvas:
     c = Canvas(19, 19)
     for i in range(14):
         a = i * math.tau / 14 + frame * 0.3
-        c.set(9 + round(math.cos(a) * 8.4), 9 + round(math.sin(a) * 8.4), "#fff0b0")
-    c.oval(2, 2, 15, 15, "#ffe14d")
+        c.set(9 + round(math.cos(a) * 8.4), 9 + round(math.sin(a) * 8.4), OVUM["corona"])
+    c.oval(1, 1, 17, 17, OVUM["zona"])
+    c.oval(2, 2, 15, 15, OVUM["cyto"])
     spots = {1: [(9, 9, 9)], 2: [(6, 9, 6), (12, 9, 6)],
              4: [(6, 6, 5), (12, 6, 5), (6, 12, 5), (12, 12, 5)],
              8: [(5, 5, 4), (9, 4, 4), (13, 5, 4), (4, 9, 4), (14, 9, 4), (5, 13, 4), (9, 14, 4), (13, 13, 4)]}[cells]
     for x, y, d in spots:
-        c.oval(x - d // 2, y - d // 2, d, d, "#fff5a8")
+        c.oval(x - d // 2, y - d // 2, d, d, "#ffd8c8")
         c.set(x - d // 2 + 1, y - d // 2 + 1, "#ffffff")
     c.set(7, 9, INK)
     c.set(11, 9, INK)
-    c.hline(8, 10, 11, "#d8a020")
+    c.hline(8, 10, 11, OVUM["mouth"])
     c.outline(OUTLINE)
     return c
 
@@ -165,30 +190,106 @@ def heart(big: bool = False) -> Canvas:
     return c
 
 
-# -- the immune system -------------------------------------------------------------
+# -- the delivery ------------------------------------------------------------------
 
-ENEMIES = ("macrophage", "antibody", "spermicide", "iud")
+def _bez(p0, p1, p2, p3, t: float) -> tuple[float, float]:
+    u = 1 - t
+    return (u ** 3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t ** 3 * p3[0],
+            u ** 3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t ** 3 * p3[1])
+
+
+def tube_path(mouth: tuple[int, int], ovary: tuple[int, int], n: int = 48) -> list[tuple[float, float]]:
+    """The fallopian tube from the ovary up to its mouth at the maze, as points."""
+    (mx, my), (ox, oy) = mouth, ovary
+    return [_bez((ox, oy - 5), (ox - 18, oy - 36), (mx - 24, my), (mx, my), i / n) for i in range(n + 1)]
+
+
+def fallopian(w: int, h: int, mouth: tuple[int, int], ovary: tuple[int, int]) -> Canvas:
+    """The ovary and its fallopian tube, curling up to open into the maze with a
+    fringe of fimbriae."""
+    c = Canvas(w, h)
+    pts = tube_path(mouth, ovary)
+    for x, y in pts:
+        c.oval(round(x) - 2, round(y) - 2, 5, 5, F["pink"])
+    for x, y in pts[::2]:
+        c.set(round(x), round(y) - 1, F["light"])
+    for x, y in pts:
+        c.set(round(x), round(y), F["mid"])               # the lumen
+    mx, my = mouth
+    for dy in (-4, -2, 0, 2, 4):                          # fimbriae, reaching for the egg
+        c.line(mx - 2, my + dy // 2, mx + 2, my + dy, F["light"])
+    ox, oy = ovary
+    c.oval(ox - 9, oy - 6, 18, 13, F["ovary"])
+    c.oval(ox - 7, oy + 2, 15, 4, F["ovary_sh"])
+    for fx, fy in ((-4, -2), (2, -4), (4, 1), (-1, 2), (6, -2)):   # follicles
+        c.oval(ox + fx - 1, oy + fy - 1, 3, 3, F["follicle"])
+    c.outline(OUTLINE)
+    return c
+
+
+PENIS_TIP = (1, 12)              # where the sperm comes out, in the sprite
+
+
+def penis(droop: float = 0.0, squirt: bool = False) -> Canvas:
+    """Pointing left, base and balls off to the right. `droop` 0..1 is how limp."""
+    skin, sh, hi = TECH_BRO["skin"], TECH_BRO["skin_sh"], "#f8d4b4"
+    c = Canvas(42, 30)
+    bx, by = 32, 12
+    tx, ty = 8, 12 + droop * 12
+    mid_y = by + droop * 3
+    pts = [(bx + (tx - bx) * t, (1 - t) ** 2 * by + 2 * (1 - t) * t * mid_y + t * t * ty) for t in [i / 24 for i in range(25)]]
+    c.oval(25, 15, 11, 11, sh)                            # balls
+    c.oval(30, 16, 11, 11, sh)
+    c.oval(31, 17, 6, 4, skin)
+    for x, y in pts:
+        c.oval(round(x) - 4, round(y) - 4, 9, 8, skin)
+    for x, y in pts[3:]:
+        c.set(round(x), round(y) + 3, sh)
+        c.set(round(x), round(y) - 3, hi)
+    for x, y in pts[6:20:6]:                              # a vein
+        c.set(round(x), round(y) + 1, "#d8a080")
+    gx, gy = round(tx), round(ty)
+    c.oval(gx - 7, gy - 4, 10, 8, "#e07a90")              # glans
+    c.hline(gx - 5, gx - 3, gy - 3, "#ffb0c0")
+    c.vline(gx + 2, gy - 3, gy + 3, "#c05a78")
+    c.set(gx - 7, gy, INK)
+    for x, y in ((35, 3), (37, 6), (39, 2), (34, 7), (39, 9), (41, 5), (38, 12), (36, 1), (40, 14)):
+        c.set(x, y, "#4a2f1b")                            # a little bush
+    c.outline(OUTLINE)
+    if squirt:
+        for x, y in ((0, gy), (0, gy - 1), (0, gy + 1)):
+            c.set(x, y, "#ffffff")
+    return c
+
+
+# -- the contraception ---------------------------------------------------------------
+
+ENEMIES = ("condom", "pill", "spermicide", "iud")       # the starting four, one per pen slot
+EXTRAS = ("diaphragm", "sponge", "patch")               # turn up later in the round
 
 
 def enemy(kind: str, frame: int, look: tuple[int, int]) -> Canvas:
     c = Canvas(13, 13)
-    if kind == "macrophage":                             # white blood cell: lumpy, hungry
-        c.oval(1, 2, 11, 10, "#f0eef8")
-        for i in range(5):
-            a = i * math.tau / 5 + frame * 0.6
-            px, py = 6 + round(math.cos(a) * 5), 7 + round(math.sin(a) * 4.5)
-            c.oval(px - 1, py - 1, 3, 3, "#f0eef8")
-        c.oval(3, 7, 4, 3, "#b48ad8")                    # lobed nucleus
-        c.oval(6, 8, 4, 3, "#9a6ac8")
-        _eyes(c, 2, 3, look)
-    elif kind == "antibody":                             # Y-shaped, grabby
-        col, sh = "#b46bff", "#7a3ac8"
-        c.stroke(6, 12, 6, 7, col, 3)
-        c.stroke(6, 7, 1 + (frame % 2), 1, col, 3)
-        c.stroke(6, 7, 11 - (frame % 2), 1, col, 3)
-        c.vline(7, 8, 12, sh)
-        c.rect(4, 5, 5, 4, col)
-        _eyes(c, 2, 4, look, 5)
+    if kind == "condom":                                 # unrolled, reservoir tip wagging
+        col, hi, sh = "#5ab8ff", "#b8e8ff", "#2a78c8"
+        c.rect(5 + frame % 2, 0, 2, 2, col)
+        c.oval(2, 1, 9, 6, col)
+        c.rect(2, 4, 9, 6, col)
+        c.vline(3, 3, 8, hi)
+        c.vline(9, 4, 9, sh)
+        c.rect(1, 10, 11, 2, sh)                         # the rolled-up ring
+        c.hline(2, 10, 10, col)
+        _eyes(c, 3, 4, look)
+    elif kind == "pill":                                 # birth-control dial pack
+        c.oval(0, 0, 13, 13, "#ff9ac8")
+        c.oval(2, 2, 9, 9, "#ffc0dc")
+        for i in range(10):
+            if i == frame % 2 * 5:
+                continue                                 # today's pill, already taken
+            a = i * math.tau / 10
+            c.set(6 + round(math.cos(a) * 5), 6 + round(math.sin(a) * 5), "#ffffff")
+        _eyes(c, 3, 4, look)
+        c.hline(5, 7, 8, "#c8407f")
     elif kind == "spermicide":                           # gel blob, dripping
         col = "#6ad84a"
         c.oval(1, 1, 11, 9, col)
@@ -199,7 +300,7 @@ def enemy(kind: str, frame: int, look: tuple[int, int]) -> Canvas:
             c.set(x, 9 + drop, "#3a9a2a")
         _eyes(c, 2, 3, look)
         c.hline(4, 8, 7, "#1e5a14")
-    else:                                                # copper IUD
+    elif kind == "iud":                                  # copper T
         cu, sh = "#e08a4a", "#a85a2a"
         c.rect(0, 1, 13, 3, cu)
         c.hline(0, 12, 3, sh)
@@ -209,12 +310,33 @@ def enemy(kind: str, frame: int, look: tuple[int, int]) -> Canvas:
         c.set(0, 0, cu)
         c.set(12, 0, cu)
         _eyes(c, 2, 0, look, 6)
+    elif kind == "diaphragm":                            # rubber dome with a stiff rim
+        c.oval(1, 2 + frame % 2, 11, 10, "#f0d8b0")
+        c.rect(0, 8, 13, 5, None)
+        c.rect(0, 7 + frame % 2, 13, 2, "#c8a878")
+        c.set(3, 4, "#fff4e0")
+        _eyes(c, 3, 3 + frame % 2, look)
+    elif kind == "sponge":                               # with its little loop
+        c.rect(1, 3, 11, 9, "#ffd84a")
+        c.hline(4, 8, 0 + frame % 2, "#f4f4f4")
+        c.vline(4, 1, 3, "#f4f4f4")
+        c.vline(8, 1, 3, "#f4f4f4")
+        for x, y in ((2, 9), (5, 10), (9, 9), (10, 5), (2, 4), (7, 11)):
+            c.set(x, y, "#c89820")
+        _eyes(c, 3, 4, look)
+    else:                                                # the patch
+        c.rect(1, 1, 11, 11, "#e8c8a8")
+        c.rect(3, 3, 7, 7, "#f4e0c8")
+        for x, y in ((1, 1), (11, 1), (1, 11), (11, 11)):
+            c.set(x, y, None)
+        c.set(2 + frame % 2 * 8, 11, "#c8a888")          # a corner peeling up
+        _eyes(c, 3, 4, look)
     c.outline(OUTLINE)
     return c
 
 
 def scared(frame: int, flash: bool) -> Canvas:
-    """Any enemy once someone's eaten folic acid: blue, wobbly, sorry."""
+    """Any contraception once someone's eaten folic acid: blue, wobbly, failing."""
     body, face = ("#e8e8ff", "#ff4a6a") if flash else ("#3a4ad8", "#ffc0cc")
     c = Canvas(13, 13)
     c.oval(1, 1, 11, 10, body)
