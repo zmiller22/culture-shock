@@ -408,14 +408,20 @@ at opposite corners of a maze of fleshy tubes and have to find each other.
 Every round is a new maze: mirrored left to right, with no dead ends, a pen in
 the middle, and a wrap-around tunnel on each side.
 
-Each round opens with the delivery. The ovary in the left margin ovulates the
-egg up its fallopian tube and into the top-left corner of the maze. A penis
-slides in on the right, throbs, and shoots the sperm into the bottom-right
-corner, along with a spray of others who fade away (*1 IN 200 MILLION*). Then it
-wilts and slides back out. Each player is labelled until the round starts.
+Each round opens with an eight-second close-up of the delivery, on an empty
+screen. A fallopian tube and ovary slide in on the left and a penis on the
+right. The ovary releases the egg (*OVULATION!*), and she rolls up the tube and
+out into the open. The penis throbs and shoots the sperm (*SPLOOSH!*) along with
+a spray of others who fade away (*1 IN 200 MILLION*). The two stop face to face
+with a gap between them, a heart over their heads and *P1 EGG* / *P2 SPERM*
+under them, and she blushes. Then the penis wilts, both organs pull out, and the
+pair drift apart to opposite corners as the camera pulls back. The maze walls
+fly in from every side and lock together around them, the nutrients sparkle in,
+and the four contraceptives pop into the pen one at a time with their names.
+Press start to skip straight to *READY*.
 
 It's co-op. You both eat the nutrients lining the tubes, and once you've eaten
-70% of them between you, the egg is **ripe**: she blushes and glows. Touch
+60% of them between you, the egg is **ripe**: she blushes and glows. Touch
 before that and you bounce off (*NOT YET!*). Touch after it and you win. The
 sperm swims faster than the egg rolls.
 
