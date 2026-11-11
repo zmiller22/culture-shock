@@ -401,6 +401,58 @@ python -m minigames.womb_rave --demo                   # the computer plays
 | Squeeze / start / continue | Space, Z or Enter | button 0 |
 | Quit | Esc or Q | |
 
+### Meet Cute
+
+A two-player maze chase. Player 1 is the egg, player 2 is the sperm. You start
+at opposite corners of a maze of fleshy tubes and have to find each other.
+Every round is a new maze: mirrored left to right, with no dead ends, a pen in
+the middle, and a wrap-around tunnel on each side.
+
+It's co-op. You both eat the nutrients lining the tubes, and once you've eaten
+60% of them between you, the egg is **ripe**: she blushes and glows. Touch
+before that and you bounce off (*NOT YET!*). Touch after it and you win. The
+sperm swims faster than the egg rolls.
+
+The immune system leaves the pen one at a time and wants to keep you apart:
+
+| Enemy | What it does |
+|---|---|
+| Macrophage | A white blood cell. Chases whichever of you is closer. |
+| Antibody | Cuts the egg off by aiming a few tiles ahead of her. |
+| Spermicide | Cuts the sperm off the same way. |
+| Copper IUD | Parks itself halfway between you two. |
+
+They take turns scattering to the corners and chasing, and they speed up over
+the round. After the first 14 seconds, an extra macrophage joins every 30
+seconds. Get caught and you lose one of your three shared hearts and go back to
+your start. Eat a folic-acid capsule (one near each corner) and they turn blue
+and scared for a few seconds, and you can eat them for points.
+
+**Win:** meet once she's ripe. The sperm burrows in and the zygote divides
+into 2, 4 and 8 cells under a shower of hearts: *IT'S CONCEPTION!*
+
+**Lose:** all three hearts go (*MISSED CONNECTION*), or the 90-second clock
+runs out and a red tide rises up the screen (*TIME'S UP. PERIOD.*).
+
+Tune it with the constants at the top of `minigames/meet_cute/game.py`:
+`TIME_LIMIT`, `RIPE_SHARE`, `LIVES`, the `*_SPEED` values, `SCARED_TIME`,
+`RELEASE`, `MODES` and `EXTRA_SPAWN`.
+
+```bash
+python -m minigames.meet_cute               # windowed; add --fullscreen on the cabinet
+python -m minigames.meet_cute --seed 7      # same seed, same maze
+python -m minigames.meet_cute --demo        # the computer plays both sides
+```
+
+| Action | Player 1 (egg) | Player 2 (sperm) |
+|---|---|---|
+| Swim | WASD or the first stick plugged in | Arrows or the second stick |
+| Start / continue | Space or button 0 | Enter or button 0 |
+| Quit | Esc or Q | |
+
+Two-player mini-games read `inp.players` from the shell: one input per player,
+taken from their own keys and the stick on their own encoder.
+
 To plug a mini-game into the main game, drive the game object directly. Call
 `update(dt, inp)` and `draw(screen)` every tick, and when `done` goes true, read
 `result` (`"win"` or `"lose"`). `minigames/shell.py` describes the interface and
