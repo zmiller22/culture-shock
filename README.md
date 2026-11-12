@@ -351,9 +351,11 @@ runs a mini-game standalone.
 ![cabinet wiring](docs/hardware-wiring.png)
 
 A Pi 5 runs on its 27 W supply. A switched power strip also powers the monitor
-(micro-HDMI to HDMI) and the powered speakers, which take 3.5 mm audio from a USB
-sound card. Each player's joystick and buttons connect to a USB encoder that the Pi
-sees as a gamepad. A power button is wired to the J2 pins.
+(micro-HDMI to HDMI) and the powered speakers, which take 3.5 mm audio from an
+Inno-Maker HiFi DAC HAT (PCM5122) on the GPIO header. (The wiring diagram still
+shows the USB sound card it replaced.) Each player's joystick and buttons connect
+to a USB encoder that the Pi sees as a gamepad. A power button is wired to the J2
+pins.
 
 ### Testing controllers
 
@@ -380,6 +382,47 @@ If something doesn't register:
 * **Directions are swapped or mirrored**: the 5-pin joystick harness is plugged in rotated, or the stick is mounted turned. Either fix the hardware or flip it in the game's mapping.
 
 To check below pygame, install the kernel-level tools with `sudo apt install joystick evtest`, then run `jstest /dev/input/js0`.
+
+### Setting up audio
+
+The DAC HAT has no ID chip, so the Pi won't detect it on its own. Add its overlay
+to the end of `/boot/firmware/config.txt`, under `[all]`, then reboot:
+
+```
+dtoverlay=allo-boss-dac-pcm512x-audio
+```
+
+`aplay -l` should now list `card N: BossDAC`. Next, make it PipeWire's default
+output at full volume. The game follows this default, and the choice survives
+reboots. `wpctl status` shows the HAT as "Built-in Audio Stereo"; use its number:
+
+```bash
+wpctl set-default <id> && wpctl set-volume <id> 1.0
+```
+
+Set the HAT's own volume with `amixer -c BossDAC sset Digital 100%`. Use the
+speakers' knob for anything louder, because the HAT only puts out line level.
+
+To check left and right, and to hear what the game will hear, run:
+
+```bash
+speaker-test -D plughw:CARD=BossDAC -c 2 -t wav -l 1
+```
+
+```bash
+pw-play /usr/share/sounds/alsa/Front_Center.wav
+```
+
+The first command should say "Front Left" from the left speaker, then "Front
+Right" from the right one. The second plays through PipeWire's default output.
+Don't test with `-D default`: on the Pi, ALSA's default device goes straight to
+HDMI and skips PipeWire.
+
+If there's no sound:
+
+* **No `BossDAC` card**: check that the overlay line is under `[all]` and that the HAT is seated on all 40 pins. `dmesg | grep pcm512` should show the codec at I2C address `0x4d`.
+* **Sound comes out of the monitor**: the HAT isn't the default output. Run the `wpctl set-default` step again.
+* **Too quiet**: check both volumes, PipeWire's (`wpctl status`) and the HAT's (`amixer -c BossDAC`). Then turn up the speakers.
 
 ## Raspberry Pi 5
 
