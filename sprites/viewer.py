@@ -39,6 +39,7 @@ CROUCH_TIME = 1 / FPS["jump"]
 RESPAWN_DELAY = 1.5      # seconds the puddle lingers
 STICK_THRESHOLD = 0.5    # arcade sticks are digital; this also ignores floating axes
 JOY_JUMP, JOY_ATTACK, JOY_MUTATE = 0, 1, 3   # button indices as reported by tools/controller_test.py
+STICK_FLIP_X = STICK_FLIP_Y = True           # the cabinet's DragonRise encoders read left/right and up/down reversed
 
 
 def stick(joy: pygame.joystick.JoystickType) -> tuple[int, int]:
@@ -46,10 +47,12 @@ def stick(joy: pygame.joystick.JoystickType) -> tuple[int, int]:
     reports one, otherwise axes 0/1."""
     if joy.get_numhats() and joy.get_hat(0) != (0, 0):
         hx, hy = joy.get_hat(0)
-        return hx, -hy
-    axis = lambda i: joy.get_axis(i) if joy.get_numaxes() > i else 0.0
-    zone = lambda v: (v > STICK_THRESHOLD) - (v < -STICK_THRESHOLD)
-    return zone(axis(0)), zone(axis(1))
+        x, y = hx, -hy
+    else:
+        axis = lambda i: joy.get_axis(i) if joy.get_numaxes() > i else 0.0
+        zone = lambda v: (v > STICK_THRESHOLD) - (v < -STICK_THRESHOLD)
+        x, y = zone(axis(0)), zone(axis(1))
+    return (-x if STICK_FLIP_X else x), (-y if STICK_FLIP_Y else y)
 
 
 class Actor:
