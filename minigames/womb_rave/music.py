@@ -289,13 +289,16 @@ def lobby_wav() -> io.BytesIO:
 
 
 # -- voice ------------------------------------------------------------------------
-# A tiny formant synth: a breathy buzz at the pitch, through three resonators tuned
-# to a vowel. Good enough for moans and groans, which is all it's for.
+# A small formant synth (Klatt-style): a glottal pulse with a little jitter and
+# shimmer, plus breath that puffs with each cycle, through a cascade of four vowel
+# resonators. Each sound starts on a breathy "h" and trails off into an exhale.
 
-VOWELS = {                       # formant frequencies (Hz): F1, F2, F3
-    "mm": (250, 1700, 2600), "oo": (330, 800, 2300), "oh": (480, 860, 2450),
-    "ah": (760, 1200, 2550), "uh": (600, 1050, 2400), "eh": (560, 1800, 2550),
+VOWELS = {                       # formant frequencies (Hz), F1..F4, female voice
+    "mm": (270, 1150, 2500, 3500), "oo": (370, 950, 2670, 3600), "oh": (540, 920, 2710, 3700),
+    "ah": (850, 1220, 2810, 3800), "uh": (760, 1400, 2780, 3700), "eh": (610, 2000, 2900, 3900),
 }
+BANDWIDTHS = (90, 110, 170, 250)
+NASAL = {"mm": 1.0}              # how much each vowel is closed-mouth (muffled) 0..1
 
 
 def _curve(points: list[tuple[float, float]], k: float) -> float:
@@ -306,19 +309,68 @@ def _curve(points: list[tuple[float, float]], k: float) -> float:
     return points[-1][1]
 
 
+def _glottal(ph: float, open_q: float = 0.6) -> float:
+    """Rosenberg glottal flow over one period (ph 0..1): open slowly, snap shut, rest."""
+    rise, fall = open_q * 0.65, open_q * 0.35
+    if ph < rise:
+        return 0.5 * (1 - math.cos(math.pi * ph / rise))
+    if ph < rise + fall:
+        return math.cos(0.5 * math.pi * (ph - rise) / fall)
+    return 0.0
+
+
 def voice(length: float, pitch: list[tuple[float, float]], vowels: list[tuple[float, str]],
-          amp: float = 0.5, breath: float = 0.25, vibrato: float = 0.025,
-          env: list[tuple[float, float]] | None = None) -> list[float]:
-    n = _n(length)
+          amp: float = 0.5, breath: float = 0.25, vibrato: float = 0.02,
+          env: list[tuple[float, float]] | None = None, onset: float = 0.06,
+          exhale: float = 0.18, voiced: bool = True) -> list[float]:
+    """One breath of voice. pitch and vowels are (0..1 through the sound, value) points.
+    onset: seconds of breathy "h" before the voice comes in; exhale: seconds of
+    breath left after it stops. voiced=False is breath only (a gasp, a sigh)."""
+    n_voice = _n(length)
+    n_on, n_ex = _n(onset), _n(exhale)
+    n = n_on + n_voice + n_ex
     env = env or [(0, 0), (0.12, 1), (0.75, 0.8), (1, 0)]
-    out, ph = [], 0.0
-    state = [[0.0, 0.0] for _ in range(3)]
+    rng = random.Random(round(length * 1000) + len(vowels))
+    out = []
+    ph = flow_prev = 0.0
+    drift = drift_v = 0.0                                    # slow random pitch wander
+    shimmer = 1.0
+    state = [[0.0, 0.0] for _ in range(4)]
+    lp = noise_lp = 0.0
     for i in range(n):
-        t, k = i / RATE, i / n
-        f0 = _curve(pitch, k) * (1 + vibrato * math.sin(t * math.tau * 5.5) * min(1, t * 4))
-        ph = (ph + f0 / RATE) % 1
-        src = (1 - 2 * ph) * (1 - breath) + _noise.uniform(-1, 1) * breath   # buzz plus air
-        # glide between the vowels' formants
+        t = i / RATE
+        k = min(1.0, max(0.0, (i - n_on) / n_voice))        # 0..1 through the voiced part
+        if i < n_on:                                         # "h": breath swelling up
+            v_amt, a_amt = 0.0, (i / max(1, n_on)) ** 0.5
+            level = _curve(env, 0.08) * 0.9
+        elif i < n_on + n_voice:
+            v_amt = min(1.0, (i - n_on) / max(1, _n(0.04)))   # voicing fades in over 40 ms
+            a_amt = 1.0
+            level = _curve(env, k)
+        else:                                                # exhale: breath, dying away
+            e = (i - n_on - n_voice) / max(1, n_ex)
+            v_amt, a_amt = 0.0, (1 - e) ** 2
+            level = max(_curve(env, 0.85), 0.35) * 0.9
+        if not voiced:
+            v_amt = 0.0
+
+        drift_v += rng.uniform(-1, 1) * 0.002 - drift_v * 0.002 - drift * 0.0005
+        drift += drift_v * 0.01
+        vib = vibrato * math.sin(t * math.tau * (5.2 + 0.6 * math.sin(t * 1.7))) * min(1, k * 3)
+        f0 = _curve(pitch, k) * (1 + vib + max(-0.03, min(0.03, drift)))
+        new_ph = ph + f0 / RATE
+        if new_ph >= 1:                                      # a new cycle: a touch of shimmer
+            new_ph -= 1
+            shimmer = 1 + rng.uniform(-0.08, 0.08)
+        ph = new_ph
+        flow = _glottal(ph)
+        pulse = (flow - flow_prev) * RATE / (f0 * 4) * shimmer    # lips radiate the flow's slope
+        flow_prev = flow
+        noise_lp += (_noise.uniform(-1, 1) - noise_lp) * 0.5
+        air = noise_lp * (0.35 + 0.65 * flow if v_amt else 1.0)   # breath puffs with each cycle
+        breathiness = breath * v_amt + (1 - v_amt) * 0.55
+        src = pulse * v_amt * (1 - breath * 0.5) + air * breathiness * a_amt
+
         idx = max(j for j, (vk, _) in enumerate(vowels) if vk <= k or j == 0)
         if idx + 1 < len(vowels):
             (ka, va), (kb, vb) = vowels[idx], vowels[idx + 1]
@@ -326,39 +378,56 @@ def voice(length: float, pitch: list[tuple[float, float]], vowels: list[tuple[fl
         else:
             va = vb = vowels[idx][1]
             m = 0.0
-        y = 0.0
-        for j in range(3):
+        y = src
+        for j in range(4):                                   # cascade: unity gain at DC
             f = VOWELS[va][j] * (1 - m) + VOWELS[vb][j] * m
-            bw = 80 + 40 * j
-            r = math.exp(-math.pi * bw / RATE)
+            r = math.exp(-math.pi * BANDWIDTHS[j] / RATE)
             c1, c2 = 2 * r * math.cos(math.tau * f / RATE), -r * r
-            s0 = (1 - r) * src + c1 * state[j][0] + c2 * state[j][1]
-            state[j][1], state[j][0] = state[j][0], s0
-            y += s0 * (1.0, 0.6, 0.3)[j]
-        out.append(y * amp * _curve(env, k))
+            y = (1 - c1 - c2) * y + c1 * state[j][0] + c2 * state[j][1]
+            state[j][1], state[j][0] = state[j][0], y
+        nasal = NASAL.get(va, 0) * (1 - m) + NASAL.get(vb, 0) * m
+        lp += (y - lp) * (0.12 + 0.88 * (1 - nasal))         # a closed mouth muffles it
+        out.append(lp * amp * level)
     return out
 
 
 def moans() -> dict[str, list[float]]:
-    """Little 8-bit moans for streaks, getting more worked up as the combo grows."""
+    """Moans for streaks, getting more worked up as the combo grows."""
+    fall = [(0, 0), (0.1, 1), (0.6, 0.85), (1, 0)]
+    short = [(0, 0), (0.12, 1), (0.5, 0.7), (1, 0)]
+    gasp = voice(0.12, [(0, 300), (1, 300)], [(0, "ah"), (1, "ah")], amp=0.5, onset=0.08, exhale=0.0,
+                 voiced=False, env=[(0, 0.4), (1, 1)])
     raw = {
         # warming up
-        "mmm": voice(0.7, [(0, 210), (0.6, 250), (1, 230)], [(0, "mm"), (1, "mm")], amp=0.9, breath=0.15),
-        "ooh": voice(0.6, [(0, 230), (1, 320)], [(0, "oo"), (0.6, "oh")], amp=0.7),
-        "oh": voice(0.35, [(0, 340), (1, 280)], [(0, "oh"), (1, "oh")], amp=0.7, env=[(0, 0), (0.08, 1), (1, 0)]),
-        "uhh": voice(0.6, [(0, 120), (1, 98)], [(0, "uh"), (1, "uh")], amp=0.8, breath=0.3),
+        "mmm": voice(0.75, [(0, 200), (0.3, 235), (1, 190)], [(0, "mm"), (1, "mm")], amp=0.9,
+                     breath=0.12, env=fall, onset=0.03, exhale=0.25),
+        "ooh": voice(0.65, [(0, 240), (0.4, 320), (1, 270)], [(0, "oo"), (0.6, "oh")], amp=0.8,
+                     breath=0.2, env=fall),
+        "oh": voice(0.38, [(0, 350), (1, 270)], [(0, "oh"), (1, "oh")], amp=0.8, env=short,
+                    onset=0.04, exhale=0.15),
+        "uhh": voice(0.6, [(0, 190), (1, 150)], [(0, "uh"), (1, "uh")], amp=0.85, breath=0.35,
+                     env=fall, onset=0.08, exhale=0.3),
         # into it
-        "mmm-ahh": voice(0.85, [(0, 220), (0.45, 240), (0.6, 330), (1, 260)], [(0, "mm"), (0.4, "mm"), (0.55, "ah"), (1, "ah")], amp=0.75),
-        "oh-yeah": voice(0.8, [(0, 300), (0.4, 260), (0.55, 350), (1, 300)], [(0, "oh"), (0.45, "oh"), (0.55, "eh"), (1, "ah")], amp=0.7),
-        "ah-ah": voice(0.3, [(0, 330), (1, 300)], [(0, "ah"), (1, "ah")], amp=0.7, env=[(0, 0), (0.1, 1), (1, 0)])
-        + [0.0] * _n(0.08)
-        + voice(0.45, [(0, 360), (1, 310)], [(0, "ah"), (1, "ah")], amp=0.75, env=[(0, 0), (0.1, 1), (1, 0)]),
+        "mmm-ahh": voice(0.95, [(0, 210), (0.4, 235), (0.55, 340), (1, 250)],
+                         [(0, "mm"), (0.4, "mm"), (0.55, "ah"), (1, "ah")], amp=0.85, breath=0.2,
+                         env=[(0, 0), (0.1, 0.7), (0.45, 0.7), (0.6, 1), (1, 0)]),
+        "oh-yeah": voice(0.85, [(0, 310), (0.4, 260), (0.55, 360), (1, 280)],
+                         [(0, "oh"), (0.4, "oh"), (0.55, "eh"), (0.75, "ah"), (1, "ah")], amp=0.8,
+                         breath=0.2, env=fall),
+        "ah-ah": voice(0.28, [(0, 340), (1, 300)], [(0, "ah"), (1, "ah")], amp=0.8, env=short, exhale=0.06)
+        + voice(0.5, [(0, 380), (0.3, 390), (1, 300)], [(0, "ah"), (1, "ah")], amp=0.85, env=fall,
+                onset=0.03, breath=0.25),
         # the big one
-        "climax": voice(0.25, [(0, 300), (1, 320)], [(0, "ah"), (1, "ah")], amp=0.6, env=[(0, 0), (0.1, 1), (1, 0)])
-        + voice(0.25, [(0, 350), (1, 370)], [(0, "ah"), (1, "ah")], amp=0.7, env=[(0, 0), (0.1, 1), (1, 0)])
-        + voice(1.1, [(0, 400), (0.3, 470), (1, 330)], [(0, "ah"), (0.7, "ah"), (1, "oh")], amp=0.85, vibrato=0.05),
+        "climax": gasp
+        + voice(0.22, [(0, 320), (1, 340)], [(0, "ah"), (1, "ah")], amp=0.7, env=short, onset=0.02, exhale=0.05)
+        + voice(0.24, [(0, 360), (1, 380)], [(0, "ah"), (1, "ah")], amp=0.8, env=short, onset=0.02, exhale=0.05)
+        + gasp
+        + voice(1.2, [(0, 420), (0.25, 480), (0.7, 420), (1, 290)], [(0, "ah"), (0.75, "ah"), (1, "oh")],
+                amp=0.95, vibrato=0.045, breath=0.3, env=[(0, 0), (0.08, 1), (0.7, 0.9), (1, 0)],
+                onset=0.02, exhale=0.4),
         # when a big streak breaks
-        "aww": voice(0.8, [(0, 300), (1, 150)], [(0, "ah"), (1, "oo")], amp=0.6, breath=0.35),
+        "aww": voice(0.8, [(0, 320), (0.3, 300), (1, 160)], [(0, "ah"), (1, "oo")], amp=0.75,
+                     breath=0.4, env=fall, exhale=0.3),
     }
     out = {}
     for name, snd in raw.items():                            # all at the same loudness

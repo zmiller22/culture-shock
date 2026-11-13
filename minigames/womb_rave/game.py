@@ -92,6 +92,7 @@ CLIMAX_EVERY = 32              # ...and every this many, the big one
 MOANS_SOFT = ("mmm", "ooh", "oh", "uhh")
 MOANS_HOT = ("mmm-ahh", "oh-yeah", "ah-ah")
 HOT_AT = 24                    # combo where the moans get more worked up
+VOLUME = 0.6                   # everything this game plays, song and effects
 STREAK_LINES = (
     "ALL ABOUT THE MOTION OF THE OCEAN", "FIND YOUR RHYTHM", "DON'T STOP NOW", "RIGHT THERE!",
     "OH YES. RIGHT ON THE BEAT", "IT'S NOT THE SIZE. IT'S THE TIMING", "BABY MAKING MUSIC",
@@ -217,7 +218,9 @@ class Audio:
             self.song = pygame.mixer.Sound(file=music.song_wav())
             self.lobby = pygame.mixer.Sound(file=music.lobby_wav())
             self.fx = {name: pygame.mixer.Sound(file=f) for name, f in music.sfx_wavs().items()}
-            self.fx["miss"].set_volume(0.5)
+            for snd in (self.song, self.lobby, *self.fx.values()):
+                snd.set_volume(VOLUME)
+            self.fx["miss"].set_volume(VOLUME * 0.5)
             self.ok = True
         except pygame.error:
             pass
