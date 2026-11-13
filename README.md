@@ -519,7 +519,7 @@ and the four contraceptives pop into the pen one at a time with their names.
 Press start to skip straight to *READY*.
 
 It's co-op. You both eat the nutrients lining the tubes, and once you've eaten
-60% of them between you, the egg is **ripe**: she blushes and glows. Touch
+40% of them between you, the egg is **ripe**: she blushes and glows. Touch
 before that and you bounce off (*NOT YET!*). Touch after it and you win. The
 sperm swims faster than the egg rolls.
 
