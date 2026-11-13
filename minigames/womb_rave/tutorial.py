@@ -12,7 +12,7 @@ from sprites.rig import GROUND, SIZE
 
 from ..tutorial import DEMO_H, DEMO_W, Page, Tutorial, blit_c, caption, loop
 from . import art
-from .art import F, LANE_COLOR, MEM_RX, MEM_RY, SAC_RX, SAC_RY
+from .art import F, MEM_RX, MEM_RY, SAC_RX, SAC_RY
 
 CX, CY = DEMO_W // 2, 50           # the sac's middle, in the demo
 TRAVEL = 0.9                       # s a thing takes to reach the membrane
@@ -123,41 +123,7 @@ def make(a, frame: Callable[[str, int, int], pygame.Surface]) -> Tutorial:
         show_judge(s, judge)
         return sx, sy, False
 
-    # 2. squeeze on the button as the ring closes in
-    SQUEEZE = 1.3
-
-    def squeeze(s: pygame.Surface, t: float):
-        t = loop(t, 2.2) * 2.2
-        stage(s, t)
-        receptors(s, set())
-        k = t / SQUEEZE
-        if k < 1:
-            grow = 1 + 1.6 * (1 - k)
-            box = (CX - MEM_RX * grow, CY - MEM_RY * grow, MEM_RX * 2 * grow, MEM_RY * 2 * grow)
-            pygame.draw.ellipse(s, rgb(F["deep"]), box, 5)
-            pygame.draw.ellipse(s, rgb(LANE_COLOR["B"]), (box[0] + 1, box[1] + 1, box[2] - 2, box[3] - 2), 3)
-        dt = t - SQUEEZE
-        move = ("B", dt) if dt >= 0 else None
-        if 0 <= dt < 0.4:
-            for lane, (rx, ry) in RECEPTOR.items():
-                s.blit(a.burst["B"][min(3, int(dt / 0.1))], (rx - 10, ry - 10))
-        dancer(s, t, move)
-        show_judge(s, ("SQUEEZE!", "#ff6a9a", dt) if dt >= 0 else None)
-        return 0, 0, 0 <= dt < 0.25
-
-    # 3. diagonals hit two lanes at once
-    pairs = [(0.9, "L", True), (0.9, "U", True), (1.9, "R", True), (1.9, "D", True)]
-
-    def diagonal(s: pygame.Surface, t: float):
-        t = loop(t, 2.6) * 2.6
-        stage(s, t)
-        lit, move, sx, sy, judge = run_notes(s, t, pairs + [(at + 2.6, ln, h) for at, ln, h in pairs])
-        receptors(s, lit)
-        dancer(s, t, move)
-        show_judge(s, judge)
-        return sx, sy, False
-
-    # 4. the vitals: misses drain them, hits fill them
+    # 2. the vitals: misses drain them, hits fill them
     vit = [(0.9, "L", False), (1.7, "R", True), (2.5, "U", True), (3.3, "D", True)]
     LIFE = [60, 34, 46, 58, 70]
 
@@ -181,8 +147,6 @@ def make(a, frame: Callable[[str, int, int], pygame.Surface]) -> Tutorial:
         "WOMB RAVE", "LIFE IS A NINE MONTH PARTY IN A VERY SMALL CLUB.",
         [
             Page(("PUSH THE STICK THAT WAY JUST AS", "EACH THING TOUCHES YOUR BUBBLE"), lanes, time=6.0),
-            Page(("PRESS BUTTON AS THE SQUEEZE RING", "CLOSES IN ON THE BUBBLE"), squeeze, ("button",)),
-            Page(("STICK DIAGONALS HIT TWO AT ONCE",), diagonal),
             Page(("MISSES DRAIN YOUR VITALS. LAST THE", "WHOLE SONG AND YOU GET BORN!"), vitals),
         ],
         accent=F["hi"],

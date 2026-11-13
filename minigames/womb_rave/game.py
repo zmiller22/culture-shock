@@ -5,7 +5,7 @@
 Controls (keyboard, or an arcade stick / gamepad):
     LEFT / RIGHT        choose your dancer (on the select screen)                  stick
     ARROWS              dance: hit the direction as a thing reaches your bubble    stick
-    SPACE / Z / ENTER   SQUEEZE: hit it as the contraction ring closes in          button 0
+    SPACE / Z / ENTER   confirm (menus only)                                       button 0
     ESC / Q             quit
 
 Your character floats in the amniotic sac in the middle of the womb. Things
@@ -13,8 +13,7 @@ come at the membrane around the sac along four lanes, each a part of the womb:
     LEFT / RIGHT   eggs rolling down the fallopian tubes
     UP             mom's cravings sliding down the umbilical cord
     DOWN           sperm swimming up from the cervix
-    BUTTON         a contraction: the walls squeeze in to the membrane
-Stick diagonals hit two lanes at once. Every hit makes the dancer move.
+Every hit makes the dancer move.
 
 Make it to the end of the song (three trimesters and the PUSH) and you're born.
 Miss too many and your vitals run out: the womb evicts you.
@@ -41,14 +40,14 @@ from . import art, music, tutorial
 from .art import CX, CY, MEM_RX, MEM_RY, RECEPTOR, SAC_RX, SAC_RY
 from .music import BEAT, SONG_LEN
 
-APPROACH = 1.6                 # s from a note appearing to it reaching the membrane, at 120 BPM
+APPROACH = 1.9                 # s from a note appearing to it reaching the membrane, at 100 BPM
                                # (it shrinks as the song speeds up, so notes really do come faster)
-WINDOWS = (("perfect", 0.045), ("great", 0.09), ("ok", 0.14))   # s either side of the beat
+WINDOWS = (("perfect", 0.055), ("great", 0.11), ("ok", 0.17))   # s either side of the beat
 OK_WINDOW = WINDOWS[-1][1]
 AUDIO_LAG = 0.03               # s the speakers trail the clock. Raise it if every hit reads early.
 LIFE_START, LIFE_MAX = 60.0, 100.0
 LIFE_GAIN = {"perfect": 3.0, "great": 2.0, "ok": 0.5}
-LIFE_MISS = 6.0
+LIFE_MISS = 5.0
 POINTS = {"perfect": 100, "great": 60, "ok": 25}
 COMBO_BONUS, COMBO_CAP = 5, 40  # extra points per combo step, up to the cap
 GRADES = ((0.95, "S"), (0.85, "A"), (0.7, "B"), (0.5, "C"), (0.0, "D"))
@@ -86,7 +85,7 @@ ROUTINES = (                   # select-screen dance routines, one move per beat
 )
 HOP = 9                        # px the dancer hops on UP
 NUDGE = 5                      # px the dancer steps on LEFT / RIGHT
-TUNNEL_FLOW = 0.35             # rings per second flowing past at 120 BPM (faster as the song speeds up)
+TUNNEL_FLOW = 0.35             # rings per second flowing past at 100 BPM (faster as the song speeds up)
 STREAK = 8                     # every this many hits in a row: a moan and a line on screen
 CLIMAX_EVERY = 32              # ...and every this many, the big one
 MOANS_SOFT = ("mmm", "ooh", "oh", "uhh")
@@ -523,8 +522,6 @@ class WombRave:
             presses.append("U")
         if inp.y == 1 and self.held_y != 1:
             presses.append("D")
-        if inp.action:
-            presses.append("B")
         self.held_x, self.held_y = inp.x, inp.y
         for lane in presses:
             self._press(lane, now)

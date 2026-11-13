@@ -1,7 +1,7 @@
 """Womb Rave's soundtrack and step chart, both generated from code.
 
-The song is a 120 BPM chiptune: a square-wave bass and a lead that plays exactly on the notes you have to hit. Every SQUEEZE note has a contraction
-(a deep growl) baked into the music, so the button hits are audible too.
+The song is a 100 BPM chiptune: a square-wave bass and a lead that plays exactly on the notes you have to hit.
+Contractions (a deep growl) are baked into the music as flavour; they aren't notes.
 
 The song is a list of bars (SONG). Each kind of bar has a fixed rhythm (PATTERNS);
 the lanes the notes come down are dealt from a fixed seed, so the chart is the
@@ -18,7 +18,7 @@ import wave
 from dataclasses import dataclass
 
 RATE = 22050                     # synth sample rate; the mixer resamples
-BPM = 120                        # the starting tempo (and the select-screen loop's)
+BPM = 100                        # the starting tempo (and the select-screen loop's)
 BEAT = 60 / BPM
 EIGHTH = BEAT / 2
 BAR = BEAT * 4
@@ -28,7 +28,7 @@ SECTIONS = [("count", 1), ("heart", 2), ("verse", 4), ("chorus", 4), ("break", 2
             ("verse", 2), ("chorus", 4), ("push", 2)]
 SONG = [kind for kind, n in SECTIONS for _ in range(n)]
 # The song speeds up as it goes: bar index -> new tempo, each with a shout on screen.
-TEMPO_CHANGES = {0: 120, 7: 128, 13: 136, 15: 144, 19: 152}
+TEMPO_CHANGES = {0: 100, 7: 105, 13: 110, 15: 115, 19: 120}
 SPEEDUPS = {7: "FASTER!", 13: "HARDER!", 15: "DEEPER!", 19: "DON'T STOP!"}
 BAR_BPM: list[float] = []
 for _i in range(len(SONG)):
@@ -42,16 +42,15 @@ TRIMESTERS = (1, 7, 15)
 CUES = {1: "FIRST TRIMESTER", 7: "SECOND TRIMESTER", 11: "CONTRACTIONS!", 13: "THIRD TRIMESTER", 19: "PUSH!"}
 
 # Rhythm per kind of bar: (eighth-note position 0..7, what's there).
-#   d = one stick direction   dd = a diagonal (two directions at once)
-#   b = SQUEEZE (button)      bd = button and a direction together
+#   d = one stick direction   w = a contraction growl in the music (no note)
 PATTERNS = {
     "count": [],
     "heart": [(0, "d"), (4, "d")],
     "verse": [(0, "d"), (2, "d"), (4, "d"), (6, "d")],
-    "chorus": [(0, "bd"), (2, "d"), (3, "d"), (4, "d"), (6, "dd")],
-    "chorus2": [(0, "d"), (1, "d"), (2, "d"), (4, "bd"), (6, "d"), (7, "d")],
-    "break": [(0, "b"), (2, "d"), (4, "b"), (6, "d")],
-    "push": [(0, "b"), (2, "b"), (4, "b"), (6, "bd")],
+    "chorus": [(0, "dw"), (2, "d"), (4, "d"), (5, "d"), (6, "d")],
+    "chorus2": [(0, "d"), (2, "d"), (3, "d"), (4, "dw"), (6, "d")],
+    "break": [(0, "w"), (2, "d"), (4, "w"), (6, "d")],
+    "push": [(0, "dw"), (2, "dw"), (4, "dw"), (6, "dw")],
 }
 CHART_SEED = 9
 
@@ -64,7 +63,7 @@ MELODY = (0, 1, 2, 1, 2, 0, 1, 2)    # chord tone the lead plays at each eighth
 @dataclass
 class Note:
     t: float                    # seconds into the song when it should be hit
-    lane: str                   # L R U D (stick) or B (button)
+    lane: str                   # L R U D
     snack: int = 0              # which snack, for U notes
     judged: str | None = None   # perfect | great | ok | miss
     hit_t: float = 0.0          # song time it was judged
@@ -113,14 +112,8 @@ def chart() -> list[Note]:
         for pos, what in PATTERNS[bar_kind(i)]:
             eighth = 30 / BAR_BPM[i]
             t = BAR_START[i] + pos * eighth
-            lanes = []
-            if "b" in what:
-                lanes.append("B")
-            if what == "dd":                                 # stick diagonals: one horizontal, one vertical
-                lanes += [rng.choice("LR"), rng.choice("UD")]
-            elif "d" in what:
-                lanes.append(pick(t, eighth))
-            for ln in lanes:
+            if "d" in what:
+                ln = pick(t, eighth)
                 last[ln] = t
                 notes.append(Note(t, ln, rng.randrange(4)))
     return notes
@@ -244,7 +237,7 @@ def render_bar(kind: str, chord: int, k: _Kit) -> list[float]:
     for pos, what in pattern:
         if "d" in what:
             _add(buf, at(pos), k.lead[tones[MELODY[pos]]])
-        if "b" in what:
+        if "w" in what:
             _add(buf, at(pos), k.womp)
     return buf
 
