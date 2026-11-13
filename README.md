@@ -98,15 +98,15 @@ to get each joke (the labels just name things; the pictures do the joking), and 
 | 1E+07 M | the Earth. A heart pops up on it for every baby made (about 4 a second, the real rate), and a counter counts them |
 | 1E+13 M | the solar system: a sun in sunglasses, and Uranus, which is a butt (and has farted) |
 | 1E+21 M | the Milky Way, which is a pair of boobs. YOU ARE HERE. |
-| 1E+27 M | THE BIG BANG: two cosmic giants in bed under a starry quilt, going at it. The headboard goes BANG! BANG! and someone shouts OH GOD! |
+| 1E+27 M | THE BIG BANG: two cosmic giants in bed under a starry quilt, going at it. The headboard goes BANG! BANG! and she tells him: JUST LIKE THAT. YOU ARE DOING SO GOOD TIGER. DON'T STOP. |
 
 ![the zoom out](assets/previews/lifesim_zoom.png)
 
 Past the big bang is the dark, where the program finds you: a **spirit** with no
 body yet. You're the lab's next **visitor** (VISITOR NO. 0042, say), and you sign
 in with a 1-4 letter name the way old arcades take high-score initials: the
-stick rolls the letter, the button locks it in, left backs up, and END (one
-step down from A) finishes a short name. Every visitor is logged to
+stick rolls the letter (down goes A -> B, up goes back), the button locks it
+in, left backs up, and END (one step up from A) finishes a short name. Every visitor is logged to
 `~/.life_lab/visitors.txt` (set `LIFE_LAB_VISITORS` to move it; `--demo` doesn't
 log). Then the camera pulls back out of the CRT to the terminal, where you
 pick a theory of life. The tape mounts, you get incarnated, and the CRT
@@ -129,26 +129,39 @@ what to make of it.
 
 ### The file drawer
 
-Under the theories sits a command line, `C:/> FILES`. Pick it and the CRT
-turns into the lab's file system: lab notebooks, incident reports, and photos
-of experiments that went wrong (the Kronenbergs, in phosphor green). Browse
-with the stick, open with the button.
+Under the theories sits a command line, `C:\> FILES`. Pick it and the whole
+screen turns into a DOS prompt, in a bigger 5x7 font, that types out
+`DIR ADMIN\LIFELAB\PRIVATE\SECRET\BOOBS\BACKUP` and prints the directory
+listing, and the listing is the menu: lab notebooks,
+incident reports, and photos of experiments that went wrong (the Kronenbergs,
+in phosphor green). Browse with the stick, open with the button. The `..` row
+at the top goes back to the theories.
 
 Some files are locked. Their 3-letter codes are hidden around the room: on
 masking tape, on a sticky note, chalked on the wall, scratched into the floor.
-One notebook gives up another code. Pick the CODE row, roll three letters like
-the name entry, and a hidden code opens its file. Anything else searches the
+One notebook gives up another code. Run `UNLOCK.EXE` at the bottom of the
+listing, roll three letters like the name entry, and a hidden code opens its file. Anything else searches the
 file names.
 
 ![the lab's file drawer](assets/previews/lifesim_files.png)
 
 Then there's `WATCH_IF_YOU_ARE_ROLLING.VID` and
 `WATCH_IF_YOU_ARE_NOT_ROLLING.VID`. Both rick roll you, and they're the one
-place the game drops the pixels: the video plays smooth at the window's full
-resolution, with sound. Watch the NOT ROLLING one and you are now rolling, so
-the terminal sends you to the other one. The media isn't shipped: drop
-`rickroll.gif` and `rickroll.ogg` into `assets/files/` (see the README there).
-Without them, the drive reports TAPE MISSING.
+place the game drops the pixels: the video fills the window, with sound.
+Watch the NOT ROLLING one and you are now rolling, so the terminal sends you to
+the other one. The repo ships the rick roll as an MP4, which plays through
+`ffmpeg` (on the Pi already; `brew install ffmpeg` on a Mac). Its soundtrack is
+pulled out once into `~/.cache/culture-shock/`. Without ffmpeg it falls back to
+`rickroll.gif`, silent (see the README in `assets/files/`). With no media at
+all, the drive reports TAPE MISSING.
+
+### Leaving
+
+Leave the game alone for 20 seconds, or hold the button on a menu (the theories
+or the file listing; they say HOLD: EXIT), and it freezes under a STILL THERE?
+countdown from 60. Any button or the stick carries on. Hold the button, or let
+it run out, and it goes back to the start screen for the next visitor. Because
+of the hold, the menus act when you let go of the button.
 
 ```bash
 python -m lifesim                 # windowed; add --fullscreen on the cabinet (./play.sh does this)
@@ -159,10 +172,11 @@ python -m lifesim --demo          # the computer boots it and plays every simula
 | Action | Keyboard | Arcade stick |
 |---|---|---|
 | Pick a theory | Up / Down | stick |
-| Name entry: roll the letter / back / next | Up, Down / Left / Right | stick |
-| Files: browse / back out | Up, Down / Left | stick |
+| Name entry: roll the letter (down = A -> B) / back / next | Down, Up / Left / Right | stick |
+| Files: browse / back out (or `..` at the top) | Up, Down / Left | stick |
 | Files: type a code (roll / undo / lock) | Up, Down / Left / Right or Space | stick, button 0 |
 | Boot / skip the zoom / select / continue | Space, Z or Enter | button 0 |
+| Exit countdown (on a menu) / back to the start screen (on the countdown) | hold Space, Z or Enter | hold button 0 |
 | Quit | Esc or Q | |
 
 The code is in `lifesim/`: `art.py` draws the computer room and the spirit,

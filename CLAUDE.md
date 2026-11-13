@@ -21,7 +21,20 @@ up to date:
 
 Which Python to use depends on the machine. Check with `command -v conda`.
 
-**Cabinet Pi (no conda):** the system `python3` has pygame. Launch the main game
+**Cabinet Pi (no conda):** there's no conda and no active virtualenv. The game
+runs on the system `python3` (Debian/Raspberry Pi OS, Python 3.13), with its
+packages installed through apt, not pip:
+
+- `python3-pygame`: plain pygame 2.6.1, **not** pygame-ce. It has no
+  `pygame.image.load_animation`, among other gaps, so anything pygame-ce-only
+  needs a fallback.
+- `python3-pil`: Pillow 11.1.
+- `ffmpeg` and `ffprobe` on the PATH, which the rick roll video uses.
+
+To add a package, use `sudo apt install python3-<name>` (pip is blocked on the
+system Python). There's also a stale `.venv/` in the repo, git-ignored, from
+the README's pip setup. It has pygame-ce 2.5.8 and Pillow 13, but `play.sh`
+doesn't use it and nothing else does either. Launch the main game
 with `./play.sh`, which also attaches to the desktop session on the cabinet
 monitor (it works over SSH too). It runs fullscreen by default. Any flags you
 pass go to the game, and passing a flag also turns off the fullscreen default:

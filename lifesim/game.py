@@ -13,20 +13,21 @@ the terminal, get incarnated into it, and see whether it holds up. Every
 mini-game is one simulation.
 
 Controls (keyboard, or an arcade stick / gamepad):
-    STICK / ARROWS            pick a theory (or C:/> FILES under them); on the name entry, down goes A -> B, up goes back,
+    STICK / ARROWS            pick a theory (or C:\\> FILES under them); on the name entry, down goes A -> B, up goes back,
                               left goes back a letter, right goes on to the next
     SPACE / Z / ENTER / btn 0 boot, skip the intro, select, next letter, continue
     ESC / Q                   quit
 
-Leave it alone for IDLE_PROMPT s (outside the boot sequence and cut-scenes) and
-the game freezes under a STILL THERE? countdown. Any button or the stick carries
-on; holding the button, or letting it run out, goes back to the start screen
-for the next visitor.
+Leave it alone for IDLE_PROMPT s (outside the boot sequence and cut-scenes), or
+hold the button on a menu (the theories or the file listing), and the game
+freezes under a STILL THERE? countdown. Any button or the stick carries on;
+holding the button, or letting it run out, goes back to the start screen for
+the next visitor. Because of the hold, menus act when the button is let go.
 
 Win a simulation and the theory is CONFIRMED; lose and it's REFUTED. The
 terminal keeps score for the session.
 
-Under the theories there's a command line, C:/> FILES, that opens the lab's
+Under the theories there's a command line, C:\\> FILES, that opens the lab's
 file drawer (see files.py): notebooks, photos of experiments gone wrong, and
 locked files whose 3-letter codes are hidden around the room.
 """
@@ -39,14 +40,14 @@ import math
 import os
 from pathlib import Path
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable
 
 import pygame
 
 from minigames.shell import Input, MiniGame, run
-from sprites.canvas import hex_to_rgba, mix
-from sprites.font import text_width
+from sprites.canvas import Canvas, hex_to_rgba, mix
+from sprites.font import BIG_H, big_width, draw_big_text, text_width
 from sprites.viewer import text_surface, to_surface
 
 from . import art
@@ -75,6 +76,7 @@ CRT_ON_TIME = 0.35
 IDLE_PROMPT = 20.0         # s of nobody touching anything before the "still there?" countdown
 IDLE_COUNTDOWN = 60        # s it counts down from before it goes back to the start screen
 HOLD_TO_EXIT = 1.5         # s of holding the button on the countdown to go back to the start screen
+MENU_HOLD = 0.8            # s of holding the button on a menu to bring the countdown up (menus act on release)
 REEL_IDLE, REEL_FAST = 90.0, 900.0      # degrees/s
 DIVE = (SCREEN[0], SCREEN[1] + 7, SCREEN[2], SCREEN[2] * 9 // 16)     # the part of the glass the camera dives into
 SUMMON_LINES = ["1 SPIRIT DETECTED.", "YOU ARE VISITOR NO. {num}."]
@@ -264,15 +266,28 @@ class Typer:
 
 
 class Glyphs:
-    """Cache of rendered text, since the terminal redraws every frame."""
+    """Cache of rendered text, since the terminal redraws every frame.
 
-    def __init__(self) -> None:
-        self.cache: dict[tuple[str, str, int], pygame.Surface] = {}
+    The terminal is one colour: every shade of phosphor (dim, faint, the white-hot
+    highlight) comes out as plain PHOSPHOR, so text is always the brightest, easiest
+    thing to read. The one exception is CRT_BG, for dark text on a lit bar.
+    `big` uses the 5x7 font instead of the 3x5 one."""
 
-    def get(self, s: str, color: str, scale: int = 1) -> pygame.Surface:
-        key = (s, color, scale)
+    def __init__(self, mono: bool = True) -> None:
+        self.mono = mono
+        self.cache: dict[tuple[str, str, int, bool], pygame.Surface] = {}
+
+    def get(self, s: str, color: str, scale: int = 1, big: bool = False) -> pygame.Surface:
+        if self.mono and color != CRT_BG:
+            color = PHOSPHOR
+        key = (s, color, scale, big)
         if key not in self.cache:
-            surf = text_surface(s, color)
+            if big:
+                c = Canvas(max(1, big_width(s)), BIG_H)
+                draw_big_text(c, 0, 0, s, color)
+                surf = to_surface(c)
+            else:
+                surf = text_surface(s, color)
             if scale > 1:
                 surf = pygame.transform.scale_by(surf, scale)
             self.cache[key] = surf
@@ -291,8 +306,8 @@ class Art:
         for y in range(sh):
             for x in range(sw):
                 d = math.hypot((x - sw / 2) / (sw / 2), (y - sh / 2) / (sh / 2))
-                if d > 0.9:
-                    self.vignette.set_at((x, y), (0, 0, 0, min(200, int((d - 0.9) * 260))))
+                if d > 1.1:                       # just the very corners, clear of the text
+                    self.vignette.set_at((x, y), (0, 0, 0, min(200, int((d - 1.1) * 300))))
         # a soft halo, added on top (so it's plain colour scaled by brightness, no alpha)
         self.glow = pygame.Surface((24, 24))
         er, eg, eb = rgb(art.SPIRIT_EDGE)
@@ -355,6 +370,8 @@ class LifeSim:
         self.countdown: float | None = None     # s left on the countdown while it's up
         self.hold: float | None = None          # s the button has been held on the countdown
         self.swallow = False                    # eat input after the countdown until hands are off
+        self.armed = True                       # False: opened by a held button, waiting for it to let go
+        self.press: float | None = None         # s the button's been down on a menu
         self._go("hub" if skip_boot else "off")
 
     # -- phases --------------------------------------------------------------------
@@ -410,14 +427,12 @@ class LifeSim:
             self.idle = 0.0 if touched or self._idle_paused() else self.idle + dt
             if self.idle < IDLE_PROMPT:
                 return False
-            self.countdown, self.hold = float(IDLE_COUNTDOWN), None
-            self.activity("idle_prompt", phase=self.phase)
-            if pygame.mixer.get_init():          # the game underneath is frozen, so its sound is too
-                pygame.mixer.pause()
-                pygame.mixer.music.pause()
+            self._open_prompt("idle")
             return True
         self.countdown -= dt
-        if self.hold is not None:
+        if not self.armed:                   # brought up by holding the button: let go first
+            self.armed = not inp.held
+        elif self.hold is not None:
             if inp.held:
                 self.hold += dt
                 if self.hold >= HOLD_TO_EXIT:
@@ -431,6 +446,45 @@ class LifeSim:
         if self.countdown is not None and self.countdown <= 0:
             self._back_to_start("timeout")
         return True
+
+    def _open_prompt(self, via: str) -> None:
+        self.countdown, self.hold = float(IDLE_COUNTDOWN), None
+        self.armed = via != "hold"
+        self.press = None
+        self.term.hold_k = 0.0
+        self.activity("idle_prompt", phase=self.phase, via=via)
+        if pygame.mixer.get_init():              # the game underneath is frozen, so its sound is too
+            pygame.mixer.pause()
+            pygame.mixer.music.pause()
+
+    def _menu_button(self, dt: float, inp: Input) -> Input | None:
+        """On the menus (the theories and the file listing) the button acts when
+        it's let go, so holding it can bring up the exit countdown instead.
+        None means the countdown just came up."""
+        menu = self.phase == "hub" or self.phase == "files" and self.term.mode == "list"
+        if not menu:
+            self.press = None
+            return inp
+        if inp.action:
+            self.press = 0.0
+        elif self.press is None:
+            return inp
+        elif inp.held:
+            self.press += dt
+            if self.press >= MENU_HOLD:
+                self._open_prompt("hold")
+                return None
+        else:                                    # let go in time: that's a press
+            self.press = None
+            return replace(inp, action=True)
+        return replace(inp, action=False)
+
+    @property
+    def hold_k(self) -> float:
+        """0..1, how far a held button on a menu is to the countdown (0 for a quick tap)."""
+        if self.press is None or self.press < 0.15:
+            return 0.0
+        return min(1.0, (self.press - 0.15) / (MENU_HOLD - 0.15))
 
     def _dismiss(self) -> None:
         self.countdown = self.hold = None
@@ -456,8 +510,13 @@ class LifeSim:
         self.done = True
 
     def update(self, dt: float, inp: Input) -> None:
-        if self.idle_exit and self._idle(dt, inp):
-            return
+        if self.idle_exit:
+            if self._idle(dt, inp):
+                return
+            inp = self._menu_button(dt, inp)
+            if inp is None:
+                return
+        self.term.hold_k = self.hold_k
         self.time += dt
         self.phase_t += dt
         if self.phase == "off":
@@ -526,7 +585,7 @@ class LifeSim:
                 self._go("hub")
         elif self.phase == "hub":
             if inp.y and inp.y != self.held_y:
-                self.sel = (self.sel + inp.y) % (len(self.theories) + 1)     # the last row is C:/> FILES
+                self.sel = (self.sel + inp.y) % (len(self.theories) + 1)     # the last row is C:\> FILES
             self.held_y = inp.y
             if inp.action and self.phase_t > 0.2:
                 if self.sel == len(self.theories):
@@ -563,6 +622,8 @@ class LifeSim:
                 self._draw_rain_fullscreen(screen, 1 - self.phase_t / RAIN_FADE)
         elif self.phase == "summon":
             self._draw_summon(screen)
+        elif self.phase == "files":                       # the file system takes the whole screen
+            self.term.draw(screen, self.text, self.time)
         elif self.phase in ("rain", "exit"):
             if self.phase == "rain":
                 k = max(0.0, min(1.0, (self.phase_t - RAIN_TIME) / ENTER_TIME))
@@ -593,21 +654,20 @@ class LifeSim:
         def centre(s: pygame.Surface, y: int) -> None:
             screen.blit(s, (cx - s.get_width() // 2, y))
 
-        centre(self.text.get("STILL THERE?", PHOSPHOR), py + 7)
+        centre(self.text.get("STILL THERE?", PHOSPHOR, big=True), py + 6)
         left = max(0, math.ceil(self.countdown))
-        centre(self.text.get(str(left), "#eaffea" if left > 10 else "#ff7a5a", 3), py + 18)
+        centre(self.text.get(str(left), PHOSPHOR, 2, big=True), py + 17)
         # the seconds drain away along a bar
         bw = pw - 24
-        screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, py + 40, bw, 3))
-        screen.fill(rgb(PHOSPHOR), (px + 12, py + 40, int(bw * self.countdown / IDLE_COUNTDOWN), 3))
-        blink = int(self.countdown * 2) % 2 == 0
-        centre(self.text.get("PRESS ANY BUTTON TO CONTINUE", "#eaffea" if blink else PHOSPHOR), py + 51)
-        centre(self.text.get("HOLD THE BUTTON TO RETURN", PHOSPHOR_DIM), py + 63)
-        centre(self.text.get("TO THE START SCREEN", PHOSPHOR_DIM), py + 71)
+        screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, py + 37, bw, 3))
+        screen.fill(rgb(PHOSPHOR), (px + 12, py + 37, int(bw * self.countdown / IDLE_COUNTDOWN), 3))
+        centre(self.text.get("PRESS ANY BUTTON TO CONTINUE", PHOSPHOR, big=True), py + 47)
+        centre(self.text.get("HOLD THE BUTTON TO RETURN", PHOSPHOR, big=True), py + 60)
+        centre(self.text.get("TO THE START SCREEN", PHOSPHOR, big=True), py + 70)
         if self.hold is not None:                   # holding: a bar fills up to the exit
             k = min(1.0, self.hold / HOLD_TO_EXIT)
-            screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, py + 81, bw, 4))
-            screen.fill(rgb("#eaffea"), (px + 12, py + 81, int(bw * k), 4))
+            screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, py + 82, bw, 4))
+            screen.fill(rgb(PHOSPHOR), (px + 12, py + 82, int(bw * k), 4))
 
     def overlay(self, window: pygame.Surface) -> None:
         """Called by the shell after scaling, on the real window: the rick roll plays here, at full res."""
@@ -655,14 +715,14 @@ class LifeSim:
         for i, line in enumerate(lines):
             if line:
                 full = self.typer.lines[i]
-                screen.blit(self.text.get(line, PHOSPHOR), (cx - text_width(full) // 2, 104 + i * 9))
+                screen.blit(self.text.get(line, PHOSPHOR, big=True), (cx - big_width(full) // 2, 102 + i * 10))
         if self.stage == "name":
             self._draw_name_entry(screen, cx, 126)
         elif self.stage == "welcome" and self.typer.done and int(self.time * 2) % 2 == 0:
-            s = self.text.get("PRESS BUTTON", PHOSPHOR_DIM)
+            s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
             screen.blit(s, (cx - s.get_width() // 2, 160))
-        screen.blit(self.text.get("LIFE LAB MAINFRAME", PHOSPHOR_DIM), (4, 3))
-        s = self.text.get("PROGRAM: GENESIS", PHOSPHOR_DIM)
+        screen.blit(self.text.get("LIFE LAB MAINFRAME", PHOSPHOR, big=True), (4, 3))
+        s = self.text.get("PROGRAM: GENESIS", PHOSPHOR, big=True)
         screen.blit(s, (art.W - 4 - s.get_width(), 3))
         if self.cosmos:
             screen.blit(self.cosmos.scanlines, (0, 0))
@@ -670,7 +730,7 @@ class LifeSim:
     def _draw_name_entry(self, screen: pygame.Surface, cx: float, y: int) -> None:
         """ENTER YOUR NAME and four big letter slots, the current one rolling."""
         e = self.entry
-        s = self.text.get("ENTER YOUR NAME:", PHOSPHOR_DIM)
+        s = self.text.get("ENTER YOUR NAME:", PHOSPHOR, big=True)
         screen.blit(s, (cx - s.get_width() // 2, y))
         slot_w, gap = 14, 6
         x0 = int(cx - (NAME_LEN * slot_w + (NAME_LEN - 1) * gap) / 2)
@@ -679,23 +739,23 @@ class LifeSim:
             x, top = x0 + i * (slot_w + gap), y + 10
             here = i == len(e.name)
             if i < len(e.name):
-                img = self.text.get(e.name[i], "#eaffea", 2)
+                img = self.text.get(e.name[i], PHOSPHOR, 2, big=True)
             elif here and e.letter == NAME_END:
-                img = self.text.get(NAME_END, "#eaffea" if blink else PHOSPHOR)
+                img = self.text.get(NAME_END, PHOSPHOR, big=True) if blink else None
             elif here:
-                img = self.text.get(e.letter, "#eaffea" if blink else PHOSPHOR, 2)
+                img = self.text.get(e.letter, PHOSPHOR, 2, big=True)
             else:
                 img = None
             if img:
-                screen.blit(img, (x + (slot_w - img.get_width()) // 2, top + (10 - img.get_height()) // 2))
-            screen.fill(rgb(PHOSPHOR if here else PHOSPHOR_DIM), (x, top + 12, slot_w, 1))
+                screen.blit(img, (x + (slot_w - img.get_width()) // 2, top + (14 - img.get_height()) // 2))
+            screen.fill(rgb(PHOSPHOR if here else PHOSPHOR_DIM), (x, top + 16, slot_w, 1 + here))
             if here:                                     # little arrows: the stick rolls this one
-                screen.fill(rgb(PHOSPHOR_DIM), (x + slot_w // 2 - 1, top - 3, 3, 1))
-                screen.fill(rgb(PHOSPHOR_DIM), (x + slot_w // 2, top - 4, 1, 1))
-                screen.fill(rgb(PHOSPHOR_DIM), (x + slot_w // 2 - 1, top + 15, 3, 1))
-                screen.fill(rgb(PHOSPHOR_DIM), (x + slot_w // 2, top + 16, 1, 1))
+                screen.fill(rgb(PHOSPHOR), (x + slot_w // 2 - 1, top - 3, 3, 1))
+                screen.fill(rgb(PHOSPHOR), (x + slot_w // 2, top - 4, 1, 1))
+                screen.fill(rgb(PHOSPHOR), (x + slot_w // 2 - 1, top + 19, 3, 1))
+                screen.fill(rgb(PHOSPHOR), (x + slot_w // 2, top + 20, 1, 1))
         hint = "STICK: LETTER   BUTTON: NEXT" + ("   END: DONE" if e.name else "")
-        s = self.text.get(hint, PHOSPHOR_FAINT)
+        s = self.text.get(hint, PHOSPHOR, big=True)
         screen.blit(s, (cx - s.get_width() // 2, 166))
 
     def _draw_room(self, screen: pygame.Surface) -> None:
@@ -727,18 +787,7 @@ class LifeSim:
         crt.fill(rgb(CRT_BG))
         self.spirits: list[tuple[float, float, float]] = []
         getattr(self, f"_crt_{self.phase}")(crt)
-        if self.phase == "files":                # crisp text for reading files: no bloom, no scanlines
-            crt.blit(a.vignette, (0, 0))
-            screen.blit(crt, (sx, sy))
-            return
-
-        # phosphor bloom: a blurred copy added on top
-        small = pygame.transform.smoothscale(crt, (sw // 4, sh // 4))
-        bloom = pygame.transform.smoothscale(small, (sw, sh))
-        bloom.set_alpha(80)
-        crt.blit(bloom, (0, 0), special_flags=pygame.BLEND_ADD)
-        if int(self.time * 30) % 17 == 0:                      # a little flicker
-            crt.fill((6, 10, 6), special_flags=pygame.BLEND_ADD)
+        # no bloom, flicker or scanlines: crisp text reads best at this size
         crt.blit(a.vignette, (0, 0))
         for x, y, scale in self.spirits:          # the spirit is real, not phosphor: drawn over the glass effects
             self._draw_spirit(crt, x, y, scale)
@@ -807,7 +856,7 @@ class LifeSim:
         crt.fill(rgb(PHOSPHOR_DIM if down else PHOSPHOR_FAINT), (bx + 1, by + 1, bw - 2, bh - 2))
         label = self.text.get("PUSH TO BOOT UP", "#eaffea" if down else PHOSPHOR)
         crt.blit(label, (sw // 2 - label.get_width() // 2, by + bh // 2 - 2))
-        s = self.text.get("STATE OF THE ART. EST. 1974", PHOSPHOR_FAINT)
+        s = self.text.get("STATE OF THE ART.", PHOSPHOR_FAINT)
         crt.blit(s, (sw // 2 - s.get_width() // 2, 92))
 
     def _crt_rain(self, crt: pygame.Surface) -> None:
@@ -823,12 +872,20 @@ class LifeSim:
         crt.blit(who, (sw - 4 - who.get_width(), 3))
         crt.fill(rgb(PHOSPHOR_DIM), (4, 10, sw - 8, 1))
         crt.blit(self.text.get("SELECT A THEORY OF LIFE:", PHOSPHOR), (4, 14))
+        if self.idle_exit:
+            hold = self.text.get("HOLD: EXIT", PHOSPHOR_FAINT)
+            hx = sw - 6 - hold.get_width()
+            crt.blit(hold, (hx, 14))
+            if self.hold_k > 0:
+                crt.fill(rgb("#eaffea"), (hx, 20, int(hold.get_width() * self.hold_k), 1))
         for i, t in enumerate(self.theories):
             y = 26 + i * ROW
             runs = self.results[t.code]
             verdict = VERDICT["win"] if "win" in runs else VERDICT[runs[-1]] if runs and runs[-1] in VERDICT else \
                 VERDICT["?"] if runs else VERDICT[None]
-            fg = PHOSPHOR if i == self.sel else PHOSPHOR_DIM
+            fg = CRT_BG if i == self.sel else PHOSPHOR        # the pick is dark text on a lit bar
+            if i == self.sel:
+                crt.fill(rgb(PHOSPHOR), (19, y - 2, sw - 23, 9))
             crt.blit(self.text.get(f"{t.code} {t.name}", fg), (21, y))
             if t.players == "2P":
                 crt.blit(self.text.get("2P", fg), (21 + text_width(f"{t.code} {t.name}") + 4, y))
@@ -839,17 +896,14 @@ class LifeSim:
         blurb = FILES_BLURB if files else self.theories[self.sel].blurb
         for i, line in enumerate(blurb):
             crt.blit(self.text.get(line, PHOSPHOR), (4, 75 + i * 7))
-        # the command line: pick it like a theory
-        prompt = "C:/> FILES" if files else "C:/>"
+        # the command line: always there, picked like a theory
+        prompt = "C:\\> FILES"
         if files:
-            crt.fill(rgb(PHOSPHOR_FAINT), (4, 91, sw - 8, 9))
-        crt.blit(self.text.get(prompt, PHOSPHOR if files else PHOSPHOR_FAINT), (21, 93))
-        if int(self.time * 2.5) % 2 == 0:
-            crt.fill(rgb(PHOSPHOR), (21 + text_width(prompt) + 2, 93, 3, 5))
+            crt.fill(rgb(PHOSPHOR), (19, 91, sw - 23, 9))
+        crt.blit(self.text.get(prompt, CRT_BG if files else PHOSPHOR), (21, 93))
+        if files and int(self.time * 2.5) % 2 == 0:
+            crt.fill(rgb(CRT_BG), (21 + text_width(prompt) + 2, 93, 3, 5))
         self._spirit(crt, 10, 95 if files else 28 + self.sel * ROW)
-
-    def _crt_files(self, crt: pygame.Surface) -> None:
-        self.term.draw(crt, self.text, self.time)
 
     def _crt_load(self, crt: pygame.Surface) -> None:
         self._lines(crt, self.typer.visible())

@@ -79,7 +79,7 @@ def make(a, need: int, time_limit: float) -> Tutorial:
             x, name, f = 124 + 26 * k, "attack", min(3, int(k * 4))
         else:
             x, name, f = 150, "carry_idle", int(t * 4) % 4
-        caught = t >= POUNCE + LUNGE * 0.6
+        caught = t >= POUNCE + LUNGE          # in hand once the lunge ends: only carry poses have a hand spot
         items = [(POT[1], lambda: pot(s, t)),
                  (y, lambda: chef(s, x, y, name, f, 1, "legfish" if caught else None, t))]
         if not caught:

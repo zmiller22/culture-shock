@@ -108,6 +108,8 @@ class Prop:
     spin: float = 0.0                          # degrees/s
     hop: float = 0.0                           # canvas px it bounces up and down
     label: tuple[str, str] | None = None
+    start: float = 0.0                         # s into the zoom its first frame shows (frames[0] before then)
+    loop: bool = True                          # False: play the frames once and stay on the last
 
 
 @dataclass
@@ -136,6 +138,36 @@ def _text_frames(word: str, color: str, shadow: str, on: list[int], n: int) -> l
     return [pop if f in on else blank for f in range(n)]
 
 
+BUBBLE_INK, BUBBLE_EDGE = "#2a1640", "#1a1030"
+BUBBLE_LINES = (("JUST LIKE THAT",), ("YOU ARE DOING", "SO GOOD TIGER"), ("DON'T STOP",))
+BUBBLE_SAY = 1.5                           # s each line stays up
+BUBBLE_GAP = 0.25                          # s of nothing between lines
+
+
+def _bubble_frames(lines: tuple[tuple[str, ...], ...], tail_x: int) -> list[pygame.Surface]:
+    """Speech bubbles, all the same size, one per thing said, with a tail at the
+    bottom (tail_x from the left). Drawn for one screen px per px."""
+    pad, row = 4, 7
+    texts = [[text_surface(s, BUBBLE_INK) for s in said] for said in lines]
+    bw = max(t.get_width() for said in texts for t in said) + pad * 2
+    bh = max(len(said) for said in texts) * row - 2 + pad * 2
+    frames = []
+    for said in texts:
+        surf = pygame.Surface((bw, bh + 8), pygame.SRCALPHA)
+        body = pygame.Rect(0, 0, bw, bh)
+        pygame.draw.rect(surf, (255, 255, 255), body, border_radius=4)
+        pygame.draw.rect(surf, rgb(BUBBLE_EDGE), body, 1, border_radius=4)
+        tail = [(tail_x - 3, bh - 1), (tail_x + 4, bh - 1), (tail_x + 6, bh + 7)]
+        pygame.draw.polygon(surf, (255, 255, 255), tail)
+        pygame.draw.lines(surf, rgb(BUBBLE_EDGE), False, [tail[0], tail[2], tail[1]])
+        y = pad + (bh - pad * 2 - len(said) * row + 2) // 2
+        for t in said:
+            surf.blit(t, ((bw - t.get_width()) // 2, y))
+            y += row
+        frames.append(surf)
+    return frames
+
+
 def build_levels() -> list[Level]:
     cx, cy = sa.CX, sa.CY
     stork_frames = [_surf(stork(f, True)) for f in range(4)]
@@ -146,7 +178,16 @@ def build_levels() -> list[Level]:
     def on_bed(sx: float, sy: float) -> tuple[float, float]:
         return gx + (sx - sa.GIANTS_W / 2) * gs, gy + (sy - sa.GIANTS_H / 2) * gs
 
-    return [
+    # her lines, in a speech bubble over the pillow: one frame per line, a short blank between
+    said = _bubble_frames(BUBBLE_LINES, tail_x=30)
+    blank = pygame.Surface(said[0].get_size(), pygame.SRCALPHA)
+    step = 0.05
+    bubble_frames = [blank]
+    for s in said:
+        bubble_frames += [s] * round(BUBBLE_SAY / step) + [blank] * round(BUBBLE_GAP / step)
+    bubble = Prop(bubble_frames, *on_bed(35, 11), size=1 / K0, fps=1 / step, loop=False)
+
+    levels = [
         Level(_surf(sa.earth_level()), scale="1E+07 M", hold=4.0,
               labels=[(cx, cy, 52, "EARTH", ""),
                       (cx, cy, -52, "BABIES MADE SINCE YOU GOT HERE:", "{births}")],
@@ -162,9 +203,10 @@ def build_levels() -> list[Level]:
               props=[Prop(bed, gx, gy, size=gs, fps=bed_fps),
                      Prop(_text_frames("BANG!", "#ffe14d", "#c83a2a", [2, 3], 8), *on_bed(6, -6), fps=bed_fps),
                      Prop(_text_frames("BANG!", "#ffe14d", "#c83a2a", [6, 7], 8), *on_bed(2, 30), fps=bed_fps),
-                     Prop(_text_frames("OH GOD!", "#ffffff", "#a84a90", list(range(8, 14)), 16), *on_bed(48, 8),
-                          fps=bed_fps)]),
+                     bubble]),
     ]
+    bubble.start = sum(lv.hold for lv in levels[:-1]) + ZOOM_MOVE * (len(levels) - 1) + 0.3   # once the camera's there
+    return levels
 
 
 _LEVELS: list[Level] | None = None
@@ -287,7 +329,8 @@ class Cosmos:
 
     def _draw_prop(self, screen: pygame.Surface, i: int, p: Prop, alpha: int = 255) -> None:
         f = self._factor(i) * p.size
-        img = p.frames[int(self.t * p.fps) % len(p.frames)]
+        n = int(max(0.0, self.t - p.start) * p.fps)
+        img = p.frames[n % len(p.frames) if p.loop else min(n, len(p.frames) - 1)]
         w, h = img.get_width() * f, img.get_height() * f
         if w < 1 or w > W * 3:
             return

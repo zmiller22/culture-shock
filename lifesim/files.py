@@ -1,48 +1,79 @@
-"""The lab's file drawer: a little file browser on the mainframe's CRT.
+"""The lab's file drawer: a little file system on the mainframe.
 
-Pick C:/> FILES off the theory menu and the CRT turns into a file system full
-of what the lab would rather you didn't read: notebooks, incident reports, and
-photos of experiments that went wrong. Some files are locked. Their 3-letter
+Pick C:/> FILES off the theory menu and the whole screen becomes a terminal
+full of what the lab would rather you didn't read: notebooks, incident reports,
+and photos of experiments that went wrong. Some files are locked. Their 3-letter
 codes are hidden around the room (masking tape, a sticky note, the wall, the
 floor), and one notebook gives up another.
 
-It's all stick-and-button, like the visitor name entry:
+Opening it types a DIR command, like a real terminal, and the directory listing
+it prints is the menu. It's all stick-and-button, like the visitor name entry:
 
-    on the CODE row   button starts typing; down rolls A -> B, up rolls back, button or
-                      right locks it in, left backs up. Three letters and it runs:
-                      a hidden code unlocks its file, anything else searches names
-    on a file         button opens it; left (or the BACK row) leaves
+    on ..             (the top row) button goes back to the theories; so does left
+    on a file         button opens it
+    on UNLOCK.EXE     button starts typing a code: down rolls A -> B, up rolls back,
+                      button or right locks a letter in, left backs up. Three letters
+                      and it runs: a hidden code unlocks its file, anything else
+                      searches names
+
+The terminal uses the bigger 5x7 font, in one colour, so it reads easily on the
+cabinet.
 
 The two .VID files rick roll you, and they're the one place the game drops the
-pixels: the video plays at the window's full resolution with sound, from media
-you supply in assets/files/ (it isn't shipped with the game, see the README
-there). Missing media gets a TAPE MISSING screen instead.
+pixels: the video plays over the whole window with its sound. It streams from
+the video in assets/files/ through ffmpeg (the soundtrack is pulled out once and
+cached). Without ffmpeg it falls back to the GIF there, silent; with no media at
+all you get a TAPE MISSING screen. See the README there.
 """
 
 from __future__ import annotations
 
+import os
+import queue
+import shutil
+import subprocess
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 import pygame
 
-from sprites.font import text_width
+from sprites.font import BIG_ADV, BIG_H, big_width
 
-from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT, SCREEN
+from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 MEDIA_DIR = ASSETS / "files"
 MEDIA_NAME = "rickroll"
+CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "culture-shock"
+FFMPEG = shutil.which("ffmpeg")
+FFPROBE = shutil.which("ffprobe")
 AUDIO_EXTS = (".ogg", ".mp3", ".wav")
-VIDEO_EXTS = (".gif", ".png", ".jpg", ".jpeg", ".webp")
+MOVIE_EXTS = (".mp4", ".m4v", ".mov", ".webm", ".mkv")     # need ffmpeg
+PICTURE_EXTS = (".gif", ".png", ".jpg", ".jpeg", ".webp")
+VIDEO_FPS = 30
 SILENT_ROLL = 20.0          # s a picture-only roll runs, with no audio to say when it's over
 ROLL_GRACE = 0.6            # s before we trust mixer.music.get_busy() to mean "finished"
 FLASH_TIME = 2.2            # s a status message stays up
 REPEAT = (0.4, 0.09)        # s before a held stick repeats, then s per step
-BRIGHT = "#eaffea"
 LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
-LIST_Y, ROW_H, LIST_ROWS = 30, 8, 7
+
+# the terminal fills the 320x180 screen, in the 5x7 font: 6 px a character, 10 px a line
+SW, SH = 320, 180
+X0 = 4                                       # left margin
+COLS = (SW - 2 * X0 + 1) // BIG_ADV          # characters that fit across (52)
+LINE = 10
+CMD_Y = 4                                    # the command line
+LIST_Y, ROW_H, LIST_ROWS = 22, LINE, 13      # the directory listing: first row's y, px per row, rows that fit
+FOOT_Y = 157                                 # the divider over the hint / code line
+HINT_Y = 165
+DIR_CMD = "DIR ADMIN\\LIFELAB\\PRIVATE\\SECRET\\BOOBS\\BACKUP"
+PROMPT = "C:\\>"
+CMD_WAIT = 0.45                              # s the bare prompt blinks before the command types
+CMD_RATE = 30.0                              # characters/s the DIR command types at
+LIST_WAIT = 0.3                              # s after the command before the listing prints
+LIST_RATE = 0.07                             # s per line of the listing
 
 
 @dataclass
@@ -148,19 +179,155 @@ def rgb(c: str) -> tuple[int, int, int]:
     return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
 
 
+def wrap_path(s: str, width: int = COLS) -> list[str]:
+    """Break a long command into lines, after a backslash where it can."""
+    out = []
+    while len(s) > width:
+        cut = s.rfind("\\", 0, width) + 1 or width
+        out.append(s[:cut])
+        s = s[cut:]
+    return out + [s]
+
+
+def human_size(n: int) -> str:
+    return f"{n}" if n < 1000 else f"{n / 1000:.1f}K" if n < 1_000_000 else f"{n / 1_000_000:.1f}M"
+
+
 def _find(exts: tuple[str, ...]) -> Path | None:
+    """assets/files/rickroll.<ext>, or else any file there with one of these extensions."""
     for ext in exts:
         p = MEDIA_DIR / f"{MEDIA_NAME}{ext}"
         if p.exists():
             return p
-    return None
+    hits = sorted(p for p in MEDIA_DIR.glob("*") if p.suffix.lower() in exts)
+    return hits[0] if hits else None
+
+
+def _load_frames(pic: Path) -> list[tuple[pygame.Surface, float]]:
+    """Every frame of an animated picture, with how long each one shows (s).
+    pygame-ce has load_animation; plain pygame (the Pi's system pygame) doesn't,
+    so fall back to Pillow, and only then to a single still."""
+    def delay(ms) -> float:
+        return max(0.02, ms / 1000) if ms else 0.1
+
+    load_animation = getattr(pygame.image, "load_animation", None)
+    if load_animation:
+        try:
+            return [(s, delay(ms)) for s, ms in load_animation(str(pic))]
+        except pygame.error:
+            pass
+    try:
+        from PIL import Image, ImageSequence
+        with Image.open(pic) as im:
+            frames = []
+            for f in ImageSequence.Iterator(im):
+                rgba = f.convert("RGBA")
+                frames.append((pygame.image.frombytes(rgba.tobytes(), rgba.size, "RGBA"), delay(f.info.get("duration"))))
+            if frames:
+                return frames
+    except (ImportError, OSError, ValueError):
+        pass
+    try:
+        return [(pygame.image.load(str(pic)), 0.1)]
+    except pygame.error:
+        return []
+
+
+def _soundtrack(movie: Path) -> Path | None:
+    """The movie's audio as a WAV pygame can play, pulled out by ffmpeg once and cached."""
+    st = movie.stat()
+    out = CACHE_DIR / f"{movie.stem.replace(' ', '_')}-{st.st_size}-{int(st.st_mtime)}.wav"
+    if out.exists():
+        return out
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_suffix(".part.wav")
+        subprocess.run([FFMPEG, "-v", "error", "-nostdin", "-y", "-i", str(movie), "-vn", "-ac", "2",
+                        "-ar", "44100", "-c:a", "pcm_s16le", str(tmp)], check=True, timeout=60,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        tmp.replace(out)
+        return out
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _duration(movie: Path) -> float | None:
+    if not FFPROBE:
+        return None
+    try:
+        out = subprocess.run([FFPROBE, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                              str(movie)], capture_output=True, text=True, timeout=10).stdout
+        return float(out.strip())
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+class Stream:
+    """A movie decoded by ffmpeg on the fly, scaled to fit `size` and letterboxed.
+    A thread reads raw frames off the pipe; frame(t) skips ahead to the one for
+    time t, so the picture keeps up with the sound even if it starts late."""
+
+    def __init__(self, movie: Path, size: tuple[int, int], fps: int = VIDEO_FPS) -> None:
+        w, h = size
+        self.size, self.fps = size, fps
+        vf = (f"fps={fps},scale={w}:{h}:force_original_aspect_ratio=decrease,"
+              f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2")
+        self.proc = subprocess.Popen(
+            [FFMPEG, "-v", "error", "-nostdin", "-i", str(movie), "-map", "0:v:0", "-an", "-vf", vf,
+             "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=w * h * 3)
+        self.q: queue.Queue[bytes | None] = queue.Queue(maxsize=8)
+        self.n = -1                     # the frame on screen
+        self.surf: pygame.Surface | None = None
+        self.ended = False
+        self.closed = False
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self) -> None:
+        nbytes = self.size[0] * self.size[1] * 3
+        while not self.closed:
+            buf = self.proc.stdout.read(nbytes)
+            item = buf if len(buf) == nbytes else None
+            while not self.closed:
+                try:
+                    self.q.put(item, timeout=0.2)
+                    break
+                except queue.Full:
+                    pass
+            if item is None:
+                return
+
+    def frame(self, t: float) -> pygame.Surface | None:
+        want = int(t * self.fps)
+        while self.n < want and not self.ended:
+            try:
+                buf = self.q.get_nowait()
+            except queue.Empty:
+                break
+            if buf is None:
+                self.ended = True
+                break
+            self.n += 1
+            self.surf = pygame.image.frombuffer(buf, self.size, "RGB")
+        return self.surf
+
+    def close(self) -> None:
+        self.closed = True
+        try:
+            self.proc.kill()
+            self.proc.stdout.close()
+        except OSError:
+            pass
 
 
 class Media:
-    """The rick roll: frames (with their delays) and a song, all optional, loaded on first use."""
+    """The rick roll, loaded on first use: a movie streamed through ffmpeg with
+    its own soundtrack, or else an (animated) picture and maybe a song."""
 
     def __init__(self) -> None:
         self.loaded = False
+        self.movie: Path | None = None
+        self.stream: Stream | None = None
         self.frames: list[tuple[pygame.Surface, float]] = []
         self.length = 0.0
         self.audio: Path | None = None
@@ -171,18 +338,38 @@ class Media:
             return
         self.loaded = True
         self.audio = _find(AUDIO_EXTS)
-        pic = _find(VIDEO_EXTS)
+        self.movie = _find(MOVIE_EXTS) if FFMPEG else None
+        if self.movie:
+            self.audio = self.audio or _soundtrack(self.movie)
+            self.length = _duration(self.movie) or 60.0
+            return
+        pic = _find(PICTURE_EXTS)
         if pic:
-            try:
-                anim = pygame.image.load_animation(str(pic))
-                self.frames = [(s, max(0.02, ms / 1000) if ms else 0.1) for s, ms in anim]
-            except (pygame.error, AttributeError):
-                self.frames = [(pygame.image.load(str(pic)), 0.1)]
+            self.frames = _load_frames(pic)
         self.length = sum(d for _, d in self.frames)
 
     @property
+    def path(self) -> Path | None:
+        return self.movie or _find(PICTURE_EXTS)
+
+    @property
     def missing(self) -> bool:
-        return not self.frames and not self.audio
+        return not self.movie and not self.frames and not self.audio
+
+    @property
+    def ended(self) -> bool:
+        return bool(self.stream and self.stream.ended)
+
+    def start(self, size: tuple[int, int] | None) -> None:
+        """Get the movie decoding (from the top) at this window size, ahead of the first frame."""
+        self.stop()
+        if self.movie and size:
+            self.stream = Stream(self.movie, size)
+
+    def stop(self) -> None:
+        if self.stream:
+            self.stream.close()
+            self.stream = None
 
     def frame(self, t: float) -> int:
         if len(self.frames) < 2:
@@ -195,9 +382,16 @@ class Media:
         return 0
 
     def blit(self, window: pygame.Surface, t: float) -> None:
-        """Draw the frame for time t, smooth-scaled to fit the whole window. No pixels here."""
+        """Draw the picture for time t over the whole window. No pixels here."""
         size = window.get_size()
         window.fill((0, 0, 0))
+        if self.movie:
+            if not self.stream or self.stream.size != size:
+                self.start(size)
+            img = self.stream.frame(t)
+            if img:
+                window.blit(img, (0, 0))
+            return
         if not self.frames:
             return
         i = self.frame(t)
@@ -245,12 +439,14 @@ class FileTerminal:
         self.rolling = False            # have they watched WATCH_IF_YOU_ARE_NOT_ROLLING yet
         self.media = Media()
         self.photos: dict[str, pygame.Surface] = {}
+        self.hold_k = 0.0               # 0..1: how far a held button is to the exit countdown (set by LifeSim)
         self.open()
 
     # -- state ---------------------------------------------------------------------------
     def open(self) -> None:
-        self.mode = "list"              # list, code, txt, img, roll, msg
-        self.sel = 1 if self.rows()[1:] else 0
+        self.mode = "boot"              # boot (the DIR typing out), list, code, txt, img, roll, msg
+        self.boot_t = 0.0
+        self.sel = 1                    # the first file, with .. (the way out) just above it
         self.scroll = 0
         self.code = ""
         self.letter = 0
@@ -268,20 +464,34 @@ class FileTerminal:
         return sum(1 for f in FILES if f.code and f.code not in self.unlocked)
 
     def rows(self) -> list[LabFile | str]:
-        """The rows of the list: the code entry, the files, then BACK."""
-        return ["CODE", *self.visible(), "BACK"]
-
-    def shown(self) -> list[LabFile | str]:
-        """What the list draws under the code row: the files, the locked count, BACK."""
-        return [*self.visible(), *(["LOCKED"] if self.locked() else []), "BACK"]
+        """The directory listing, which is also the menu: .. (back to the
+        theories), the files, then UNLOCK.EXE (type a code)."""
+        return ["UP", *self.visible(), "CODE"]
 
     def _follow(self) -> None:
         """Scroll so the selected row is on screen."""
-        row = self.rows()[self.sel]
-        if row == "CODE":
-            return
-        i = self.shown().index(row)
-        self.scroll = max(0, min(self.scroll, i), i - LIST_ROWS + 1)
+        self.scroll = max(0, min(self.scroll, self.sel), self.sel - LIST_ROWS + 1)
+
+    def command(self) -> list[str]:
+        """The DIR command as typed so far, wrapped onto the screen."""
+        typed = DIR_CMD[:max(0, int((self.boot_t - CMD_WAIT) * CMD_RATE))]
+        return wrap_path(PROMPT + typed)
+
+    def _printed(self) -> int:
+        """How many rows of the listing have printed (all of them once it's a menu)."""
+        if self.mode != "boot":
+            return len(self.rows())
+        t = self.boot_t - CMD_WAIT - len(DIR_CMD) / CMD_RATE - LIST_WAIT
+        return max(0, min(len(self.rows()), int(t / LIST_RATE) + 1 if t >= 0 else 0))
+
+    def size(self, f: LabFile) -> str:
+        if f.kind == "txt":
+            return human_size(sum(len(line) + 2 for line in f.lines))
+        path = ASSETS / "sprites" / f"{f.sprite}.png" if f.kind == "img" else self.media.path
+        try:
+            return human_size(path.stat().st_size)
+        except (AttributeError, OSError):
+            return "0"
 
     @property
     def playing(self) -> bool:
@@ -295,10 +505,16 @@ class FileTerminal:
         self.flash = (self.flash[0], self.flash[1] - dt)
         getattr(self, f"_update_{self.mode}")(dt, sx, sy, inp.action)
 
+    def _update_boot(self, dt: float, sx: int, sy: int, act: bool) -> None:
+        self.boot_t += dt
+        if act or self._printed() >= len(self.rows()) and self.boot_t > CMD_WAIT + len(DIR_CMD) / CMD_RATE + 1.2:
+            self.mode = "list"
+            self.boot_t = 1e9                       # everything typed out
+
     def _update_list(self, dt: float, sx: int, sy: int, act: bool) -> None:
         rows = self.rows()
         if sy:
-            self.sel = (self.sel + sy) % len(rows)
+            self.sel = max(0, min(len(rows) - 1, self.sel + sy))   # no wrap: .. is the top
         self._follow()
         if sx < 0:
             self.closed = True
@@ -306,7 +522,7 @@ class FileTerminal:
             row = rows[self.sel]
             if row == "CODE":
                 self.mode, self.code, self.letter = "code", "", 0
-            elif row == "BACK":
+            elif row == "UP":
                 self.closed = True
             else:
                 self._open_file(row, "list")
@@ -355,6 +571,8 @@ class FileTerminal:
                 self.mode, self.msg = "msg", TAPE_MISSING
                 return
             self.mode, self.roll_t = "roll", 0.0
+            window = pygame.display.get_surface()
+            self.media.start(window.get_size() if window else None)     # decoding before the sound starts
             if self.media.audio and not self.mute:
                 try:
                     if not pygame.mixer.get_init():
@@ -390,11 +608,14 @@ class FileTerminal:
         music = self.media.audio and not self.mute and pygame.mixer.get_init()
         if music:
             over = self.roll_t > ROLL_GRACE and not pygame.mixer.music.get_busy()
+        elif self.media.movie:
+            over = self.media.ended or self.roll_t > self.media.length + 0.5
         else:
             over = self.roll_t > SILENT_ROLL
         if act or sx < 0 or over:            # you can bail out of a rick roll. it still counts
             if music:
                 pygame.mixer.music.fadeout(400)
+            self.media.stop()
             name = self.viewing.name
             self.log("roll_end", file=name, bailed=not over, secs=round(self.roll_t, 1))
             self.msg = AFTER_ROLL[(name, self.rolling)]
@@ -407,125 +628,157 @@ class FileTerminal:
         if self.mode == "roll":
             self.media.blit(window, self.roll_t)
 
-    def draw(self, crt: pygame.Surface, text, time: float) -> None:
-        sw, sh = SCREEN[2], SCREEN[3]
-        if self.mode in ("list", "code"):
-            self._header(crt, text, "LIFE LAB FILE SYSTEM", "/LAB/FILES")
-            self._draw_list(crt, text, time)
+    def draw(self, screen: pygame.Surface, text, time: float) -> None:
+        """Paint the terminal over the whole screen, in the 5x7 font."""
+        self.text = text
+        screen.fill(rgb(CRT_BG))
+        if self.mode in ("boot", "list", "code"):
+            self._draw_list(screen, time)
         elif self.mode == "txt":
-            self._header(crt, text, self.viewing.name)
+            self._header(screen, self.viewing.name)
             for i, line in enumerate(self.viewing.lines):
-                if line:
-                    crt.blit(text.get(line, PHOSPHOR), (4, 15 + i * 8))
-            crt.blit(text.get("BUTTON: BACK", PHOSPHOR_FAINT), (4, 94))
+                self._put(screen, line, X0, 24 + i * LINE)
+            self._footer(screen, "BUTTON: BACK")
         elif self.mode == "img":
-            self._header(crt, text, self.viewing.name)
+            self._header(screen, self.viewing.name)
             photo = self._photo(self.viewing.sprite)
-            crt.blit(photo, (sw // 2 - photo.get_width() // 2, 14 + (64 - photo.get_height()) // 2))
+            screen.blit(photo, (SW // 2 - photo.get_width() // 2, 22 + (96 - photo.get_height()) // 2))
             for i, line in enumerate(self.viewing.lines):
-                s = text.get(line, PHOSPHOR_DIM)
-                crt.blit(s, (sw // 2 - s.get_width() // 2, 81 + i * 7))
-            crt.blit(text.get("BUTTON: BACK", PHOSPHOR_FAINT), (4, 97))
+                self._put(screen, line, SW // 2 - big_width(line) // 2, 126 + i * LINE)
+            self._footer(screen, "BUTTON: BACK")
         elif self.mode == "msg":
-            self._header(crt, text, "SESSION LOG")
-            crt.blit(text.get(self.viewing.name.removesuffix(".VID"), PHOSPHOR_DIM), (4, 15))
+            self._header(screen, "SESSION LOG", self.viewing.name.removesuffix(".VID"))
             nxt = self._next_file()
             for i, line in enumerate(self.msg):
-                y = 26 + i * 9
+                y = 26 + i * LINE
                 if nxt and i == len(self.msg) - 1:          # the file to open next, as a blinking button
                     label = "> " + line
-                    w = text_width(label) + 4
-                    if int(time * 2.5) % 2 == 0:
-                        crt.fill(rgb(PHOSPHOR), (4, y - 2, w, 9))
-                        crt.blit(text.get(label, CRT_BG), (6, y))
+                    w = big_width(label) + 6
+                    lit = int(time * 2.5) % 2 == 0
+                    if lit:
+                        screen.fill(rgb(PHOSPHOR), (X0, y - 2, w, BIG_H + 4))
                     else:
-                        pygame.draw.rect(crt, rgb(PHOSPHOR), (4, y - 2, w, 9), 1)
-                        crt.blit(text.get(label, PHOSPHOR), (6, y))
-                    continue
-                col = BRIGHT if "ROLLING!" in line or line == "TAPE MISSING." else PHOSPHOR
-                if line:
-                    crt.blit(text.get(line, col), (4, y))
-            hint = "BUTTON: OPEN IT   LEFT: BACK" if nxt else "BUTTON: OK"
-            crt.blit(text.get(hint, PHOSPHOR_FAINT), (4, 94))
-        elif self.mode == "roll":                       # what the CRT shows behind the full-res video
-            s = text.get("NOW ROLLING", PHOSPHOR)
-            crt.blit(s, (sw // 2 - s.get_width() // 2, sh // 2 - 3))
+                        pygame.draw.rect(screen, rgb(PHOSPHOR), (X0, y - 2, w, BIG_H + 4), 1)
+                    self._put(screen, label, X0 + 3, y, CRT_BG if lit else PHOSPHOR)
+                else:
+                    self._put(screen, line, X0, y)
+            self._footer(screen, "BUTTON: OPEN IT   LEFT: BACK" if nxt else "BUTTON: OK")
+        elif self.mode == "roll":                       # what's under the full-window video
+            label = "NOW ROLLING"
+            self._put(screen, label, SW // 2 - big_width(label) // 2, SH // 2 - BIG_H // 2)
 
-    def _header(self, crt, text, left: str, right: str = "") -> None:
-        sw = SCREEN[2]
-        crt.blit(text.get(left, PHOSPHOR_DIM), (4, 3))
+    def _put(self, screen, s: str, x: int, y: int, color: str = PHOSPHOR) -> int:
+        """One line of 5x7 text; returns its width."""
+        if not s:
+            return 0
+        img = self.text.get(s, color, big=True)
+        screen.blit(img, (x, y))
+        return img.get_width()
+
+    def _put_right(self, screen, s: str, y: int, color: str = PHOSPHOR, right: int = SW - X0) -> None:
+        self._put(screen, s, right - big_width(s), y, color)
+
+    def _header(self, screen, left: str, right: str = "") -> None:
+        self._put(screen, left, X0, CMD_Y)
         if right:
-            r = text.get(right, PHOSPHOR_DIM)
-            crt.blit(r, (sw - 4 - r.get_width(), 3))
-        crt.fill(rgb(PHOSPHOR_DIM), (4, 10, sw - 8, 1))
+            self._put_right(screen, right, CMD_Y)
+        screen.fill(rgb(PHOSPHOR_DIM), (X0, CMD_Y + BIG_H + 4, SW - 2 * X0, 1))
 
-    def _draw_list(self, crt, text, time: float) -> None:
-        sw = SCREEN[2]
-        rows = self.rows()
+    def _footer(self, screen, hint: str, hold: bool = False) -> None:
+        screen.fill(rgb(PHOSPHOR_DIM), (X0, FOOT_Y, SW - 2 * X0, 1))
+        self._put(screen, hint, X0, HINT_Y)
+        if hold:
+            self._draw_hold_hint(screen)
+
+    def _cursor(self, screen, x: int, y: int, color: str = PHOSPHOR) -> None:
+        screen.fill(rgb(color), (x, y, 5, BIG_H))
+
+    def _draw_list(self, screen, time: float) -> None:
+        """The terminal: the DIR command, the listing under it (the menu), and a
+        footer with the hint, a status message, or the code being typed."""
         blink = int(time * 2.5) % 2 == 0
-        # the code row: three boxes
-        on = self.sel == 0
-        crt.blit(text.get("CODE:", PHOSPHOR if on else PHOSPHOR_DIM), (4, 16))
-        for i in range(3):
-            bx = 28 + i * 9
-            active = self.mode == "code" and i == len(self.code)
-            col = PHOSPHOR if active or (on and self.mode == "list") else PHOSPHOR_DIM
-            pygame.draw.rect(crt, rgb(col), (bx, 14, 7, 9), 1)
-            if i < len(self.code):
-                ch = self.code[i]
-            elif active:
-                ch = LETTERS[self.letter]
-            else:
-                ch = "_"
-            crt.blit(text.get(ch, BRIGHT if active else PHOSPHOR if on else PHOSPHOR_DIM), (bx + 2, 16))
-            if active:                                         # little up / down arrows
-                crt.fill(rgb(PHOSPHOR), (bx + 3, 11, 1, 1))
-                crt.fill(rgb(PHOSPHOR), (bx + 2, 12, 3, 1))
-                crt.fill(rgb(PHOSPHOR), (bx + 2, 24, 3, 1))
-                crt.fill(rgb(PHOSPHOR), (bx + 3, 25, 1, 1))
-        msg, left = self.flash
-        if left > 0:
-            crt.blit(text.get(msg, BRIGHT), (60, 16))
-        elif self.mode == "code":
-            crt.blit(text.get("UP/DN: LETTER", PHOSPHOR_FAINT), (60, 16))
-        elif on:
-            crt.blit(text.get("BUTTON: TYPE A CODE", PHOSPHOR_FAINT), (60, 16))
-        crt.fill(rgb(PHOSPHOR_FAINT), (4, 26, sw - 8, 1))
+        cmd = self.command()
+        for i, line in enumerate(cmd):
+            self._put(screen, line, X0, CMD_Y + i * LINE)
+        printed = self._printed()
+        if self.mode == "boot" and printed == 0:                # the cursor, typing
+            if blink or len(cmd[-1]) > len(PROMPT) and self.boot_t - CMD_WAIT < len(DIR_CMD) / CMD_RATE:
+                self._cursor(screen, X0 + len(cmd[-1]) * BIG_ADV, CMD_Y + (len(cmd) - 1) * LINE)
+            return
 
-        # the files
-        selected = self.rows()[self.sel] if self.mode == "list" else None
-        shown = self.shown()
-        for j, row in enumerate(shown[self.scroll:self.scroll + LIST_ROWS]):
-            y = LIST_Y + j * ROW_H
-            if row == "LOCKED":
-                crt.blit(text.get(f"+ {self.locked()} FILES LOCKED", PHOSPHOR_FAINT), (6, y))
-                continue
-            label = "< BACK TO THEORIES" if row == "BACK" else row.name
-            if row is selected:
-                crt.fill(rgb(PHOSPHOR), (4, y - 1, sw - 8, 7))
-                crt.blit(text.get(label, CRT_BG), (6, y))
+        rows = self.rows()
+        top = LIST_Y + (len(cmd) - 1) * LINE
+        selected = self.sel if self.mode == "list" else None
+        for j in range(self.scroll, min(len(rows), self.scroll + LIST_ROWS, printed)):
+            row = rows[j]
+            y = top + (j - self.scroll) * ROW_H
+            if row == "UP":
+                label, right = ".. EXIT TO THEORIES", "<DIR>"
+            elif row == "CODE":
+                label, right = "UNLOCK.EXE", f"{self.locked()} LOCKED" if self.locked() else ""
             else:
-                crt.blit(text.get(label, PHOSPHOR_DIM), (6, y))
-        if self.scroll + LIST_ROWS < len(shown):
-            crt.blit(text.get("+", PHOSPHOR_DIM), (sw - 8, LIST_Y + (LIST_ROWS - 1) * ROW_H))
-        if self.scroll > 0:
-            crt.blit(text.get("-", PHOSPHOR_DIM), (sw - 8, LIST_Y))
-        crt.fill(rgb(PHOSPHOR_FAINT), (4, 88, sw - 8, 1))
-        hint = "STICK: LETTER   LEFT: UNDO" if self.mode == "code" else "STICK: BROWSE   BUTTON: OPEN"
-        crt.blit(text.get(hint, PHOSPHOR_FAINT), (4, 93))
-        if blink:
-            crt.fill(rgb(PHOSPHOR), (4 + text_width(hint) + 2, 93, 3, 5))
+                label, right = row.name, self.size(row)
+            fg = PHOSPHOR
+            if j == selected:                                   # dark text on a lit bar
+                screen.fill(rgb(PHOSPHOR), (X0 - 2, y - 2, SW - 2 * X0 + 4, BIG_H + 4))
+                fg = CRT_BG
+            self._put(screen, label, X0 + 6, y, fg)
+            if right and big_width(label) + big_width(right) < SW - 2 * X0 - 30:
+                self._put_right(screen, right, y, fg, SW - X0 - 8)
+        if self.scroll > 0:                                     # more above: the way out is up there
+            self._put(screen, "^", SW - X0 - 5, top - LINE + 1)
+        if self.scroll + LIST_ROWS < min(printed, len(rows)):
+            self._put(screen, "+", SW - X0 - 5, top + LIST_ROWS * ROW_H - 2)
+        if self.mode == "boot":
+            if printed < len(rows) and blink:
+                y = top + min(printed, LIST_ROWS) * ROW_H
+                self._cursor(screen, X0 + 6, min(y, FOOT_Y - BIG_H - 2))
+            return
+
+        screen.fill(rgb(PHOSPHOR_DIM), (X0, FOOT_Y, SW - 2 * X0, 1))
+        y = HINT_Y
+        if self.mode == "code":
+            w = self._put(screen, "CODE:", X0, y)
+            for i in range(3):
+                bx = X0 + w + 6 + i * 12
+                active = i == len(self.code)
+                pygame.draw.rect(screen, rgb(PHOSPHOR), (bx, y - 2, 9, BIG_H + 4), 1 + active)
+                ch = self.code[i] if i < len(self.code) else LETTERS[self.letter] if active else "_"
+                self._put(screen, ch, bx + 2, y)
+                if active:                                     # little up / down arrows
+                    screen.fill(rgb(PHOSPHOR), (bx + 4, y - 6, 1, 1))
+                    screen.fill(rgb(PHOSPHOR), (bx + 3, y - 5, 3, 1))
+                    screen.fill(rgb(PHOSPHOR), (bx + 3, y + BIG_H + 4, 3, 1))
+                    screen.fill(rgb(PHOSPHOR), (bx + 4, y + BIG_H + 5, 1, 1))
+            self._put(screen, "UP/DN: LETTER   LEFT: BACK", X0 + w + 50, y)
+            return
+        msg, left = self.flash
+        row = rows[self.sel]
+        if left > 0:
+            self._put(screen, msg, X0, y)
+        else:
+            self._put(screen, "BUTTON: BACK TO THEORIES" if row == "UP" else
+                      "BUTTON: TYPE A CODE" if row == "CODE" else "BUTTON: OPEN", X0, y)
+        self._draw_hold_hint(screen)
+
+    def _draw_hold_hint(self, screen) -> None:
+        """HOLD: EXIT at the right of the footer, with a bar filling up while the button's held."""
+        label = "HOLD: EXIT"
+        x = SW - X0 - big_width(label)
+        self._put(screen, label, x, HINT_Y)
+        if self.hold_k > 0:
+            screen.fill(rgb(PHOSPHOR), (x, HINT_Y + BIG_H + 2, int(big_width(label) * self.hold_k), 2))
 
     def _photo(self, sprite: str) -> pygame.Surface:
-        """An experiment photo: the first frame of a cast sprite, in three shades of phosphor."""
+        """An experiment photo: the first frame of a cast sprite, in shades of phosphor."""
         if sprite not in self.photos:
             sheet = pygame.image.load(str(ASSETS / "sprites" / f"{sprite}.png"))
             frame = sheet.subsurface((0, 0, 48, 48)).copy()
             box = frame.get_bounding_rect()
             frame = frame.subsurface(box).copy()
-            k = max(1, min(64 // box.h, 120 // box.w))
+            k = max(1, min(96 // box.h, 200 // box.w))
             out = pygame.Surface((box.w, box.h), pygame.SRCALPHA)
-            shades = [rgb(PHOSPHOR_FAINT), rgb(PHOSPHOR_DIM), rgb(PHOSPHOR), rgb(BRIGHT)]
+            shades = [rgb(PHOSPHOR_FAINT), rgb(PHOSPHOR_DIM), rgb(PHOSPHOR), rgb("#eaffea")]
             for y in range(box.h):
                 for x in range(box.w):
                     r, g, b, a = frame.get_at((x, y))
