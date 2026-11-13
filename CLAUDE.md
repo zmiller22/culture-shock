@@ -1,5 +1,10 @@
 # Notes for Claude
 
+## Terminology
+
+"Main game" means the sequence that runs from the mainframe start, through the
+galaxy sequence, to the terminal screen.
+
 ## Running things
 
 The project runs in the `8-bit` conda environment (see `environment.yml`). The
