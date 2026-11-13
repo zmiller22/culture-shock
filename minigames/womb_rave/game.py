@@ -74,7 +74,7 @@ SLAM_AT = 52                   # px before the door that it slams on them
 BONK_AT = 24                   # px before the door where they walk into it
 BONK_LAUNCH = (-95, -150)      # px/s bounced back off the closed door
 REJECT_LINES = (("SORRY.", "CLOSED FOR BUSINESS."), ("NOT TODAY", "TECH BRO."), ("HAVE YOU TRIED", "AN INCUBATOR?"))
-REJECT_LINE_TIME = 1.95        # s each speech bubble shows
+REJECT_LINE_TIME = 2.0         # s each speech bubble shows
 LOAD_RANGE = 3                 # dancers either side of the pick kept loaded
 ROUTINES = (                   # select-screen dance routines, one move per beat
     ("bob", "stepL", "bob", "stepR", "hop", "squat", "punch", "spin"),
