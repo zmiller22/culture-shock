@@ -78,6 +78,77 @@ and choose the frame from vertical velocity. `Actor` in `sprites/viewer.py` is a
 small state machine with no pygame dependency that does exactly this, so you can
 copy it into the game.
 
+## The main game: Theories of Life
+
+The cabinet lives in the mad-science room, where every exhibit is a different
+theory of how life begins. The arcade is the scientist's "state of the art"
+simulator for testing them: the **Life Lab Mainframe**, a 1970s computer with
+two reel-to-reel tape drives, a wall of blinking lamps and a green-phosphor CRT.
+
+![the Life Lab Mainframe, waiting to boot](assets/previews/lifesim_title.png)
+
+The CRT says LIFE LAB MAINFRAME over a big **PUSH TO BOOT UP** button. Push it
+and the lamps go wild, the reels spin up, green code rains down the screen and
+the camera dives into the glass. The program opens on a Powers-of-Ten zoom out,
+from the Earth to the beginning of everything. It stops four times, long enough
+to get each joke (the labels just name things; the pictures do the joking), and glides smoothly out between them:
+
+| Scale | What you see |
+|---|---|
+| 1E+07 M | the Earth. A heart pops up on it for every baby made (about 4 a second, the real rate), and a counter counts them |
+| 1E+13 M | the solar system: a sun in sunglasses, and Uranus, which is a butt (and has farted) |
+| 1E+21 M | the Milky Way, which is a pair of boobs. YOU ARE HERE. |
+| 1E+27 M | THE BIG BANG: two cosmic giants in bed under a starry quilt, going at it. The headboard goes BANG! BANG! and someone shouts OH GOD! |
+
+![the zoom out](assets/previews/lifesim_zoom.png)
+
+Past the big bang is the dark, where the program finds you: a **spirit** with no
+body yet. You're the lab's next **visitor** (VISITOR NO. 0042, say), and you sign
+in with a 1-4 letter name the way old arcades take high-score initials: the
+stick rolls the letter, the button locks it in, left backs up, and END (one
+step down from A) finishes a short name. Every visitor is logged to
+`~/.life_lab/visitors.txt` (set `LIFE_LAB_VISITORS` to move it; `--demo` doesn't
+log). Then the camera pulls back out of the CRT to the terminal, where you
+pick a theory of life. The tape mounts, you get incarnated, and the CRT
+switches off into that simulation. Each simulation is one of the mini-games:
+
+| Tape | Theory | Simulation |
+|---|---|---|
+| 01 | The Stork Hypothesis: babies are delivered by air, by a large bird | Stork Bomber |
+| 02 | Primordial Soup: life began in a warm broth of chemicals | Primordial Soup |
+| 03 | The Meet Cute: life starts when two cells fall in love (2 players) | Meet Cute |
+| 04 | The Womb Rave: life is a nine-month party in a very small club | Womb Rave |
+
+![picking a theory](assets/previews/lifesim_menu.png)
+
+When the simulation ends you're disincarnated back into the terminal, which
+prints the result: win and the theory is CONFIRMED, lose and it's REFUTED. The
+menu keeps score for the session. Confirm them all and the machine is not sure
+what to make of it.
+
+```bash
+python -m lifesim                 # windowed; add --fullscreen on the cabinet (./play.sh does this)
+python -m lifesim --skip-boot     # skip the boot and the zoom: straight to the theory menu
+python -m lifesim --demo          # the computer boots it and plays every simulation
+```
+
+| Action | Keyboard | Arcade stick |
+|---|---|---|
+| Pick a theory | Up / Down | stick |
+| Name entry: roll the letter / back / next | Up, Down / Left / Right | stick |
+| Boot / skip the zoom / select / continue | Space, Z or Enter | button 0 |
+| Quit | Esc or Q | |
+
+The code is in `lifesim/`: `art.py` draws the computer room and the spirit,
+`space_art.py` draws the levels of the zoom, `intro.py` runs the code rain and
+the zoom, and `game.py` runs the terminal and hands each tick to the running
+mini-game. Each zoom level is drawn 6x bigger than the one inside it, all
+centred on the Earth, so to add a stop on the way out, add a level to
+`space_art.py` and `build_levels()` in `intro.py`. Tune the pacing with
+`ZOOM_MOVE` in `intro.py`, and each stop's `hold` (seconds) in `build_levels()` there. To add
+a theory, add a `Theory` to `theories()` in `game.py`. It just needs a
+mini-game that follows the `minigames/shell.py` protocol.
+
 ## Setup
 
 ```bash
@@ -117,7 +188,7 @@ python -m sprites.viewer
 | Take a hit / die | H / K | |
 | Quit | Esc or Q | |
 
-On the cabinet, `./play.sh` launches the game fullscreen on the monitor. It also works over SSH.
+On the cabinet, `./play.sh` launches the main game (Theories of Life) fullscreen on the monitor. It also works over SSH.
 
 ## Output format
 
@@ -134,7 +205,11 @@ assets/
 * Feet touch row 45 (`ground_row` in the atlas), so all characters share a baseline.
 * Transparent background with a 1px dark outline.
 
-## Level 1: The Court House
+## Retired: The Court House
+
+The original main-game idea, before Theories of Life replaced it. The level,
+the boss and `sprites/play.py` still build and run, but the main game doesn't
+use them.
 
 ![the court house](assets/previews/level_courthouse.png)
 
@@ -340,6 +415,153 @@ python -m minigames.primordial_soup --demo     # the computer plays
 | Run around | Arrows | stick |
 | Pounce / throw / start / continue | Space, Z or Enter | button 0 |
 | Quit | Esc or Q | |
+
+### Womb Rave
+
+A rhythm game. It opens on a dancer select: the control-group cast in a row
+on a pulsing stage, each dancing its own routine on the beat over a little
+chiptune loop. (The Kronenberg mixes aren't here; they belong to another game.)
+Scroll with the stick and press the button to pick; your pick takes the
+spotlight, shown twice the size, and shows off before going in.
+
+Then it cuts to a dark gallery with a big pink sculpture of a womb
+(*Untitled ('Home')*, mixed media), with tubes and ovaries curling up like ram's
+horns. Your character walks up to the door at its foot, which dilates, and gets
+slurped in. Inside, they float in an amniotic sac in the middle of the womb and
+dance.
+
+Except the tech bro. The door slams shut as he walks up, he bonks off it, and
+the womb tells him it's closed for business (and suggests an incubator). Press
+the button to go back and pick someone else. `REJECTED` in `game.py` lists who
+gets turned away.
+
+Things come at the membrane around the sac along four lanes, and each lane is
+a part of the womb:
+
+| Lane | What comes down it | Hit |
+|---|---|---|
+| Left / right | eggs rolling down the fallopian tubes from the ovaries | stick left / right |
+| Up | mom's cravings (pickles, ice cream, pizza, donuts) sliding down the umbilical cord from the placenta | stick up |
+| Down | sperm swimming up from the cervix | stick down |
+| Squeeze | a contraction: a ring of flesh closes in from the walls | button |
+
+Hit each one as it touches the membrane. Stick diagonals hit two lanes at once.
+Every hit makes the dancer move: a step left or right, a hop, a squat, or their
+species attack on a squeeze. The whole room keeps time. The flesh tunnel throbs
+on every beat, squeezes on every contraction, and club lights sweep the walls
+in the choruses.
+
+The soundtrack is a chiptune generated from code, like the art
+(`minigames/womb_rave/music.py`). A soft kick keeps the beat, the lead plays exactly
+on the stick notes, and every squeeze has a contraction *womp* baked in. The
+chart is dealt from a fixed seed, so it's the same every time and can be learned.
+The song runs through the first, second and third trimester, a contractions
+breakdown and a final PUSH, about 40 seconds in all. It speeds up as it goes,
+from 120 to 128, 136, 144 and finally 152 BPM. Each time, a shout slams onto the
+screen (FASTER! HARDER! DEEPER! DON'T STOP!) and the notes start arriving
+quicker.
+
+Hits are judged PERFECT, GREAT or OK. Each one fills your vitals and builds the
+combo; each miss drains them.
+
+Every 8 hits in a row, someone moans (little synthesized 8-bit moans, more worked
+up past a 24 combo) and a line goes across the top: *ALL ABOUT THE MOTION OF THE
+OCEAN*, *IT'S NOT THE SIZE. IT'S THE TIMING*, *THE RHYTHM METHOD!* and so on.
+Every 32 in a row is the big one (*EARTH. MOVED.*). Break a streak of 16 or more
+and you get a sad *aww* and *IT HAPPENS TO EVERYONE*.
+
+**Win:** finish the song. Your water breaks, you slide out the bottom, and the
+sculpture shoots you back into the gallery in a shower of pink and blue
+confetti: *IT'S A ZOMBIE!* You get a grade (S to D) from how in sync you were.
+
+**Lose:** your vitals run out. The record scratches, the lights go red, and the
+womb evicts you. You land on the gallery floor with a thud.
+
+The select starts on someone random, or on `--character` if you pass one.
+Tune it with the constants at the top of `minigames/womb_rave/game.py`:
+`APPROACH` (how long notes take to arrive at 120 BPM), `WINDOWS` (timing
+windows), the `LIFE_*` values, `AUDIO_LAG`, and for the dirty talk `STREAK`,
+`STREAK_LINES`, `CLIMAX_LINES` and `BREAK_LINES`. If every hit feels early or late on the
+cabinet's speakers, adjust `AUDIO_LAG`. To change the song or the chart, edit
+`SECTIONS` and `PATTERNS` in `music.py`; `TEMPO_CHANGES` and `SPEEDUPS` there set
+when it speeds up and what it shouts.
+
+```bash
+python -m minigames.womb_rave                          # windowed; add --fullscreen on the cabinet
+python -m minigames.womb_rave --character technoviking  # start the select on them
+python -m minigames.womb_rave --demo                   # the computer plays
+```
+
+| Action | Keyboard | Arcade stick |
+|---|---|---|
+| Choose a dancer | Left / right | stick |
+| Dance (left, right, up, down) | Arrows | stick |
+| Pick / squeeze / continue | Space, Z or Enter | button 0 |
+| Quit | Esc or Q | |
+
+### Meet Cute
+
+A two-player maze chase. Player 1 is the egg, player 2 is the sperm. You start
+at opposite corners of a maze of fleshy tubes and have to find each other.
+Every round is a new maze: mirrored left to right, with no dead ends, a pen in
+the middle, and a wrap-around tunnel on each side.
+
+Each round opens with an eight-second close-up of the delivery, on an empty
+screen. A fallopian tube and ovary slide in on the left and a penis on the
+right. The ovary releases the egg (*OVULATION!*), and she rolls up the tube and
+out into the open. The penis throbs and shoots the sperm (*SPLOOSH!*) along with
+a spray of others who fade away (*1 IN 200 MILLION*). The two stop face to face
+with a gap between them, a heart over their heads and *P1 EGG* / *P2 SPERM*
+under them, and she blushes. Then the penis wilts, both organs pull out, and the
+pair drift apart to opposite corners as the camera pulls back. The maze walls
+fly in from every side and lock together around them, the nutrients sparkle in,
+and the four contraceptives pop into the pen one at a time with their names.
+Press start to skip straight to *READY*.
+
+It's co-op. You both eat the nutrients lining the tubes, and once you've eaten
+60% of them between you, the egg is **ripe**: she blushes and glows. Touch
+before that and you bounce off (*NOT YET!*). Touch after it and you win. The
+sperm swims faster than the egg rolls.
+
+Contraception leaves the pen one at a time and wants to keep you apart:
+
+| Enemy | What it does |
+|---|---|
+| Condom | Chases whichever of you is closer. |
+| The pill | A birth-control dial pack. Cuts the egg off by aiming a few tiles ahead of her. |
+| Spermicide | Cuts the sperm off the same way. |
+| Copper IUD | Parks itself halfway between you two. |
+| Diaphragm, sponge, patch | Join one at a time later in the round and chase whoever is closer. |
+
+They take turns scattering to the corners and chasing, and they speed up over
+the round. After the first 14 seconds, another one joins every 30 seconds. Get caught and you lose one of your three shared hearts and go back to
+your start. Eat a folic-acid capsule (one near each corner) and they turn blue
+and scared for a few seconds, and you can eat them for points.
+
+**Win:** meet once she's ripe. The sperm burrows in and the zygote divides
+into 2, 4 and 8 cells under a shower of hearts: *IT'S CONCEPTION!*
+
+**Lose:** all three hearts go (*MISSED CONNECTION: PROTECTION WORKED*), or the 90-second clock
+runs out and a red tide rises up the screen (*TIME'S UP. PERIOD.*).
+
+Tune it with the constants at the top of `minigames/meet_cute/game.py`:
+`TIME_LIMIT`, `RIPE_SHARE`, `LIVES`, the `*_SPEED` values, `SCARED_TIME`,
+`RELEASE`, `MODES` and `EXTRA_SPAWN`.
+
+```bash
+python -m minigames.meet_cute               # windowed; add --fullscreen on the cabinet
+python -m minigames.meet_cute --seed 7      # same seed, same maze
+python -m minigames.meet_cute --demo        # the computer plays both sides
+```
+
+| Action | Player 1 (egg) | Player 2 (sperm) |
+|---|---|---|
+| Swim | WASD or the first stick plugged in | Arrows or the second stick |
+| Start / continue | Space or button 0 | Enter or button 0 |
+| Quit | Esc or Q | |
+
+Two-player mini-games read `inp.players` from the shell: one input per player,
+taken from their own keys and the stick on their own encoder.
 
 To plug a mini-game into the main game, drive the game object directly. Call
 `update(dt, inp)` and `draw(screen)` every tick, and when `done` goes true, read

@@ -10,6 +10,11 @@ A mini-game is any object with:
 
 The main game can drive the same object: call update/draw each tick and read
 `result` once `done` goes True.
+
+Two-player games read `inp.players` instead: one Input per player. Player 1 is
+WASD plus the first stick plugged in, player 2 is the arrows plus the second
+stick. The top-level x / y / action stay merged across everything, so one-player
+games work as before.
 """
 
 from __future__ import annotations
@@ -22,6 +27,8 @@ import pygame
 from sprites.viewer import H, JOY_JUMP, W, stick
 
 ACTION_KEYS = (pygame.K_SPACE, pygame.K_z, pygame.K_RETURN)
+P1_KEYS = (pygame.K_a, pygame.K_d, pygame.K_w, pygame.K_s, (pygame.K_SPACE, pygame.K_LSHIFT))   # left right up down action
+P2_KEYS = (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN, (pygame.K_RETURN, pygame.K_RSHIFT))
 
 
 @dataclass
@@ -29,6 +36,7 @@ class Input:
     x: int = 0               # held stick / arrows, -1 / 0 / +1
     y: int = 0               # +1 = down
     action: bool = False     # pressed this tick: SPACE / Z / ENTER, or button 0
+    players: tuple["Input", ...] = ()   # per-player inputs, for two-player games
 
 
 class MiniGame(Protocol):
@@ -60,11 +68,15 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
     while running:
         dt = min(clock.tick(60) / 1000, 1 / 20)       # don't tunnel through things after a hitch
         inp = Input()
+        pressed_keys: set[int] = set()
+        pad_presses: set[int] = set()        # instance ids of pads whose button 0 went down
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key in (pygame.K_ESCAPE, pygame.K_q)):
                 running = False
-            elif ev.type == pygame.KEYDOWN and ev.key in ACTION_KEYS:
-                inp.action = True
+            elif ev.type == pygame.KEYDOWN:
+                pressed_keys.add(ev.key)
+                if ev.key in ACTION_KEYS:
+                    inp.action = True
             elif ev.type == pygame.JOYDEVICEADDED:
                 joy = pygame.joystick.Joystick(ev.device_index)
                 pads[joy.get_instance_id()] = joy
@@ -72,6 +84,7 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
                 pads.pop(ev.instance_id, None)
             elif ev.type == pygame.JOYBUTTONDOWN and ev.button == JOY_JUMP:
                 inp.action = True
+                pad_presses.add(ev.instance_id)
 
         keys = pygame.key.get_pressed()
         sx, sy = 0, 0
@@ -80,6 +93,17 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
             sx, sy = sx or jx, sy or jy
         inp.x = max(-1, min(1, keys[pygame.K_RIGHT] - keys[pygame.K_LEFT] + sx))
         inp.y = max(-1, min(1, keys[pygame.K_DOWN] - keys[pygame.K_UP] + sy))
+        joys = list(pads.values())            # in the order they were plugged in
+        players = []
+        for i, (left, right, up, down, acts) in enumerate((P1_KEYS, P2_KEYS)):
+            px, py = keys[right] - keys[left], keys[down] - keys[up]
+            act = bool(pressed_keys & set(acts))
+            if i < len(joys):
+                jx, jy = stick(joys[i])
+                px, py = px or jx, py or jy
+                act = act or joys[i].get_instance_id() in pad_presses
+            players.append(Input(max(-1, min(1, px)), max(-1, min(1, py)), act))
+        inp.players = tuple(players)
         if autopilot:
             inp = autopilot(game)
 
