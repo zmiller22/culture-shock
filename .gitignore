@@ -6,3 +6,6 @@ logs/
 
 # rick roll media is yours to supply, not ours to ship
 assets/files/rickroll.*
+
+# editor profiles
+*.code-profile
