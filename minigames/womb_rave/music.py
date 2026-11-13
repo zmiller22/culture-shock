@@ -1,6 +1,6 @@
 """Womb Rave's soundtrack and step chart, both generated from code.
 
-The song is a 120 BPM chiptune: a soft kick on every beat, amniotic whooshes,
+The song is a 120 BPM chiptune: amniotic whooshes,
 a square-wave bass and a lead that plays exactly on the notes you have to hit. Every SQUEEZE note has a contraction
 (a deep womp) baked into the music, so the button hits are audible too.
 
@@ -204,7 +204,6 @@ class _Kit:
         EIGHTH = BEAT / 2
         self.bar_n = round(BEAT * 4 * RATE)
         self.eighth = EIGHTH
-        self.kick = thump(140, 55, 0.14, 26, 0.5)          # a soft, short pulse on the beat
         self.hat = hiss(0.05, 70, 0.18)
         self.snare = [a + b for a, b in zip(hiss(0.2, 18, 0.38, 0.6), thump(220, 160, 0.2, 30, 0.3))]
         self.tick = square(1760, 0.05, 50, 0.18)
@@ -218,17 +217,13 @@ class _Kit:
         self.arp = {f: square(f * 2, EIGHTH / 2 * 0.9, 18, 0.05, 0.125, 0.5) for f in tones}
 
 
-def render_bar(kind: str, chord: int, k: _Kit, pulse: bool = True) -> list[float]:
+def render_bar(kind: str, chord: int, k: _Kit) -> list[float]:
     buf = [0.0] * k.bar_n
     root, tones = CHORDS[chord]
     at = lambda pos: round(pos * k.eighth * RATE)
     pattern = PATTERNS[kind]
     base = "chorus" if kind == "chorus2" else kind
 
-    if pulse:                                                # a soft kick runs under everything
-        quiet = base in ("count", "heart")
-        for beat in range(4):
-            _add(buf, at(beat * 2), [v * 0.5 for v in k.kick] if quiet else k.kick)
     if base == "count":
         for beat in range(4):
             _add(buf, at(beat * 2), k.tick)
@@ -289,14 +284,14 @@ def song_wav() -> io.BytesIO:
         start = round(BAR_START[i] * RATE)             # place bars by the tempo map so rounding never drifts
         out += [0.0] * (start - len(out))
         out[start:] = cache[key]
-    tail = thump(140, 55, 0.3, 12, 0.5) + [0.0] * _n(1.4)      # one last kick, then let it ring out
+    tail = [0.0] * _n(1.7)                                     # let it ring out
     return _wav(out + tail)
 
 
 def lobby_wav() -> io.BytesIO:
-    """The dancer-select loop: four bars of the intro tune with no kick, seamless when looped."""
+    """The dancer-select loop: four bars of the intro tune, seamless when looped."""
     kit = _Kit()
-    return _wav([v for chord in range(4) for v in render_bar("heart", chord, kit, pulse=False)], volume=0.6)
+    return _wav([v for chord in range(4) for v in render_bar("heart", chord, kit)], volume=0.6)
 
 
 # -- voice ------------------------------------------------------------------------
