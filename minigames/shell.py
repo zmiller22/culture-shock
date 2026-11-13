@@ -30,6 +30,20 @@ from sprites.viewer import H, JOY_JUMP, W, open_pad, players, stick
 
 ACTION_KEYS = (pygame.K_SPACE, pygame.K_z, pygame.K_RETURN)
 P1_KEYS = (pygame.K_a, pygame.K_d, pygame.K_w, pygame.K_s, (pygame.K_SPACE, pygame.K_LSHIFT))   # left right up down action
+# The cabinet's 27" 16:9 monitor sits behind a bezel, so fullscreen leaves a black border round the
+# picture: BORDER_IN inches top and bottom. The picture keeps its 16:9 shape, so the sides come out
+# a little wider than that.
+MONITOR_DIAG_IN = 27.0
+BORDER_IN = 0.5
+
+
+def bordered_size(diag_in: float = MONITOR_DIAG_IN, border_in: float = BORDER_IN) -> tuple[int, int]:
+    """The fullscreen canvas, in game pixels: the W x H picture plus the border, shaped like the monitor."""
+    height_in = diag_in * 9 / (16 ** 2 + 9 ** 2) ** 0.5
+    h = round(H * height_in / (height_in - 2 * border_in))
+    return round(h * 16 / 9), h
+
+
 P2_KEYS = (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN, (pygame.K_RETURN, pygame.K_RSHIFT))
 
 
@@ -57,9 +71,12 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
     `autopilot` replaces the player's input (for demos and smoke tests)."""
     pygame.init()
     if fullscreen:
-        window = pygame.display.set_mode((W, H), pygame.FULLSCREEN | pygame.SCALED)
+        cw, ch = bordered_size()
+        window = pygame.display.set_mode((cw, ch), pygame.FULLSCREEN | pygame.SCALED)
+        window.fill((0, 0, 0))
+        view = window.subsurface(((cw - W) // 2, (ch - H) // 2, W, H))     # the picture, inside the border
     else:
-        window = pygame.display.set_mode((W * scale, H * scale))
+        window = view = pygame.display.set_mode((W * scale, H * scale))
     pygame.display.set_caption(caption)
     screen = pygame.Surface((W, H))
     clock = pygame.time.Clock()
@@ -114,10 +131,10 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
 
         game.update(dt, inp)
         game.draw(screen)
-        pygame.transform.scale(screen, window.get_size(), window)
+        pygame.transform.scale(screen, view.get_size(), view)
         overlay = getattr(game, "overlay", None)     # optional: draw on the window itself, at full res
         if overlay:
-            overlay(window)
+            overlay(view)
         pygame.display.flip()
         if game.done:
             game = make_game()

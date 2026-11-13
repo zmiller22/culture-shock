@@ -5,6 +5,7 @@ dependencies:
   - python=3.11      # matches Raspberry Pi OS (Bookworm) system Python
   - pillow
   - numpy
+  - ffmpeg           # plays the rick roll video in the file terminal (the Pi has it system-wide)
   - pip
   - pip:
       - pygame-ce    # used by the animated sprite viewer; also runs well on the Pi 5

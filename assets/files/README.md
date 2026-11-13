@@ -4,8 +4,8 @@ The lab terminal's two `.VID` files (`WATCH_IF_YOU_ARE_ROLLING` and
 `WATCH_IF_YOU_ARE_NOT_ROLLING`) play whatever you put here.
 
 - A video (`.mp4` / `.m4v` / `.mov` / `.webm` / `.mkv`): played with its own
-  sound, streamed through `ffmpeg`, which has to be on the PATH (`brew install
-  ffmpeg` on a Mac; the Pi has it). The soundtrack is pulled out once and cached
+  sound, streamed through `ffmpeg`, which has to be on the PATH (the `8-bit`
+  conda env includes it; the Pi has it system-wide). Without it you get the GIF. The soundtrack is pulled out once and cached
   in `~/.cache/culture-shock/`. The repo ships `Rick Roll Link.mp4`.
 - `rickroll.gif` (or `.png` / `.jpg` / `.webp`): the fallback picture when
   there's no ffmpeg. An animated GIF plays at its own frame rate (on pygame-ce,

@@ -32,12 +32,13 @@ RAIN_COL, RAIN_ROW = 4, 6                  # px per character cell
 RAIN_SPEED = (40.0, 110.0)                 # px/s a column falls
 RAIN_TRAIL = (5, 14)                       # characters per column
 RAIN_RAMP = 0.8                            # s for the rain to go from a few columns to all of them
-ZOOM_MOVE = 1.6                            # s to glide out from one stop to the next
+ZOOM_TEMPO = 1.3                           # the whole zoom-out runs this much faster than the times below
+ZOOM_MOVE = 1.6 / ZOOM_TEMPO               # s to glide out from one stop to the next
 # how long the camera holds on each stop (the levels' `hold`) is set in build_levels()
 BIRTH_RATE = 4.3                           # babies born on Earth per second, roughly. One heart each.
 HEART_LIFE = 2.0                           # s each heart floats up before it fades
 FADE_IN = 0.7                              # levels of zoom over which an outer level fades in
-FADE_OUT = 1.4                             # s zooming on into the dark at the end
+FADE_OUT = 1.4 / ZOOM_TEMPO                # s zooming on into the dark at the end
 K0 = 1.25                                  # screen px per canvas px when a level is "current"
 STARS = 160
 
@@ -140,8 +141,8 @@ def _text_frames(word: str, color: str, shadow: str, on: list[int], n: int) -> l
 
 BUBBLE_INK, BUBBLE_EDGE = "#2a1640", "#1a1030"
 BUBBLE_LINES = (("JUST LIKE THAT",), ("YOU ARE DOING", "SO GOOD TIGER"), ("DON'T STOP",))
-BUBBLE_SAY = 1.5                           # s each line stays up
-BUBBLE_GAP = 0.25                          # s of nothing between lines
+BUBBLE_SAY = 1.5 / ZOOM_TEMPO                           # s each line stays up
+BUBBLE_GAP = 0.25 / ZOOM_TEMPO                          # s of nothing between lines
 
 
 def _bubble_frames(lines: tuple[tuple[str, ...], ...], tail_x: int) -> list[pygame.Surface]:
@@ -188,17 +189,17 @@ def build_levels() -> list[Level]:
     bubble = Prop(bubble_frames, *on_bed(35, 11), size=1 / K0, fps=1 / step, loop=False)
 
     levels = [
-        Level(_surf(sa.earth_level()), scale="1E+07 M", hold=4.0,
+        Level(_surf(sa.earth_level()), scale="1E+07 M", hold=4.0 / ZOOM_TEMPO,
               labels=[(cx, cy, 52, "EARTH", ""),
                       (cx, cy, -52, "BABIES MADE SINCE YOU GOT HERE:", "{births}")],
               props=[Prop(stork_frames, cx, cy, size=0.32, orbit=(62, 40))]),
-        Level(_surf(sa.solar_level()), scale="1E+13 M", hold=4.5,
+        Level(_surf(sa.solar_level()), scale="1E+13 M", hold=4.5 / ZOOM_TEMPO,
               labels=[(*sa.URANUS, -(sa.CHEEK_R + 1), "URANUS", ""),
                       (*sa.SUN, 13, "THE SUN", "")]),
-        Level(_surf(sa.milky_way_level()), scale="1E+21 M", hold=4.5, fade_out=True,
+        Level(_surf(sa.milky_way_level()), scale="1E+21 M", hold=4.5 / ZOOM_TEMPO, fade_out=True,
               labels=[(sa.CX + 2, sa.BOOBS[0][1], 36, "THE MILKY WAY", ""),
                       (*sa.YOU_ARE_HERE, -3, "YOU ARE HERE", "V")]),
-        Level(_surf(sa.big_bang_level()), scale="1E+27 M", hold=5.5,
+        Level(_surf(sa.big_bang_level()), scale="1E+27 M", hold=5.5 / ZOOM_TEMPO,
               labels=[(cx, cy, -50, "THE BIG BANG", "")],
               props=[Prop(bed, gx, gy, size=gs, fps=bed_fps),
                      Prop(_text_frames("BANG!", "#ffe14d", "#c83a2a", [2, 3], 8), *on_bed(6, -6), fps=bed_fps),

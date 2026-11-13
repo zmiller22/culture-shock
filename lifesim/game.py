@@ -4,30 +4,32 @@
 
 You're a spirit with no body yet. The Life Lab Mainframe, a 1970s machine the
 scientist insists is state of the art, runs a simulation of each theory of how
-life begins. Push the button to boot it: code pours down the screen, the camera
-dives into the CRT, and the program opens on a zoom out from the Earth to the
-edge of everything (see intro.py), where it finds you: you're the lab's next
-visitor, and you sign in with a 1-4 letter name, arcade high-score style. Then
-pick a theory off
-the terminal, get incarnated into it, and see whether it holds up. Every
-mini-game is one simulation.
+life begins. Push the button to boot it: the camera dives into the CRT, the
+lab welcomes you as its next visitor, and you sign in with a 1-4 letter name,
+arcade high-score style. Then the genesis program runs: code pours down the
+screen and it zooms out from the Earth to the edge of everything (see
+intro.py). Then you're on the theory map (see worldmap.py): every theory is a tile playing a
+clip of its simulation, joined by paths you float along. Pick one, get
+incarnated into it, and see whether it holds up. Every mini-game is one
+simulation.
 
 Controls (keyboard, or an arcade stick / gamepad):
-    STICK / ARROWS            pick a theory (or C:\\> FILES under them); on the name entry, down goes A -> B, up goes back,
+    STICK / ARROWS            move along the map's paths; on the name entry, down goes A -> B, up goes back,
                               left goes back a letter, right goes on to the next
     SPACE / Z / ENTER / btn 0 boot, skip the intro, select, next letter, continue
     ESC / Q                   quit
 
 Leave it alone for IDLE_PROMPT s (outside the boot sequence and cut-scenes), or
-hold the button on a menu (the theories or the file listing), and the game
-freezes under a STILL THERE? countdown. Any button or the stick carries on;
+hold the button on a menu (the map or the file listing) for MENU_HOLD s, or
+anywhere else, mini-games included, for HOLD_ANYWHERE s, and the game freezes
+under a STILL THERE? countdown. Any button or the stick carries on;
 holding the button, or letting it run out, goes back to the start screen for
 the next visitor. Because of the hold, menus act when the button is let go.
 
 Win a simulation and the theory is CONFIRMED; lose and it's REFUTED. The
 terminal keeps score for the session.
 
-Under the theories there's a command line, C:\\> FILES, that opens the lab's
+SYSTEM FILES, at the left end of the map, opens the lab's
 file drawer (see files.py): notebooks, photos of experiments gone wrong, and
 locked files whose 3-letter codes are hidden around the room.
 """
@@ -55,32 +57,47 @@ from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT, SCREEN
 from .activity import ActivityLog, enabled_by_env
 from .files import FileTerminal
 from .intro import Cosmos, Rain
+from .worldmap import FILES, FILES_RECT, TILE_H, TILE_W, VOID, WorldMap, tile_at, tile_rect
 
 # -- tuning ------------------------------------------------------------------------
 TYPE_RATE = 70.0           # characters/s the terminal types at
 LINE_PAUSE = 0.12          # s between lines
 VISITOR_LOG = Path(os.environ.get("LIFE_LAB_VISITORS", Path.home() / ".life_lab" / "visitors.txt"))
 NAME_LEN = 4               # letters in a visitor's name, like an arcade high score
-NAME_END = "END"           # the choice after Z (and before A) that signs off a short name
+NAME_HOLD = 0.8            # s of holding the button that signs off a name shorter than NAME_LEN
 NAME_REPEAT = (0.4, 0.09)  # s before a held stick starts repeating, then s per letter
 NAME_TIMEOUT = 40.0        # s of nobody touching anything before it signs them in as is
 BUTTON_PRESS = 0.35        # s the boot button stays down before the code rain starts
-RAIN_TIME = 1.4            # s of code rain on the CRT before the camera dives in
-ENTER_TIME = 1.1           # s to dive into the CRT
+ENTER_TIME = 1.1           # s to dive into the CRT after the boot button
+RAIN_TIME = 1.6            # s of code rain as the genesis program starts, before the zoom out
 RAIN_FADE = 0.8            # s the rain takes to clear off the start of the program
 SUMMON_FORM = 1.6          # s for the spirit to come together in the void
-EXIT_TIME = 1.0            # s to pull back out of the CRT to the menu
-LOAD_TIME = 1.8            # s from picking a theory to the CRT switching off
+MAP_FADE = 0.5             # s for the theory map to fade in
+LOAD_TIME = 1.8            # s from picking a theory to the screen switching off
+LOAD_DIVE = 0.7            # s for the spirit to dive into the tile, which then grows to fill the screen
 CRT_OFF_TIME = 0.35
 CRT_ON_TIME = 0.35
 IDLE_PROMPT = 20.0         # s of nobody touching anything before the "still there?" countdown
 IDLE_COUNTDOWN = 60        # s it counts down from before it goes back to the start screen
 HOLD_TO_EXIT = 1.5         # s of holding the button on the countdown to go back to the start screen
 MENU_HOLD = 0.8            # s of holding the button on a menu to bring the countdown up (menus act on release)
+HOLD_ANYWHERE = 2.5        # s of holding the button anywhere else, mini-games too, to bring the countdown up
 REEL_IDLE, REEL_FAST = 90.0, 900.0      # degrees/s
 DIVE = (SCREEN[0], SCREEN[1] + 7, SCREEN[2], SCREEN[2] * 9 // 16)     # the part of the glass the camera dives into
-SUMMON_LINES = ["1 SPIRIT DETECTED.", "YOU ARE VISITOR NO. {num}."]
-WELCOME_LINES = ["WELCOME {name}.", "YOU DO NOT HAVE A BODY YET.", "PICK A THEORY OF LIFE. TRY IT ON."]
+SIGN_IN_LINES = ["WELCOME TO THE LIFE LAB, VISITOR {num}!", "",
+                 "HERE YOU CAN EXPLORE STATE-OF-THE-ART SIMULATIONS",
+                 "ON LEADING THEORIES OF HOW LIFE IS CREATED.", "", "WHAT SHOULD WE CALL YOU?"]
+JOURNEY_LINES = ["OUR JOURNEY STARTS", "AT THE VERY BEGINNING..."]
+JOURNEY_TIME = 4.0         # s on the journey screen before the genesis program runs (the button skips it)
+SPIRIT_LINES = ["YOU ARE A SPIRIT!", "BUT HOW DO YOU", "BECOME A LIFE?"]
+# the tour of the map, the first time on it: what to light up, and what to say
+TUTORIAL = [
+    ("tiles", ("EACH TILE IS A SIMULATION OF ONE", "THEORY OF HOW LIFE BEGINS.")),
+    ("move", ("PUSH THE STICK TO FLOAT FROM", "TILE TO TILE. GO ON, TRY IT.")),
+    ("labels", ("PRESS THE BUTTON TO JUMP IN. WIN AND", "THE THEORY IS CONFIRMED. LOSE: REFUTED.")),
+    ("files", ("SYSTEM FILES IS THE LAB'S FILE DRAWER.", "SOME OF IT IS LOCKED. LOOK AROUND.")),
+    ("exit", ("HOLD DOWN A BUTTON AT ANY TIME", "TO OPEN THE EXIT MENU.")),
+]
 
 
 def next_visitor() -> int:
@@ -103,36 +120,41 @@ def sign_in(num: int, name: str) -> None:
 
 class NameEntry:
     """Old-school arcade initials: down rolls on through the alphabet (A -> B),
-    up rolls back, and the button locks the letter in and moves on. After the
-    first letter, END (one step up from A, or on past Z) signs off early, so
-    names can be 1-4 letters."""
+    up rolls back, and a tap of the button locks the letter in and moves on.
+    Holding the button down signs off with the letters so far, so names can be
+    1-4 letters. The button acts when it's let go, so a hold never adds a letter."""
 
     LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
 
     def __init__(self) -> None:
         self.name = ""
-        self.cur = 0                                  # index into choices()
+        self.cur = 0                                  # index into LETTERS
         self.done = False
         self.held = (0, 0)
         self.hold_t = 0.0
+        self.press: float | None = None               # s the button's been down, while it is
         self.idle = 0.0
-
-    def choices(self) -> list[str]:
-        return self.LETTERS + ([NAME_END] if self.name else [])
 
     @property
     def letter(self) -> str:
-        return self.choices()[self.cur]
+        return self.LETTERS[self.cur]
+
+    @property
+    def hold_k(self) -> float:
+        """0..1, how far a held button is to signing off (0 for a tap, or with no letters yet)."""
+        if self.press is None or not self.name or self.press < 0.15:
+            return 0.0
+        return min(1.0, (self.press - 0.15) / (NAME_HOLD - 0.15))
 
     def _roll(self, step: int) -> None:
-        self.cur = (self.cur + step) % len(self.choices())
+        self.cur = (self.cur + step) % len(self.LETTERS)
 
     def update(self, dt: float, inp: Input) -> None:
         if self.done:
             return
         self.idle += dt
         dirs = (inp.x, inp.y)
-        if dirs != (0, 0) or inp.action:
+        if dirs != (0, 0) or inp.action or inp.held:
             self.idle = 0.0
         if inp.y:
             if dirs != self.held:
@@ -149,18 +171,24 @@ class NameEntry:
             elif self.name:                           # back up a letter
                 prev = self.name[-1]
                 self.name = self.name[:-1]
-                self.cur = self.choices().index(prev)
+                self.cur = self.LETTERS.index(prev)
         self.held = dirs
         if inp.action:
-            self.lock()
+            self.press = 0.0
+        elif self.press is not None:
+            if inp.held:
+                self.press += dt
+                if self.press >= NAME_HOLD and self.name:
+                    self.done = True                  # held down: that's the name
+            else:                                     # let go quickly: a tap, lock the letter
+                if self.press < NAME_HOLD:
+                    self.lock()
+                self.press = None
         if self.idle > NAME_TIMEOUT:
             self.name = self.name or "GHST"
             self.done = True
 
     def lock(self) -> None:
-        if self.letter == NAME_END:
-            self.done = True
-            return
         self.name += self.letter
         self.done = len(self.name) == NAME_LEN        # otherwise the next slot starts on the same letter
 
@@ -224,7 +252,6 @@ def theories(mute: bool = False) -> list[Theory]:
     ]
 
 
-ROW = 9                    # px between theories on the menu (five fit above the divider)
 FILES_BLURB = ("THE LAB'S FILE DRAWER. MOSTLY", "NOTEBOOKS. SOME OF IT IS LOCKED.")
 VERDICT = {"win": "CONFIRMED", "lose": "REFUTED", None: "UNTESTED", "?": "INCONCLUSIVE"}
 
@@ -308,6 +335,9 @@ class Art:
                 d = math.hypot((x - sw / 2) / (sw / 2), (y - sh / 2) / (sh / 2))
                 if d > 1.1:                       # just the very corners, clear of the text
                     self.vignette.set_at((x, y), (0, 0, 0, min(200, int((d - 1.1) * 300))))
+        self.scanlines = pygame.Surface((art.W, art.H), pygame.SRCALPHA)
+        for y in range(0, art.H, 2):
+            self.scanlines.fill((0, 0, 0, 45), (0, y, art.W, 1))
         # a soft halo, added on top (so it's plain colour scaled by brightness, no alpha)
         self.glow = pygame.Surface((24, 24))
         er, eg, eb = rgb(art.SPIRIT_EDGE)
@@ -335,8 +365,7 @@ class LifeSim:
         self.rng = random.Random(seed)
         self.theories = theories(mute)
         self.results: dict[str, list[str]] = {t.code: [] for t in self.theories}
-        self.sel = 0
-        self.held_y = 0
+        self.map = WorldMap([t.code for t in self.theories])
         self.result: str | None = None
         self.done = False
         self.time = 0.0
@@ -357,7 +386,7 @@ class LifeSim:
         self.visitor = next_visitor()
         self.name = "ANON"                      # until they sign in (--skip-boot never asks)
         self.entry: NameEntry | None = None
-        self.stage = ""
+        self.tutorial: int | None = None        # the page of the map tour showing, if it's on
         # what each visitor does (files opened, codes, theories). Off unless asked for, never in demos/tests
         self.activity = ActivityLog(enabled=record and (log_activity or enabled_by_env()),
                                     visitor=self.visitor, name=self.name)
@@ -372,7 +401,13 @@ class LifeSim:
         self.swallow = False                    # eat input after the countdown until hands are off
         self.armed = True                       # False: opened by a held button, waiting for it to let go
         self.press: float | None = None         # s the button's been down on a menu
+        self.long_press: float | None = None    # s the button's been down anywhere else (since it went down)
         self._go("hub" if skip_boot else "off")
+
+    @property
+    def sel(self) -> int:
+        """The map node the spirit's on: a theory's index, or FILES."""
+        return self.map.sel
 
     # -- phases --------------------------------------------------------------------
     def _go(self, phase: str) -> None:
@@ -383,9 +418,13 @@ class LifeSim:
             self.rain = Rain(SCREEN[2], SCREEN[3], seed=self.rng.random())
         elif phase == "cosmos":
             self.cosmos = Cosmos(seed=self.rng.random())
-        elif phase == "summon":
-            self.stage = "intro"                # intro lines -> name entry -> welcome lines
-            self.typer = Typer([s.format(num=f"{self.visitor:04d}") for s in SUMMON_LINES])
+        elif phase == "summon":                 # sign in: the welcome, then the name entry
+            self.entry = None
+            self.typer = Typer([s.format(num=f"{self.visitor:04d}") for s in SIGN_IN_LINES])
+        elif phase == "journey":
+            self.typer = Typer(JOURNEY_LINES, rate=24, pause=0.5)
+        elif phase == "spirit":                 # after the big bang the spirit comes together
+            self.typer = Typer(SPIRIT_LINES, rate=30, pause=0.6)
             self.motes = [[math.cos(a) * r, math.sin(a) * r * 0.6, self.rng.uniform(0.5, 1.0)]
                           for a, r in ((self.rng.uniform(0, math.tau), self.rng.uniform(50, 180)) for _ in range(70))]
         elif phase == "load":
@@ -407,7 +446,7 @@ class LifeSim:
     def _idle_paused(self) -> bool:
         """Times nobody is expected to touch anything: the start screen, the boot
         sequence, loading a tape, a rick roll, or a mini-game's own cut-scene."""
-        if self.phase in ("off", "rain", "cosmos", "exit", "load"):
+        if self.phase in ("off", "dive", "journey", "rain", "cosmos", "load"):
             return True
         if self.phase == "files":
             return self.term.playing
@@ -486,6 +525,38 @@ class LifeSim:
             return 0.0
         return min(1.0, (self.press - 0.15) / (MENU_HOLD - 0.15))
 
+    def _long_hold(self, dt: float, inp: Input) -> bool:
+        """Off the menus, holding the button down for HOLD_ANYWHERE brings the
+        countdown up, whatever's going on: the intro, a cut-scene, a mini-game.
+        True means it just came up. The game still sees the button as usual."""
+        if self.phase == "off" or self.press is not None or self.countdown is not None:
+            self.long_press = None
+            return False
+        if inp.action:
+            self.long_press = 0.0
+        elif self.long_press is not None:
+            self.long_press = self.long_press + dt if inp.held else None
+        if self.long_press is not None and self.long_press >= HOLD_ANYWHERE:
+            self._open_prompt("hold")
+            self.long_press = None
+            return True
+        return False
+
+    def _draw_long_hold(self, screen: pygame.Surface) -> None:
+        """Once a hold looks deliberate, a bar along the bottom fills up to the exit menu."""
+        t = self.long_press
+        if t is None or t < 0.6:
+            return
+        k = min(1.0, (t - 0.6) / (HOLD_ANYWHERE - 0.6))
+        s = self.text.get("KEEP HOLDING: EXIT MENU", PHOSPHOR, big=True)
+        w = max(s.get_width(), 120) + 12
+        box = pygame.Rect(art.W // 2 - w // 2, art.H - 24, w, 20)
+        screen.fill(rgb(CRT_BG), box)
+        pygame.draw.rect(screen, rgb(PHOSPHOR), box, 1)
+        screen.blit(s, (box.centerx - s.get_width() // 2, box.y + 3))
+        screen.fill(rgb(PHOSPHOR_FAINT), (box.x + 6, box.y + 13, w - 12, 3))
+        screen.fill(rgb("#eaffea"), (box.x + 6, box.y + 13, int((w - 12) * k), 3))
+
     def _dismiss(self) -> None:
         self.countdown = self.hold = None
         self.idle = 0.0
@@ -514,14 +585,14 @@ class LifeSim:
             if self._idle(dt, inp):
                 return
             inp = self._menu_button(dt, inp)
-            if inp is None:
+            if inp is None or self._long_hold(dt, inp):
                 return
         self.term.hold_k = self.hold_k
         self.time += dt
         self.phase_t += dt
         if self.phase == "off":
             target = 0.0
-        elif self.phase in ("load", "rain") or self.phase == "files" and self.term.playing:
+        elif self.phase in ("load", "dive") or self.phase == "files" and self.term.playing:
             target = REEL_FAST
         else:
             target = REEL_IDLE if int(self.time * 0.8) % 3 else 0.0   # tape drives move in fits
@@ -542,17 +613,20 @@ class LifeSim:
                 self._go("return")
             return
 
-        if self.phase in ("load", "return") or self.phase == "summon" and self.phase_t > SUMMON_FORM:
+        if self.phase in ("load", "return", "summon", "journey") or self.phase == "spirit" and self.phase_t > SUMMON_FORM:
             self.typer.update(dt)
 
         if self.phase == "off":
             if inp.action and self.pushed is None and self.phase_t > 0.3:
                 self.pushed = self.phase_t
             if self.pushed is not None and self.phase_t - self.pushed > BUTTON_PRESS:
-                self._go("rain")
+                self._go("dive")
+        elif self.phase == "dive":
+            if self.phase_t > ENTER_TIME + 0.1:
+                self._go("summon")
         elif self.phase == "rain":
             self.rain.update(dt)
-            if self.phase_t > RAIN_TIME + ENTER_TIME + 0.25:
+            if self.phase_t > RAIN_TIME:
                 self._go("cosmos")
         elif self.phase == "cosmos":
             if self.phase_t < RAIN_FADE:
@@ -561,34 +635,36 @@ class LifeSim:
             if inp.action and self.phase_t > 0.5:
                 self.cosmos.skip()
             if self.cosmos.done:
-                self._go("summon")
+                self._go("spirit")
         elif self.phase == "summon":
-            if self.stage == "name":
+            if self.entry:
                 self.entry.update(dt, inp)
                 if self.entry.done:
                     self.name = self.activity.name = self.entry.name
                     if self.record:
                         sign_in(self.visitor, self.name)
                     self.activity("sign_in")
-                    self.stage = "welcome"
-                    self.typer = Typer([s.format(name=self.name) for s in WELCOME_LINES])
-            elif inp.action and self.phase_t > SUMMON_FORM:
+                    self._go("journey")
+            elif inp.action and not self.typer.done:
+                self.typer.finish()
+            if not self.entry and self.typer.done and self.typer.t > self.typer.end + 0.3:
+                self.entry = NameEntry()
+        elif self.phase == "journey":
+            if self.phase_t > JOURNEY_TIME or inp.action and self.phase_t > 0.5:
+                self._go("rain")                    # the genesis program runs
+        elif self.phase == "spirit":
+            if inp.action and self.phase_t > SUMMON_FORM:
                 if not self.typer.done:
                     self.typer.finish()
-                elif self.stage == "welcome":
-                    self._go("exit")
-            if self.stage == "intro" and self.typer.done and self.typer.t > self.typer.end + 0.4:
-                self.stage = "name"
-                self.entry = NameEntry()
-        elif self.phase == "exit":
-            if self.phase_t > EXIT_TIME:
-                self._go("hub")
+                else:
+                    self.tutorial = 0               # first time on the map: show them round it
+                    self._go("hub")
+        elif self.phase == "hub" and self.tutorial is not None:
+            self._tutorial(dt, inp)
         elif self.phase == "hub":
-            if inp.y and inp.y != self.held_y:
-                self.sel = (self.sel + inp.y) % (len(self.theories) + 1)     # the last row is C:\> FILES
-            self.held_y = inp.y
-            if inp.action and self.phase_t > 0.2:
-                if self.sel == len(self.theories):
+            self.map.update(dt, inp)
+            if inp.action and self.phase_t > 0.2 and not self.map.moving:
+                if self.sel == FILES:
                     self.term.open()
                     self.activity("files_open")
                     self._go("files")
@@ -608,6 +684,7 @@ class LifeSim:
         elif self.phase == "return":
             if inp.action and self.phase_t > CRT_ON_TIME + 0.5:
                 if self.typer.done:
+                    self.map.place(self.theories.index(self.last[0]))
                     self._go("hub")
                 else:
                     self.typer.finish()
@@ -621,16 +698,24 @@ class LifeSim:
             if self.phase_t < RAIN_FADE:                  # the code rain clears off the start of the program
                 self._draw_rain_fullscreen(screen, 1 - self.phase_t / RAIN_FADE)
         elif self.phase == "summon":
-            self._draw_summon(screen)
+            self._draw_sign_in(screen)
+        elif self.phase == "journey":
+            self._draw_journey(screen)
+        elif self.phase == "spirit":
+            self._draw_spirit_formed(screen)
         elif self.phase == "files":                       # the file system takes the whole screen
             self.term.draw(screen, self.text, self.time)
-        elif self.phase in ("rain", "exit"):
-            if self.phase == "rain":
-                k = max(0.0, min(1.0, (self.phase_t - RAIN_TIME) / ENTER_TIME))
-                k = k * k                                   # accelerate into the glass
-            else:
-                k = 1 - min(1.0, self.phase_t / EXIT_TIME)
-                k = k * k * (3 - 2 * k)
+        elif self.phase == "hub":
+            self._draw_map(screen)
+        elif self.phase == "load":
+            self._draw_load(screen)
+        elif self.phase == "return":
+            self._draw_return(screen)
+        elif self.phase == "rain":
+            self._draw_genesis(screen)
+        elif self.phase == "dive":
+            k = min(1.0, self.phase_t / ENTER_TIME)
+            k = k * k                                       # accelerate into the glass
             if k <= 0:
                 self._draw_room(screen)
             else:
@@ -640,6 +725,8 @@ class LifeSim:
             self._draw_room(screen)
         if self.countdown is not None:
             self._draw_countdown(screen)
+        elif self.idle_exit:
+            self._draw_long_hold(screen)
 
     def _draw_countdown(self, screen: pygame.Surface) -> None:
         """STILL THERE? over whatever was on screen, frozen and dimmed."""
@@ -695,68 +782,308 @@ class LifeSim:
         big.fill((v, v, v), special_flags=pygame.BLEND_MULT)
         screen.blit(big, (0, 0), special_flags=pygame.BLEND_ADD)
 
-    def _draw_summon(self, screen: pygame.Surface) -> None:
-        """The edge of everything, where the program finds you."""
-        screen.fill((4, 6, 14))
-        for x, y, b in self.void_stars:
-            screen.fill((b, b, b + 20), (x, y, 1, 1))
-        cx, cy = art.W / 2, 68
-        k = min(1.0, self.phase_t / SUMMON_FORM)
-        self.spirits = []
-        for mx, my, speed in self.motes:                    # wisps drifting in from everywhere
-            p = min(1.0, k * (0.5 + speed * 0.7))
-            if p < 1:
-                x, y = cx + mx * (1 - p), cy + my * (1 - p)
-                col = art.SPIRIT_BODY if speed > 0.75 else art.SPIRIT_EDGE
-                screen.fill(rgb(col), (int(x), int(y), 1 + (speed > 0.9), 1))
-        if k > 0.6:
-            self._draw_spirit(screen, cx, cy, 2.0 * min(1.0, (k - 0.6) / 0.4))
-        lines = self.typer.visible()
-        for i, line in enumerate(lines):
-            if line:
-                full = self.typer.lines[i]
-                screen.blit(self.text.get(line, PHOSPHOR, big=True), (cx - big_width(full) // 2, 102 + i * 10))
-        if self.stage == "name":
-            self._draw_name_entry(screen, cx, 126)
-        elif self.stage == "welcome" and self.typer.done and int(self.time * 2) % 2 == 0:
-            s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
-            screen.blit(s, (cx - s.get_width() // 2, 160))
-        screen.blit(self.text.get("LIFE LAB MAINFRAME", PHOSPHOR, big=True), (4, 3))
-        s = self.text.get("PROGRAM: GENESIS", PHOSPHOR, big=True)
-        screen.blit(s, (art.W - 4 - s.get_width(), 3))
-        if self.cosmos:
-            screen.blit(self.cosmos.scanlines, (0, 0))
+    def _draw_genesis(self, screen: pygame.Surface) -> None:
+        """The genesis program starting up: code rain over the whole screen."""
+        screen.fill((0, 0, 0))
+        self._draw_rain_fullscreen(screen, 1.0)
+        if self.phase_t > 0.3:
+            s = self.text.get("RUNNING PROGRAM: GENESIS", PHOSPHOR, big=True)
+            box = s.get_rect(center=(art.W // 2, art.H // 2)).inflate(16, 10)
+            screen.fill(rgb(CRT_BG), box)
+            pygame.draw.rect(screen, rgb(PHOSPHOR), box, 1)
+            screen.blit(s, (box.x + 8, box.y + 5))
+        screen.blit(self.art.scanlines, (0, 0))
 
-    def _draw_name_entry(self, screen: pygame.Surface, cx: float, y: int) -> None:
-        """ENTER YOUR NAME and four big letter slots, the current one rolling."""
+    def _header(self, screen: pygame.Surface, right: str) -> None:
+        screen.blit(self.text.get("LIFE LAB MAINFRAME", PHOSPHOR, big=True), (4, 3))
+        s = self.text.get(right, PHOSPHOR, big=True)
+        screen.blit(s, (art.W - 4 - s.get_width(), 3))
+        screen.fill(rgb(PHOSPHOR_DIM), (4, 13, art.W - 8, 1))
+
+    def _centre_lines(self, screen: pygame.Surface, typer: Typer, y: int, step: int, scale: int = 1) -> None:
+        """Typed lines, each centred on where its whole line will end up."""
+        for i, line in enumerate(typer.visible()):
+            if line:
+                full = typer.lines[i]
+                x = art.W // 2 - big_width(full) * scale // 2
+                screen.blit(self.text.get(line, PHOSPHOR, scale, big=True), (x, y + i * step))
+
+    def _draw_sign_in(self, screen: pygame.Surface) -> None:
+        """The welcome, then WHAT SHOULD WE CALL YOU? and the name entry."""
+        self._draw_void(screen)
+        self._header(screen, "PROGRAM: RESEARCH EXPLORATION")
+        self._centre_lines(screen, self.typer, 26, 11)
+        if self.entry:
+            self._draw_name_entry(screen, art.W / 2, 101)
+        screen.blit(self.art.scanlines, (0, 0))
+
+    def _draw_name_entry(self, screen: pygame.Surface, cx: float, top: int) -> None:
+        """Four big letter slots, the current one rolling, with arrows on it and
+        the controls spelled out underneath."""
         e = self.entry
-        s = self.text.get("ENTER YOUR NAME:", PHOSPHOR, big=True)
-        screen.blit(s, (cx - s.get_width() // 2, y))
-        slot_w, gap = 14, 6
+        slot_w, gap = 18, 8
         x0 = int(cx - (NAME_LEN * slot_w + (NAME_LEN - 1) * gap) / 2)
-        blink = int(self.time * 3) % 2 == 0
+        bob = int(self.time * 4) % 2                     # the arrows nudge in and out
+        hi = rgb(PHOSPHOR)
         for i in range(NAME_LEN):
-            x, top = x0 + i * (slot_w + gap), y + 10
+            x = x0 + i * (slot_w + gap)
             here = i == len(e.name)
             if i < len(e.name):
                 img = self.text.get(e.name[i], PHOSPHOR, 2, big=True)
-            elif here and e.letter == NAME_END:
-                img = self.text.get(NAME_END, PHOSPHOR, big=True) if blink else None
             elif here:
                 img = self.text.get(e.letter, PHOSPHOR, 2, big=True)
             else:
                 img = None
             if img:
                 screen.blit(img, (x + (slot_w - img.get_width()) // 2, top + (14 - img.get_height()) // 2))
-            screen.fill(rgb(PHOSPHOR if here else PHOSPHOR_DIM), (x, top + 16, slot_w, 1 + here))
-            if here:                                     # little arrows: the stick rolls this one
-                screen.fill(rgb(PHOSPHOR), (x + slot_w // 2 - 1, top - 3, 3, 1))
-                screen.fill(rgb(PHOSPHOR), (x + slot_w // 2, top - 4, 1, 1))
-                screen.fill(rgb(PHOSPHOR), (x + slot_w // 2 - 1, top + 19, 3, 1))
-                screen.fill(rgb(PHOSPHOR), (x + slot_w // 2, top + 20, 1, 1))
-        hint = "STICK: LETTER   BUTTON: NEXT" + ("   END: DONE" if e.name else "")
-        s = self.text.get(hint, PHOSPHOR, big=True)
-        screen.blit(s, (cx - s.get_width() // 2, 166))
+            screen.fill(rgb(PHOSPHOR if here else PHOSPHOR_DIM), (x, top + 17, slot_w, 1 + here))
+            if here:                                       # arrows above and below: up and down roll it
+                mx = x + slot_w // 2
+                for k in range(4):
+                    screen.fill(hi, (mx - k, top - 7 - bob + k, 2 * k + 1, 1))
+                    screen.fill(hi, (mx - k, top + 25 + bob - k, 2 * k + 1, 1))
+        lines = ["STICK UP / DOWN: CHANGE THE LETTER", "BUTTON: SELECT LETTER",
+                 "HOLD BUTTON DOWN WHEN DONE"]
+        for i, line in enumerate(lines):
+            s = self.text.get(line, PHOSPHOR_DIM if i == 2 and not e.name else PHOSPHOR, big=True)
+            x, y = cx - s.get_width() // 2, top + 38 + i * 10
+            screen.blit(s, (x, y))
+            if i == 2 and e.hold_k > 0:                    # holding: a bar fills up to done
+                screen.fill(rgb(PHOSPHOR_FAINT), (x, y + 9, s.get_width(), 2))
+                screen.fill(rgb("#eaffea"), (x, y + 9, int(s.get_width() * e.hold_k), 2))
+
+    def _draw_journey(self, screen: pygame.Surface) -> None:
+        """OUR JOURNEY STARTS AT THE VERY BEGINNING..., big, then a fade to the genesis program."""
+        screen.fill(VOID)
+        self._centre_lines(screen, self.typer, 62, 22, scale=2)
+        k = (self.phase_t - (JOURNEY_TIME - 0.6)) / 0.6
+        if k > 0:
+            v = int(255 * max(0.0, 1 - k))
+            screen.fill((v, v, v), special_flags=pygame.BLEND_MULT)
+        screen.blit(self.art.scanlines, (0, 0))
+
+    def _draw_spirit_formed(self, screen: pygame.Surface) -> None:
+        """Wisps from everywhere come together into the spirit, which dances. YOU ARE A SPIRIT!"""
+        self._draw_void(screen)
+        cx, cy = art.W / 2, 50
+        k = min(1.0, self.phase_t / SUMMON_FORM)
+        for mx, my, speed in self.motes:
+            p = min(1.0, k * (0.5 + speed * 0.7))
+            if p < 1:
+                x, y = cx + mx * (1 - p), cy + my * (1 - p)
+                col = art.SPIRIT_BODY if speed > 0.75 else art.SPIRIT_EDGE
+                screen.fill(rgb(col), (int(x), int(y), 1 + (speed > 0.9), 1))
+        if k > 0.6:
+            grow = min(1.0, (k - 0.6) / 0.4)
+            self._draw_dance(screen, cx, cy, 3.0 * grow, self.phase_t - SUMMON_FORM)
+        self._centre_lines(screen, self.typer, 94, 19, scale=2)
+        if self.typer.done and int(self.time * 2) % 2 == 0:
+            s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
+            screen.blit(s, (art.W // 2 - s.get_width() // 2, 162))
+        screen.blit(self.art.scanlines, (0, 0))
+
+    def _draw_dance(self, screen: pygame.Surface, x: float, y: float, scale: float, t: float) -> None:
+        """A little dance, four moves round and round on a beat: sway, hop, spin, sway back."""
+        if scale <= 0.05:
+            return
+        beat = 0.5                                         # s per beat, 4 beats a move
+        t = max(0.0, t)
+        move, k = int(t / (beat * 4)) % 4, (t / (beat * 4)) % 1.0
+        dx = dy = ang = 0.0
+        sx = sy = 1.0
+        if move in (0, 3):                                 # sway side to side, leaning in
+            side = math.sin(k * math.tau * 2) * (1 if move == 0 else -1)
+            dx, ang = side * 10, -side * 14
+        elif move == 1:                                    # hop, hop: squash down, stretch up
+            b = (k * 4) % 1.0
+            dy = -abs(math.sin(b * math.pi)) * 14
+            sy = 1.0 + 0.2 * math.sin(b * math.pi)
+            sx = 2.0 - sy
+        else:                                              # a twirl: turn round twice
+            sx = math.cos(k * math.tau * 2)
+        f = int(self.time * 8) % (art.SPIRIT_FRAMES - 1)
+        img = self.art.spirit[f]
+        w, h = img.get_size()
+        img = pygame.transform.scale(img, (max(1, round(w * scale * abs(sx))), max(1, round(h * scale * sy))))
+        if sx < 0:
+            img = pygame.transform.flip(img, True, False)
+        if ang:
+            img = pygame.transform.rotate(img, ang)
+        glow = pygame.transform.scale_by(self.art.glow, scale)
+        px, py = x + dx, y + dy + math.sin(self.time * 3) * 1.5
+        screen.blit(glow, (px - glow.get_width() / 2, py - glow.get_height() / 2), special_flags=pygame.BLEND_ADD)
+        screen.blit(img, (px - img.get_width() / 2, py - img.get_height() / 2))
+
+    # -- the theory map, and going in and out of a simulation ---------------------------
+    def _verdict(self, t: Theory) -> str:
+        runs = self.results[t.code]
+        if "win" in runs:
+            return VERDICT["win"]
+        return VERDICT.get(runs[-1], VERDICT["?"]) if runs else VERDICT[None]
+
+    def _draw_void(self, screen: pygame.Surface) -> None:
+        screen.fill(VOID)
+        for x, y, b in self.void_stars:
+            screen.fill((b, b, b + 20), (x, y, 1, 1))
+
+    def _draw_map(self, screen: pygame.Surface, info: bool = True) -> None:
+        m, sw = self.map, art.W
+        self._draw_void(screen)
+        for i, t in enumerate(self.theories):
+            m.draw_tile(screen, i, self.time, lit=i == self.sel and not m.moving)
+            x, y = tile_at(i)
+            v = self._verdict(t)
+            col = PHOSPHOR if v == VERDICT["win"] else PHOSPHOR_DIM if self.results[t.code] else PHOSPHOR_FAINT
+            s = self.text.get(f"{t.code} {v}", col)
+            screen.blit(s, (x + TILE_W // 2 - s.get_width() // 2, y + TILE_H + 3))
+        for i in range(len(self.theories), -(-len(self.theories) // 3) * 3):
+            m.draw_empty(screen, i)
+        m.draw_files(screen, self.time, lit=self.sel == FILES and not m.moving)
+        for i, word in enumerate(("SYSTEM", "FILES")):
+            s = self.text.get(word, PHOSPHOR if self.sel == FILES else PHOSPHOR_DIM, big=True)
+            screen.blit(s, (FILES_RECT.centerx - s.get_width() // 2, FILES_RECT.top + 56 + i * 10))
+        self._header(screen, f"VISITOR {self.visitor:04d} {self.name}")
+        if info and not m.moving and self.tutorial is None:
+            if self.sel == FILES:
+                title, blurb, tag = "SYSTEM FILES", FILES_BLURB, "C:\\> FILES"
+            else:
+                t = self.theories[self.sel]
+                title, blurb, tag = t.name, t.blurb, ("2 PLAYERS   " if t.players == "2P" else "") + f"TAPE {t.code}"
+            screen.blit(self.text.get(title, PHOSPHOR, big=True), (6, 139))
+            s = self.text.get(tag, PHOSPHOR_DIM)
+            screen.blit(s, (sw - 6 - s.get_width(), 140))
+            for i, line in enumerate(blurb):
+                screen.blit(self.text.get(line, PHOSPHOR), (6, 149 + i * 7))
+        # the controls
+        screen.fill(rgb(PHOSPHOR_FAINT), (4, 164, sw - 8, 1))
+        screen.blit(self.text.get("STICK: MOVE    BUTTON: ENTER", PHOSPHOR_DIM), (6, 169))
+        if self.idle_exit:
+            hold = self.text.get("HOLD: EXIT", PHOSPHOR_DIM)
+            hx = sw - 6 - hold.get_width()
+            screen.blit(hold, (hx, 169))
+            if self.hold_k > 0:
+                screen.fill(rgb("#eaffea"), (hx, 175, int(hold.get_width() * self.hold_k), 1))
+        if self.phase == "hub" and self.tutorial is not None:
+            self._draw_tutorial(screen)
+        if self.phase == "hub":
+            self._draw_spirit(screen, *m.pos, 1.0)
+        k = min(1.0, self.phase_t / MAP_FADE) if self.phase == "hub" and self.tutorial == 0 else 1.0
+        if k < 1:                                        # fading in from the void
+            v = int(255 * k)
+            screen.fill((v, v, v), special_flags=pygame.BLEND_MULT)
+
+    # -- the tour of the map ------------------------------------------------------------
+    def _tutorial(self, dt: float, inp: Input) -> None:
+        what, _ = TUTORIAL[self.tutorial]
+        if what == "move":                                 # this page lets them try the stick
+            self.map.update(dt, inp)
+        if inp.action and self.phase_t > 0.4 and not self.map.moving:
+            self.tutorial += 1
+            self.phase_t = MAP_FADE                        # (no fade between pages)
+            if self.tutorial == len(TUTORIAL):
+                self.tutorial = None
+                self.activity("tutorial_done")
+
+    def _tour_rects(self, what: str) -> list[pygame.Rect]:
+        n = len(self.theories)
+        grid = tile_rect(0).unionall([tile_rect(i) for i in range(n)])
+        if what == "tiles":
+            return [grid.inflate(6, 6)]
+        if what == "move":
+            return [grid.union(FILES_RECT).inflate(6, 6)]
+        if what == "labels":
+            return [pygame.Rect(tile_at(i)[0] - 2, tile_at(i)[1] + TILE_H + 1, TILE_W + 4, 9) for i in range(n)] + \
+                [tile_rect(self.sel).inflate(6, 6)] * (self.sel != FILES)
+        if what == "exit":
+            return [pygame.Rect(art.W - 52, 166, 48, 11)]
+        return [FILES_RECT.inflate(6, 6)]
+
+    def _draw_tutorial(self, screen: pygame.Surface) -> None:
+        """Dim everything but what this page is about, and say what it is."""
+        what, lines = TUTORIAL[self.tutorial]
+        lit = screen.copy()
+        screen.fill((70, 70, 70), special_flags=pygame.BLEND_MULT)
+        on = int(self.time * 3) % 3 != 0
+        for r in self._tour_rects(what):
+            screen.blit(lit, r, r)
+            if on:
+                pygame.draw.rect(screen, rgb(PHOSPHOR), r, 1)
+        box = pygame.Rect(4, 138, art.W - 8, 25)
+        screen.fill(rgb(CRT_BG), box)
+        pygame.draw.rect(screen, rgb(PHOSPHOR), box, 1)
+        for i, line in enumerate(lines):
+            screen.blit(self.text.get(line, PHOSPHOR, big=True), (box.x + 5, box.y + 3 + i * 10))
+        page = self.text.get(f"{self.tutorial + 1}/{len(TUTORIAL)}", PHOSPHOR_DIM)
+        screen.blit(page, (box.right - 4 - page.get_width(), box.y + 3))
+        if int(self.time * 2) % 2 == 0:
+            s = self.text.get("BUTTON: NEXT", PHOSPHOR, big=False)
+            screen.blit(s, (box.right - 4 - s.get_width(), box.bottom - 7))
+
+    def _draw_load(self, screen: pygame.Surface) -> None:
+        """The spirit dives into the tile, the tile grows to fill the screen, then it switches off."""
+        t = self.theories[self.sel]
+        self._draw_map(screen, info=False)
+        tx, ty = tile_at(self.sel)
+        cx, cy = tx + TILE_W / 2, ty + TILE_H / 2
+        k = min(1.0, self.phase_t / LOAD_DIVE)
+        if k < 1:                                        # spiral in, shrinking away
+            ang, r = k * 3 * math.tau, 14 * (1 - k)
+            self._draw_spirit(screen, cx + math.cos(ang) * r, cy + math.sin(ang) * r * 0.6, 1.0 - k)
+        g = max(0.0, min(1.0, (self.phase_t - LOAD_DIVE) / (LOAD_TIME - LOAD_DIVE - 0.4)))
+        g = g * g * (3 - 2 * g)
+        if g > 0:
+            frames = self.map.previews[self.sel]
+            img = frames[int(self.time * 6) % len(frames)]
+            w, h = TILE_W + (art.W - TILE_W) * g, TILE_H + (art.H - TILE_H) * g
+            x, y = tx + (0 - tx) * g, ty + (0 - ty) * g
+            screen.blit(pygame.transform.scale(img, (round(w), round(h))), (round(x), round(y)))
+        # what's happening, in a band across the middle
+        band = pygame.Rect(0, art.H // 2 - 14, art.W, 28)
+        screen.fill(rgb(CRT_BG), band)
+        screen.fill(rgb(PHOSPHOR_DIM), (0, band.top, art.W, 1))
+        screen.fill(rgb(PHOSPHOR_DIM), (0, band.bottom - 1, art.W, 1))
+        for i, line in enumerate(self.typer.visible()):
+            if line:
+                screen.blit(self.text.get(line, PHOSPHOR, big=True), (8, band.top + 4 + i * 10))
+        bar = int((art.W - 16) * min(1.0, self.phase_t / LOAD_TIME))
+        screen.fill(rgb(PHOSPHOR_FAINT), (8, band.bottom + 4, art.W - 16, 3))
+        screen.fill(rgb(PHOSPHOR), (8, band.bottom + 4, bar, 3))
+        if self.phase_t > LOAD_TIME:
+            self._squash(screen, min(1.0, (self.phase_t - LOAD_TIME) / CRT_OFF_TIME))
+
+    def _draw_return(self, screen: pygame.Surface) -> None:
+        """Back in the program after a simulation: the verdict."""
+        self._draw_void(screen)
+        screen.blit(self.text.get("LIFE LAB MAINFRAME", PHOSPHOR, big=True), (4, 3))
+        s = self.text.get("PROGRAM: RESEARCH EXPLORATION", PHOSPHOR, big=True)
+        screen.blit(s, (art.W - 4 - s.get_width(), 3))
+        screen.fill(rgb(PHOSPHOR_DIM), (4, 13, art.W - 8, 1))
+        for i, line in enumerate(self.typer.visible()):
+            if line:
+                screen.blit(self.text.get(line, PHOSPHOR, big=True), (12, 24 + i * 11))
+        if self.typer.done:
+            if int(self.time * 2) % 2 == 0:
+                s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
+                screen.blit(s, (art.W // 2 - s.get_width() // 2, 160))
+            self._draw_spirit(screen, art.W - 30, 140, 2.0)
+        if self.phase_t < CRT_ON_TIME:
+            self._squash(screen, 1.0 - self.phase_t / CRT_ON_TIME)
+
+    def _squash(self, screen: pygame.Surface, k: float) -> None:
+        """An old tube switching off: k=0 is the picture, then a bright line, then a dot, then dark at 1."""
+        w, h = screen.get_size()
+        if k <= 0:
+            return
+        pic = screen.copy()
+        screen.fill((0, 0, 0))
+        if k < 0.6:
+            lh = max(1, int(h * (1 - k / 0.6)))
+            line = pygame.transform.scale(pic, (w, lh))
+            line.fill((90, 140, 90), special_flags=pygame.BLEND_ADD)
+            screen.blit(line, (0, (h - lh) // 2))
+        elif k < 1.0:
+            lw = max(2, int(w * (1 - (k - 0.6) / 0.4)))
+            screen.fill((220, 255, 220), ((w - lw) // 2, h // 2, lw, 1))
 
     def _draw_room(self, screen: pygame.Surface) -> None:
         a = self.art
@@ -769,7 +1096,7 @@ class LifeSim:
             pygame.draw.line(screen, rgb(art.TAPE), (sx + 1, sy), (sx + 1, loop))
             pygame.draw.line(screen, rgb(art.TAPE), (sx + sw - 2, sy), (sx + sw - 2, loop))
             pygame.draw.arc(screen, rgb(art.TAPE), (sx + 1, loop - 3, sw - 2, 7), math.pi, math.tau)
-        rate = 18 if self.phase in ("load", "rain") else 4
+        rate = 18 if self.phase == "dive" else 4
         tick = int(self.time * rate)
         for i, (lx, ly) in enumerate(art.drive_lamps() + art.console_lamps()):
             h = (i * 2654435761 + tick * 40503 + (i % 5) * tick) & 0xFFFF
@@ -783,46 +1110,14 @@ class LifeSim:
 
     def _draw_crt(self, screen: pygame.Surface) -> None:
         a, crt = self.art, self.crt
-        sx, sy, sw, sh = SCREEN
+        sx, sy = SCREEN[:2]
         crt.fill(rgb(CRT_BG))
-        self.spirits: list[tuple[float, float, float]] = []
         getattr(self, f"_crt_{self.phase}")(crt)
         # no bloom, flicker or scanlines: crisp text reads best at this size
         crt.blit(a.vignette, (0, 0))
-        for x, y, scale in self.spirits:          # the spirit is real, not phosphor: drawn over the glass effects
-            self._draw_spirit(crt, x, y, scale)
-
-        # the CRT switching off (load) or back on (return)
-        squash = None
-        if self.phase == "load" and self.phase_t > LOAD_TIME:
-            squash = min(1.0, (self.phase_t - LOAD_TIME) / CRT_OFF_TIME)
-        elif self.phase == "return" and self.phase_t < CRT_ON_TIME:
-            squash = 1.0 - self.phase_t / CRT_ON_TIME
-        if squash is None:
-            screen.blit(crt, (sx, sy))
-            return
-        screen.fill((0, 0, 0), (sx, sy, sw, sh))
-        if squash < 0.6:                                         # collapse to a bright line...
-            h = max(1, int(sh * (1 - squash / 0.6)))
-            line = pygame.transform.scale(crt, (sw, h))
-            line.fill((90, 140, 90), special_flags=pygame.BLEND_ADD)
-            screen.blit(line, (sx, sy + (sh - h) // 2))
-        elif squash < 1.0:                                       # ...then to a dot
-            w = max(2, int(sw * (1 - (squash - 0.6) / 0.4)))
-            screen.fill((220, 255, 220), (sx + (sw - w) // 2, sy + sh // 2, w, 1))
+        screen.blit(crt, (sx, sy))
 
     # each phase paints the CRT surface (coordinates are inside the glass)
-    def _lines(self, crt: pygame.Surface, lines: list[str], x: int = 4, y: int = 4, cursor: bool = True) -> None:
-        for i, line in enumerate(lines):
-            if line:
-                crt.blit(self.text.get(line, PHOSPHOR), (x, y + i * 7))
-        if cursor and int(self.time * 2.5) % 2 == 0:
-            last = lines[-1] if lines else ""
-            crt.fill(rgb(PHOSPHOR), (x + text_width(last) + (2 if last else 0), y + (len(lines) - 1 if lines else 0) * 7, 3, 5))
-
-    def _spirit(self, crt: pygame.Surface, x: float, y: float, scale: float = 1.0) -> None:
-        self.spirits.append((x, y, scale))
-
     def _draw_spirit(self, crt: pygame.Surface, x: float, y: float, scale: float) -> None:
         if scale <= 0.05:
             return
@@ -856,75 +1151,11 @@ class LifeSim:
         crt.fill(rgb(PHOSPHOR_DIM if down else PHOSPHOR_FAINT), (bx + 1, by + 1, bw - 2, bh - 2))
         label = self.text.get("PUSH TO BOOT UP", "#eaffea" if down else PHOSPHOR)
         crt.blit(label, (sw // 2 - label.get_width() // 2, by + bh // 2 - 2))
-        s = self.text.get("STATE OF THE ART.", PHOSPHOR_FAINT)
+        s = self.text.get("WELCOME TO THE LIFE LAB!", PHOSPHOR_DIM)
         crt.blit(s, (sw // 2 - s.get_width() // 2, 92))
 
-    def _crt_rain(self, crt: pygame.Surface) -> None:
-        self.rain.draw(crt)
-
-    def _crt_exit(self, crt: pygame.Surface) -> None:
-        self._crt_hub(crt)
-
-    def _crt_hub(self, crt: pygame.Surface) -> None:
-        sw = SCREEN[2]
-        crt.blit(self.text.get("LIFE LAB MAINFRAME", PHOSPHOR_DIM), (4, 3))
-        who = self.text.get(f"VISITOR {self.visitor:04d} {self.name}", PHOSPHOR_DIM)
-        crt.blit(who, (sw - 4 - who.get_width(), 3))
-        crt.fill(rgb(PHOSPHOR_DIM), (4, 10, sw - 8, 1))
-        crt.blit(self.text.get("SELECT A THEORY OF LIFE:", PHOSPHOR), (4, 14))
-        if self.idle_exit:
-            hold = self.text.get("HOLD: EXIT", PHOSPHOR_FAINT)
-            hx = sw - 6 - hold.get_width()
-            crt.blit(hold, (hx, 14))
-            if self.hold_k > 0:
-                crt.fill(rgb("#eaffea"), (hx, 20, int(hold.get_width() * self.hold_k), 1))
-        for i, t in enumerate(self.theories):
-            y = 26 + i * ROW
-            runs = self.results[t.code]
-            verdict = VERDICT["win"] if "win" in runs else VERDICT[runs[-1]] if runs and runs[-1] in VERDICT else \
-                VERDICT["?"] if runs else VERDICT[None]
-            fg = CRT_BG if i == self.sel else PHOSPHOR        # the pick is dark text on a lit bar
-            if i == self.sel:
-                crt.fill(rgb(PHOSPHOR), (19, y - 2, sw - 23, 9))
-            crt.blit(self.text.get(f"{t.code} {t.name}", fg), (21, y))
-            if t.players == "2P":
-                crt.blit(self.text.get("2P", fg), (21 + text_width(f"{t.code} {t.name}") + 4, y))
-            v = self.text.get(verdict, fg if i == self.sel or runs else PHOSPHOR_FAINT)
-            crt.blit(v, (sw - 6 - v.get_width(), y))
-        files = self.sel == len(self.theories)
-        crt.fill(rgb(PHOSPHOR_DIM), (4, 70, sw - 8, 1))
-        blurb = FILES_BLURB if files else self.theories[self.sel].blurb
-        for i, line in enumerate(blurb):
-            crt.blit(self.text.get(line, PHOSPHOR), (4, 75 + i * 7))
-        # the command line: always there, picked like a theory
-        prompt = "C:\\> FILES"
-        if files:
-            crt.fill(rgb(PHOSPHOR), (19, 91, sw - 23, 9))
-        crt.blit(self.text.get(prompt, CRT_BG if files else PHOSPHOR), (21, 93))
-        if files and int(self.time * 2.5) % 2 == 0:
-            crt.fill(rgb(CRT_BG), (21 + text_width(prompt) + 2, 93, 3, 5))
-        self._spirit(crt, 10, 95 if files else 28 + self.sel * ROW)
-
-    def _crt_load(self, crt: pygame.Surface) -> None:
-        self._lines(crt, self.typer.visible())
-        # the spirit spirals into the tape and shrinks away
-        k = min(1.0, max(0.0, (self.phase_t - 0.5) / (LOAD_TIME - 0.6)))
-        if k < 1.0:
-            ang = k * 5 * math.tau
-            r = 22 * (1 - k)
-            cx, cy = SCREEN[2] // 2, 60
-            self._spirit(crt, cx + math.cos(ang) * r, cy + math.sin(ang) * r * 0.6, scale=1.0 - k)
-        bar = int((SCREEN[2] - 16) * min(1.0, self.phase_t / LOAD_TIME))
-        crt.fill(rgb(PHOSPHOR_FAINT), (8, 90, SCREEN[2] - 16, 5))
-        crt.fill(rgb(PHOSPHOR), (8, 90, bar, 5))
-
-    def _crt_return(self, crt: pygame.Surface) -> None:
-        self._lines(crt, self.typer.visible())
-        if self.typer.done:
-            if int(self.time * 2) % 2 == 0:
-                s = self.text.get("PRESS BUTTON", PHOSPHOR_DIM)
-                crt.blit(s, (SCREEN[2] - 26 - s.get_width(), SCREEN[3] - 12))
-            self._spirit(crt, SCREEN[2] - 14, SCREEN[3] - 22)
+    def _crt_dive(self, crt: pygame.Surface) -> None:
+        crt.fill(VOID)                              # the sign-in screen, before anything's on it
 
 
 def autopilot(game: LifeSim) -> Input:
@@ -933,15 +1164,17 @@ def autopilot(game: LifeSim) -> Input:
     if game.phase == "sim":
         return game.sim_theory.autopilot(game.sim)
     inp = Input()
+    if game.phase == "hub" and game.tutorial is not None:
+        inp.action = game.phase_t > 1.5
+        return inp
     if game.phase == "hub":
         untested = [i for i, t in enumerate(game.theories) if not game.results[t.code]]
         want = untested[0] if untested else int(game.time / 20) % len(game.theories)
-        if want != game.sel:
-            inp.y = 1 if int(game.time * 8) % 2 else 0           # tap down, one step at a time
-            return inp
+        if want != game.sel or game.map.moving:
+            return game.map.steer(want)
         inp.action = game.phase_t > 1.5
         return inp
-    if game.phase == "summon" and game.stage == "name":
+    if game.phase == "summon" and game.entry:
         # sign in as DEMO: roll to each letter, then press
         want = "DEMO"[len(game.entry.name)] if len(game.entry.name) < 4 else None
         if want and game.entry.letter != want:
@@ -949,7 +1182,7 @@ def autopilot(game: LifeSim) -> Input:
         elif int(game.time * 4) != int((game.time - 1 / 60) * 4):
             inp.action = True
         return inp
-    if game.phase in ("rain", "cosmos", "exit") or game.phase == "off" and game.pushed is not None:
+    if game.phase in ("dive", "journey", "rain", "cosmos") or game.phase == "off" and game.pushed is not None:
         return inp                                          # let the intro play
     inp.action = game.phase_t > (1.5 if game.phase == "off" else 2.5)
     return inp

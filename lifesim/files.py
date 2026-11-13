@@ -157,18 +157,13 @@ FILES = [
             sprite="kronenberg_006_squatchbro", code="SQB"),
 ]
 
-# what the terminal says after a roll, by (which file, were you already rolling)
+# what the terminal says after a roll. Always the same for a file: watching one never changes the other.
+# A message whose last line names a file ends on a button that opens it.
 AFTER_ROLL = {
-    ("WATCH_IF_YOU_ARE_NOT_ROLLING.VID", False): ["PLAYBACK COMPLETE.", "", "YOU ARE NOW ROLLING!", "",
-                                                  "NOW OPEN", "WATCH_IF_YOU_ARE_ROLLING"],
-    ("WATCH_IF_YOU_ARE_NOT_ROLLING.VID", True): ["PLAYBACK COMPLETE.", "", "YOU WERE ALREADY ROLLING.",
-                                                 "YOU ARE NOW ROLLING HARDER.", "", "NOW OPEN",
-                                                 "WATCH_IF_YOU_ARE_ROLLING"],
-    ("WATCH_IF_YOU_ARE_ROLLING.VID", True): ["PLAYBACK COMPLETE.", "", "YOU ARE ROLLING.", "KEEP ROLLING.",
-                                             "THE LAB THANKS YOU", "FOR ROLLING."],
-    ("WATCH_IF_YOU_ARE_ROLLING.VID", False): ["PLAYBACK COMPLETE.", "", "YOU WERE NOT ROLLING.",
-                                              "THAT WAS THE WRONG FILE.", "", "NOW OPEN",
-                                              "WATCH_IF_YOU_ARE_NOT_ROLLING"],
+    "WATCH_IF_YOU_ARE_NOT_ROLLING.VID": ["PLAYBACK COMPLETE.", "", "YOU ARE NOW ROLLING! READY TO WATCH:",
+                                         "WATCH_IF_YOU_ARE_ROLLING"],
+    "WATCH_IF_YOU_ARE_ROLLING.VID": ["PLAYBACK COMPLETE.", "", "YOU ARE ROLLING.", "KEEP ROLLING.", "",
+                                     "THE LIFE LAB THANKS YOU", "FOR ROLLING."],
 }
 TAPE_MISSING = ["TAPE MISSING.", "", "THE REEL FOR THIS FILE IS NOT", "ON THE DRIVE. PUT A VIDEO OR",
                 "GIF AND A SONG IN ASSETS/FILES", "NAMED RICKROLL. THEN ROLL."]
@@ -436,7 +431,6 @@ class FileTerminal:
         self.mute = mute
         self.log = log or (lambda event, **data: None)      # the activity log (see activity.py)
         self.unlocked: set[str] = set()
-        self.rolling = False            # have they watched WATCH_IF_YOU_ARE_NOT_ROLLING yet
         self.media = Media()
         self.photos: dict[str, pygame.Surface] = {}
         self.hold_k = 0.0               # 0..1: how far a held button is to the exit countdown (set by LifeSim)
@@ -598,10 +592,10 @@ class FileTerminal:
             self.mode = "list"
 
     def _next_file(self) -> LabFile | None:
-        """The file a message ends by telling you to open ("NOW OPEN" then its name), if any."""
-        if len(self.msg) >= 2 and self.msg[-2] == "NOW OPEN":
-            return next((f for f in FILES if f.name == self.msg[-1] + ".VID"), None)
-        return None
+        """The file a message ends by naming, to open next, if any."""
+        if not self.msg:
+            return None
+        return next((f for f in FILES if f.name == self.msg[-1] + ".VID"), None)
 
     def _update_roll(self, dt: float, sx: int, sy: int, act: bool) -> None:
         self.roll_t += dt
@@ -618,9 +612,7 @@ class FileTerminal:
             self.media.stop()
             name = self.viewing.name
             self.log("roll_end", file=name, bailed=not over, secs=round(self.roll_t, 1))
-            self.msg = AFTER_ROLL[(name, self.rolling)]
-            if name.startswith("WATCH_IF_YOU_ARE_NOT"):
-                self.rolling = True
+            self.msg = AFTER_ROLL[name]
             self.mode = "msg"
 
     # -- drawing ---------------------------------------------------------------------------
