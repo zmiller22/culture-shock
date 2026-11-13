@@ -1,8 +1,7 @@
 """Womb Rave's soundtrack and step chart, both generated from code.
 
-The song is a 120 BPM chiptune built on the mother's heartbeat: a lub-dub kick
-on every beat, amniotic whooshes, a square-wave bass and a lead that plays
-exactly on the notes you have to hit. Every SQUEEZE note has a contraction
+The song is a 120 BPM chiptune: a soft kick on every beat, amniotic whooshes,
+a square-wave bass and a lead that plays exactly on the notes you have to hit. Every SQUEEZE note has a contraction
 (a deep womp) baked into the music, so the button hits are audible too.
 
 The song is a list of bars (SONG). Each kind of bar has a fixed rhythm (PATTERNS);
@@ -12,6 +11,7 @@ same every time and can be learned.
 
 from __future__ import annotations
 
+import bisect
 import io
 import math
 import random
@@ -19,17 +19,25 @@ import wave
 from dataclasses import dataclass
 
 RATE = 22050                     # synth sample rate; the mixer resamples
-BPM = 120
+BPM = 120                        # the starting tempo (and the select-screen loop's)
 BEAT = 60 / BPM
 EIGHTH = BEAT / 2
 BAR = BEAT * 4
-BAR_N = round(BAR * RATE)
 
 # (kind of bar, how many). "count" is the count-in: no notes.
 SECTIONS = [("count", 1), ("heart", 2), ("verse", 4), ("chorus", 4), ("break", 2),
             ("verse", 2), ("chorus", 4), ("push", 2)]
 SONG = [kind for kind, n in SECTIONS for _ in range(n)]
-SONG_LEN = len(SONG) * BAR
+# The song speeds up as it goes: bar index -> new tempo, each with a shout on screen.
+TEMPO_CHANGES = {0: 120, 7: 128, 13: 136, 15: 144, 19: 152}
+SPEEDUPS = {7: "FASTER!", 13: "HARDER!", 15: "DEEPER!", 19: "DON'T STOP!"}
+BAR_BPM: list[float] = []
+for _i in range(len(SONG)):
+    BAR_BPM.append(TEMPO_CHANGES.get(_i, BAR_BPM[-1] if BAR_BPM else BPM))
+BAR_START = [0.0]                # song time each bar starts (plus the end of the last one)
+for _bpm in BAR_BPM:
+    BAR_START.append(BAR_START[-1] + 240 / _bpm)
+SONG_LEN = BAR_START[-1]
 # Bar index each trimester starts on (shown in the HUD), and a cue shown when a section starts.
 TRIMESTERS = (1, 7, 15)
 CUES = {1: "FIRST TRIMESTER", 7: "SECOND TRIMESTER", 11: "CONTRACTIONS!", 13: "THIRD TRIMESTER", 19: "PUSH!"}
@@ -61,6 +69,24 @@ class Note:
     snack: int = 0              # which snack, for U notes
     judged: str | None = None   # perfect | great | ok | miss
     hit_t: float = 0.0          # song time it was judged
+    approach: float = 1.6       # s it takes to arrive (shorter once the song speeds up)
+
+
+def bar_at(t: float) -> int:
+    """The bar playing at song time t (clamped to the song)."""
+    return max(0, min(len(SONG) - 1, bisect.bisect_right(BAR_START, t) - 1))
+
+
+def beats(t: float) -> float:
+    """Beats elapsed at song time t, counting through the tempo changes."""
+    if t < 0:
+        return t / BEAT
+    i = bar_at(t)
+    return i * 4 + (t - BAR_START[i]) * BAR_BPM[i] / 60
+
+
+def bpm_at(t: float) -> float:
+    return BAR_BPM[bar_at(t)]
 
 
 def bar_kind(i: int) -> str:
@@ -77,23 +103,24 @@ def chart() -> list[Note]:
     last: dict[str, float] = {}
     prev = ""
 
-    def pick(t: float, avoid: str = "") -> str:
+    def pick(t: float, eighth: float, avoid: str = "") -> str:
         nonlocal prev
-        options = [ln for ln in "LRUD" if ln != prev and ln not in avoid and t - last.get(ln, -9) > EIGHTH * 1.5]
+        options = [ln for ln in "LRUD" if ln != prev and ln not in avoid and t - last.get(ln, -9) > eighth * 1.5]
         lane = rng.choice(options or [ln for ln in "LRUD" if ln not in avoid])
         prev = lane
         return lane
 
     for i in range(len(SONG)):
         for pos, what in PATTERNS[bar_kind(i)]:
-            t = i * BAR + pos * EIGHTH
+            eighth = 30 / BAR_BPM[i]
+            t = BAR_START[i] + pos * eighth
             lanes = []
             if "b" in what:
                 lanes.append("B")
             if what == "dd":                                 # stick diagonals: one horizontal, one vertical
                 lanes += [rng.choice("LR"), rng.choice("UD")]
             elif "d" in what:
-                lanes.append(pick(t))
+                lanes.append(pick(t, eighth))
             for ln in lanes:
                 last[ln] = t
                 notes.append(Note(t, ln, rng.randrange(4)))
@@ -172,9 +199,12 @@ def _add(buf: list[float], at: int, snd: list[float]) -> None:
 
 
 class _Kit:
-    def __init__(self) -> None:
-        self.lub = thump(95, 42, 0.28, 14, 0.9)
-        self.dub = thump(80, 40, 0.22, 18, 0.55)
+    def __init__(self, bpm: float = BPM) -> None:
+        BEAT = 60 / bpm
+        EIGHTH = BEAT / 2
+        self.bar_n = round(BEAT * 4 * RATE)
+        self.eighth = EIGHTH
+        self.kick = thump(140, 55, 0.14, 26, 0.5)          # a soft, short pulse on the beat
         self.hat = hiss(0.05, 70, 0.18)
         self.snare = [a + b for a, b in zip(hiss(0.2, 18, 0.38, 0.6), thump(220, 160, 0.2, 30, 0.3))]
         self.tick = square(1760, 0.05, 50, 0.18)
@@ -188,17 +218,17 @@ class _Kit:
         self.arp = {f: square(f * 2, EIGHTH / 2 * 0.9, 18, 0.05, 0.125, 0.5) for f in tones}
 
 
-def render_bar(kind: str, chord: int, k: _Kit) -> list[float]:
-    buf = [0.0] * BAR_N
+def render_bar(kind: str, chord: int, k: _Kit, pulse: bool = True) -> list[float]:
+    buf = [0.0] * k.bar_n
     root, tones = CHORDS[chord]
-    at = lambda pos: round(pos * EIGHTH * RATE)
+    at = lambda pos: round(pos * k.eighth * RATE)
     pattern = PATTERNS[kind]
     base = "chorus" if kind == "chorus2" else kind
 
-    for beat in range(4):                                    # the heartbeat runs under everything
-        quiet = base == "count"
-        _add(buf, at(beat * 2), [v * (0.5 if quiet else 1) for v in k.lub] if quiet else k.lub)
-        _add(buf, at(beat * 2 + 0.5), k.dub)
+    if pulse:                                                # a soft kick runs under everything
+        quiet = base in ("count", "heart")
+        for beat in range(4):
+            _add(buf, at(beat * 2), [v * 0.5 for v in k.kick] if quiet else k.kick)
     if base == "count":
         for beat in range(4):
             _add(buf, at(beat * 2), k.tick)
@@ -246,16 +276,106 @@ def _wav(samples: list[float], volume: float = 0.8) -> io.BytesIO:
 
 
 def song_wav() -> io.BytesIO:
-    kit = _Kit()
-    cache: dict[tuple[str, int], list[float]] = {}
+    kits: dict[float, _Kit] = {}
+    cache: dict[tuple[str, int, float], list[float]] = {}
     out: list[float] = []
     for i in range(len(SONG)):
-        key = (bar_kind(i), i % 4)
+        bpm = BAR_BPM[i]
+        key = (bar_kind(i), i % 4, bpm)
         if key not in cache:
-            cache[key] = render_bar(*key, kit)
-        out += cache[key]
-    tail = thump(70, 30, 1.2, 3, 0.9) + [0.0] * _n(0.5)       # one last big heartbeat
+            if bpm not in kits:
+                kits[bpm] = _Kit(bpm)
+            cache[key] = render_bar(key[0], key[1], kits[bpm])
+        start = round(BAR_START[i] * RATE)             # place bars by the tempo map so rounding never drifts
+        out += [0.0] * (start - len(out))
+        out[start:] = cache[key]
+    tail = thump(140, 55, 0.3, 12, 0.5) + [0.0] * _n(1.4)      # one last kick, then let it ring out
     return _wav(out + tail)
+
+
+def lobby_wav() -> io.BytesIO:
+    """The dancer-select loop: four bars of the intro tune with no kick, seamless when looped."""
+    kit = _Kit()
+    return _wav([v for chord in range(4) for v in render_bar("heart", chord, kit, pulse=False)], volume=0.6)
+
+
+# -- voice ------------------------------------------------------------------------
+# A tiny formant synth: a breathy buzz at the pitch, through three resonators tuned
+# to a vowel. Good enough for moans and groans, which is all it's for.
+
+VOWELS = {                       # formant frequencies (Hz): F1, F2, F3
+    "mm": (250, 1700, 2600), "oo": (330, 800, 2300), "oh": (480, 860, 2450),
+    "ah": (760, 1200, 2550), "uh": (600, 1050, 2400), "eh": (560, 1800, 2550),
+}
+
+
+def _curve(points: list[tuple[float, float]], k: float) -> float:
+    """Piecewise-linear value at k (0..1) through (k, value) points."""
+    for (k0, v0), (k1, v1) in zip(points, points[1:]):
+        if k <= k1:
+            return v0 + (v1 - v0) * (k - k0) / max(1e-9, k1 - k0)
+    return points[-1][1]
+
+
+def voice(length: float, pitch: list[tuple[float, float]], vowels: list[tuple[float, str]],
+          amp: float = 0.5, breath: float = 0.25, vibrato: float = 0.025,
+          env: list[tuple[float, float]] | None = None) -> list[float]:
+    n = _n(length)
+    env = env or [(0, 0), (0.12, 1), (0.75, 0.8), (1, 0)]
+    out, ph = [], 0.0
+    state = [[0.0, 0.0] for _ in range(3)]
+    for i in range(n):
+        t, k = i / RATE, i / n
+        f0 = _curve(pitch, k) * (1 + vibrato * math.sin(t * math.tau * 5.5) * min(1, t * 4))
+        ph = (ph + f0 / RATE) % 1
+        src = (1 - 2 * ph) * (1 - breath) + _noise.uniform(-1, 1) * breath   # buzz plus air
+        # glide between the vowels' formants
+        idx = max(j for j, (vk, _) in enumerate(vowels) if vk <= k or j == 0)
+        if idx + 1 < len(vowels):
+            (ka, va), (kb, vb) = vowels[idx], vowels[idx + 1]
+            m = min(1.0, max(0.0, (k - ka) / max(1e-9, kb - ka)))
+        else:
+            va = vb = vowels[idx][1]
+            m = 0.0
+        y = 0.0
+        for j in range(3):
+            f = VOWELS[va][j] * (1 - m) + VOWELS[vb][j] * m
+            bw = 80 + 40 * j
+            r = math.exp(-math.pi * bw / RATE)
+            c1, c2 = 2 * r * math.cos(math.tau * f / RATE), -r * r
+            s0 = (1 - r) * src + c1 * state[j][0] + c2 * state[j][1]
+            state[j][1], state[j][0] = state[j][0], s0
+            y += s0 * (1.0, 0.6, 0.3)[j]
+        out.append(y * amp * _curve(env, k))
+    return out
+
+
+def moans() -> dict[str, list[float]]:
+    """Little 8-bit moans for streaks, getting more worked up as the combo grows."""
+    raw = {
+        # warming up
+        "mmm": voice(0.7, [(0, 210), (0.6, 250), (1, 230)], [(0, "mm"), (1, "mm")], amp=0.9, breath=0.15),
+        "ooh": voice(0.6, [(0, 230), (1, 320)], [(0, "oo"), (0.6, "oh")], amp=0.7),
+        "oh": voice(0.35, [(0, 340), (1, 280)], [(0, "oh"), (1, "oh")], amp=0.7, env=[(0, 0), (0.08, 1), (1, 0)]),
+        "uhh": voice(0.6, [(0, 120), (1, 98)], [(0, "uh"), (1, "uh")], amp=0.8, breath=0.3),
+        # into it
+        "mmm-ahh": voice(0.85, [(0, 220), (0.45, 240), (0.6, 330), (1, 260)], [(0, "mm"), (0.4, "mm"), (0.55, "ah"), (1, "ah")], amp=0.75),
+        "oh-yeah": voice(0.8, [(0, 300), (0.4, 260), (0.55, 350), (1, 300)], [(0, "oh"), (0.45, "oh"), (0.55, "eh"), (1, "ah")], amp=0.7),
+        "ah-ah": voice(0.3, [(0, 330), (1, 300)], [(0, "ah"), (1, "ah")], amp=0.7, env=[(0, 0), (0.1, 1), (1, 0)])
+        + [0.0] * _n(0.08)
+        + voice(0.45, [(0, 360), (1, 310)], [(0, "ah"), (1, "ah")], amp=0.75, env=[(0, 0), (0.1, 1), (1, 0)]),
+        # the big one
+        "climax": voice(0.25, [(0, 300), (1, 320)], [(0, "ah"), (1, "ah")], amp=0.6, env=[(0, 0), (0.1, 1), (1, 0)])
+        + voice(0.25, [(0, 350), (1, 370)], [(0, "ah"), (1, "ah")], amp=0.7, env=[(0, 0), (0.1, 1), (1, 0)])
+        + voice(1.1, [(0, 400), (0.3, 470), (1, 330)], [(0, "ah"), (0.7, "ah"), (1, "oh")], amp=0.85, vibrato=0.05),
+        # when a big streak breaks
+        "aww": voice(0.8, [(0, 300), (1, 150)], [(0, "ah"), (1, "oo")], amp=0.6, breath=0.35),
+    }
+    out = {}
+    for name, snd in raw.items():                            # all at the same loudness
+        peak = max(abs(v) for v in snd) or 1.0
+        out[name] = [v * 0.75 / peak for v in snd]
+    return out
 
 
 def sfx_wavs() -> dict[str, io.BytesIO]:
@@ -274,8 +394,14 @@ def sfx_wavs() -> dict[str, io.BytesIO]:
     pop = thump(300, 60, 0.3, 12, 0.7)
     pop = [a + b for a, b in zip(pop + [0.0] * _n(0.6), hiss(0.9, 4, 0.3, 0.3))]   # POP, then the splash
     miss = square(70, 0.18, 10, 0.25, 0.5, 0.2)
+    riser, ph = [], 0.0
+    for i in range(_n(0.5)):                                # the tempo kicks up a gear
+        t = i / RATE
+        ph += math.tau * (180 * 2 ** (t * 5)) / RATE
+        riser.append((1 if math.sin(ph) > 0 else -1) * 0.16 * (t / 0.5) ** 0.5 * (1 - (t / 0.5) ** 6))
     cheer = []
     for j, f in enumerate((523.25, 659.25, 783.99, 1046.5)):
         cheer += square(f, 0.12, 6, 0.2, 0.25, 0.5)
     return {"scratch": _wav(scratch), "slurp": _wav(slurp), "pop": _wav(pop), "miss": _wav(miss),
-            "fanfare": _wav(cheer)}
+            "fanfare": _wav(cheer), "tick": _wav(square(1318.5, 0.05, 40, 0.18, 0.25, 0.5)),
+            "speedup": _wav(riser), **{f"moan_{k}": _wav(v) for k, v in moans().items()}}
