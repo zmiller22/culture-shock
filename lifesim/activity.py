@@ -18,6 +18,9 @@ Events:
     code                           a 3-letter code was typed. "result": unlocked, already, found or miss
     roll_end                       a rick roll finished. "bailed": true if they skipped out early
     theory_start / theory_end      a simulation was picked / ended (theory_end has "result")
+    idle_prompt                    nobody touched anything for a while: the countdown came up ("phase")
+    idle_continue                  someone tapped to carry on
+    idle_exit                      back to the start screen. "why": hold (held the button) or timeout
 
 To read it back as a per-visitor summary (files opened and how many times, codes
 tried, theories played):

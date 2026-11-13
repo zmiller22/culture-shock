@@ -7,6 +7,8 @@ A mini-game is any object with:
     draw(screen: pygame.Surface) -> None
     result: "win" | "lose" | None      set when the round is decided
     done: bool                         True once the player has dismissed the end screen
+    cutscene: bool                     optional: True while nobody's expected to touch anything,
+                                       so the main game holds off its "still there?" countdown
 
 The main game can drive the same object: call update/draw each tick and read
 `result` once `done` goes True.
@@ -36,6 +38,7 @@ class Input:
     x: int = 0               # held stick / arrows, -1 / 0 / +1
     y: int = 0               # +1 = down
     action: bool = False     # pressed this tick: SPACE / Z / ENTER, or button 0
+    held: bool = False       # an action key or button 0 is down right now (on any stick)
     players: tuple["Input", ...] = ()   # per-player inputs, for two-player games
 
 
@@ -93,6 +96,8 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
             sx, sy = sx or jx, sy or jy
         inp.x = max(-1, min(1, keys[pygame.K_RIGHT] - keys[pygame.K_LEFT] + sx))
         inp.y = max(-1, min(1, keys[pygame.K_DOWN] - keys[pygame.K_UP] + sy))
+        inp.held = any(keys[k] for k in (*ACTION_KEYS, *P1_KEYS[4], *P2_KEYS[4])) or \
+            any(j.get_numbuttons() > JOY_JUMP and j.get_button(JOY_JUMP) for j in pads.values())
         joys = players(pads)                  # P1 = left stick, by USB port
         per_player = []
         for i, (left, right, up, down, acts) in enumerate((P1_KEYS, P2_KEYS)):

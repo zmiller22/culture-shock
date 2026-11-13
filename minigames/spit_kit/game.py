@@ -256,6 +256,12 @@ class SpitKit:
             }
         return self.sprites
 
+    @property
+    def cutscene(self) -> bool:
+        """Nobody's expected to touch the stick: spitting in the jar, then the lab
+        reading it. Tells the main game not to ask if anyone's still there."""
+        return self.phase in ("spit", "got", "analyze", "report", "splice")
+
     def _go(self, phase: str) -> None:
         self.phase, self.phase_t = phase, 0.0
 

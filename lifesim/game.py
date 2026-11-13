@@ -13,10 +13,15 @@ the terminal, get incarnated into it, and see whether it holds up. Every
 mini-game is one simulation.
 
 Controls (keyboard, or an arcade stick / gamepad):
-    STICK / ARROWS            pick a theory (or C:/> FILES under them); on the name entry, up / down change the letter,
+    STICK / ARROWS            pick a theory (or C:/> FILES under them); on the name entry, down goes A -> B, up goes back,
                               left goes back a letter, right goes on to the next
     SPACE / Z / ENTER / btn 0 boot, skip the intro, select, next letter, continue
     ESC / Q                   quit
+
+Leave it alone for IDLE_PROMPT s (outside the boot sequence and cut-scenes) and
+the game freezes under a STILL THERE? countdown. Any button or the stick carries
+on; holding the button, or letting it run out, goes back to the start screen
+for the next visitor.
 
 Win a simulation and the theory is CONFIRMED; lose and it's REFUTED. The
 terminal keeps score for the session.
@@ -67,6 +72,9 @@ EXIT_TIME = 1.0            # s to pull back out of the CRT to the menu
 LOAD_TIME = 1.8            # s from picking a theory to the CRT switching off
 CRT_OFF_TIME = 0.35
 CRT_ON_TIME = 0.35
+IDLE_PROMPT = 20.0         # s of nobody touching anything before the "still there?" countdown
+IDLE_COUNTDOWN = 60        # s it counts down from before it goes back to the start screen
+HOLD_TO_EXIT = 1.5         # s of holding the button on the countdown to go back to the start screen
 REEL_IDLE, REEL_FAST = 90.0, 900.0      # degrees/s
 DIVE = (SCREEN[0], SCREEN[1] + 7, SCREEN[2], SCREEN[2] * 9 // 16)     # the part of the glass the camera dives into
 SUMMON_LINES = ["1 SPIRIT DETECTED.", "YOU ARE VISITOR NO. {num}."]
@@ -92,9 +100,10 @@ def sign_in(num: int, name: str) -> None:
 
 
 class NameEntry:
-    """Old-school arcade initials: up / down roll the letter, the button locks it
-    in and moves on. After the first letter, END (one step down from A) signs off
-    early, so names can be 1-4 letters."""
+    """Old-school arcade initials: down rolls on through the alphabet (A -> B),
+    up rolls back, and the button locks the letter in and moves on. After the
+    first letter, END (one step up from A, or on past Z) signs off early, so
+    names can be 1-4 letters."""
 
     LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
 
@@ -125,12 +134,12 @@ class NameEntry:
             self.idle = 0.0
         if inp.y:
             if dirs != self.held:
-                self._roll(-inp.y)                    # up goes A -> B
+                self._roll(inp.y)                     # down goes A -> B
                 self.hold_t = 0.0
             else:
                 self.hold_t += dt
                 while self.hold_t > NAME_REPEAT[0]:   # held: keep rolling
-                    self._roll(-inp.y)
+                    self._roll(inp.y)
                     self.hold_t -= NAME_REPEAT[1]
         elif inp.x and dirs != self.held:
             if inp.x > 0:
@@ -276,9 +285,7 @@ class Art:
         self.reels = [to_surface(art.reel(f)) for f in range(art.REEL_FRAMES)]
         self.spirit = [to_surface(art.spirit(f)) for f in range(art.SPIRIT_FRAMES)]
         sw, sh = SCREEN[2], SCREEN[3]
-        self.scanlines = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        for y in range(0, sh, 2):
-            self.scanlines.fill((0, 0, 0, 70), (0, y, sw, 1))
+        # no scanlines on the CRT: with text this small they make it hard to read
         # darken the corners so the glass looks curved
         self.vignette = pygame.Surface((sw, sh), pygame.SRCALPHA)
         for y in range(sh):
@@ -305,7 +312,7 @@ class LifeSim:
     title = "THEORIES OF LIFE"
 
     def __init__(self, skip_boot: bool = False, mute: bool = False, seed: int | None = None,
-                 record: bool = True, log_activity: bool = False) -> None:
+                 record: bool = True, log_activity: bool = False, idle_exit: bool = True) -> None:
         global _ART
         _ART = _ART or Art()
         self.art = _ART
@@ -342,6 +349,12 @@ class LifeSim:
         self.activity("session_start", skip_boot=skip_boot)
         atexit.register(self.activity.close)
         self.term = FileTerminal(mute, log=self.activity)
+        # the "still there?" countdown: see _idle()
+        self.idle_exit = idle_exit
+        self.idle = 0.0                         # s since anyone touched anything
+        self.countdown: float | None = None     # s left on the countdown while it's up
+        self.hold: float | None = None          # s the button has been held on the countdown
+        self.swallow = False                    # eat input after the countdown until hands are off
         self._go("hub" if skip_boot else "off")
 
     # -- phases --------------------------------------------------------------------
@@ -373,7 +386,78 @@ class LifeSim:
                 lines += [f"THEORIES TESTED: {len(tested)} OF {len(self.theories)}"]
             self.typer = Typer(lines)
 
+    # -- the "still there?" countdown -----------------------------------------------------
+    def _idle_paused(self) -> bool:
+        """Times nobody is expected to touch anything: the start screen, the boot
+        sequence, loading a tape, a rick roll, or a mini-game's own cut-scene."""
+        if self.phase in ("off", "rain", "cosmos", "exit", "load"):
+            return True
+        if self.phase == "files":
+            return self.term.playing
+        if self.phase == "sim":
+            return bool(getattr(self.sim, "cutscene", False))
+        return False
+
+    def _idle(self, dt: float, inp: Input) -> bool:
+        """Track inactivity and run the countdown. True means it has the screen
+        and the game underneath stays paused this tick."""
+        touched = bool(inp.x or inp.y or inp.action or inp.held) or \
+            any(p.x or p.y or p.action for p in inp.players)
+        if self.swallow:                     # the press that dismissed it isn't for the game
+            self.swallow = touched
+            return touched
+        if self.countdown is None:
+            self.idle = 0.0 if touched or self._idle_paused() else self.idle + dt
+            if self.idle < IDLE_PROMPT:
+                return False
+            self.countdown, self.hold = float(IDLE_COUNTDOWN), None
+            self.activity("idle_prompt", phase=self.phase)
+            if pygame.mixer.get_init():          # the game underneath is frozen, so its sound is too
+                pygame.mixer.pause()
+                pygame.mixer.music.pause()
+            return True
+        self.countdown -= dt
+        if self.hold is not None:
+            if inp.held:
+                self.hold += dt
+                if self.hold >= HOLD_TO_EXIT:
+                    self._back_to_start("hold")
+            else:                            # a tap: carry on
+                self._dismiss()
+        elif inp.action:
+            self.hold = 0.0
+        elif touched:
+            self._dismiss()
+        if self.countdown is not None and self.countdown <= 0:
+            self._back_to_start("timeout")
+        return True
+
+    def _dismiss(self) -> None:
+        self.countdown = self.hold = None
+        self.idle = 0.0
+        self.swallow = True
+        self.activity("idle_continue")
+        if pygame.mixer.get_init():
+            pygame.mixer.unpause()
+            pygame.mixer.music.unpause()
+
+    def _back_to_start(self, why: str) -> None:
+        """Back to the PUSH TO BOOT UP screen for the next visitor: the shell
+        starts a fresh LifeSim when this one says it's done."""
+        self.activity("idle_exit", why=why, phase=self.phase)
+        self.activity.close()
+        atexit.unregister(self.activity.close)
+        if pygame.mixer.get_init():              # unpause first so the next visitor's sound isn't stuck paused
+            pygame.mixer.unpause()
+            pygame.mixer.music.unpause()
+            pygame.mixer.stop()
+            pygame.mixer.music.stop()
+        self.countdown = None
+        self.done = True
+
     def update(self, dt: float, inp: Input) -> None:
+        if self.idle_exit and self._idle(dt, inp):
+            return
         self.time += dt
         self.phase_t += dt
         if self.phase == "off":
@@ -493,10 +577,41 @@ class LifeSim:
                 self._camera(screen, k)
         else:
             self._draw_room(screen)
+        if self.countdown is not None:
+            self._draw_countdown(screen)
+
+    def _draw_countdown(self, screen: pygame.Surface) -> None:
+        """STILL THERE? over whatever was on screen, frozen and dimmed."""
+        screen.fill((90, 90, 90), special_flags=pygame.BLEND_MULT)
+        cx = art.W // 2
+        pw, ph = 200, 92
+        px, py = cx - pw // 2, art.H // 2 - ph // 2
+        screen.fill(rgb(CRT_BG), (px, py, pw, ph))
+        pygame.draw.rect(screen, rgb(PHOSPHOR), (px, py, pw, ph), 1)
+        pygame.draw.rect(screen, rgb(PHOSPHOR_FAINT), (px + 2, py + 2, pw - 4, ph - 4), 1)
+
+        def centre(s: pygame.Surface, y: int) -> None:
+            screen.blit(s, (cx - s.get_width() // 2, y))
+
+        centre(self.text.get("STILL THERE?", PHOSPHOR), py + 7)
+        left = max(0, math.ceil(self.countdown))
+        centre(self.text.get(str(left), "#eaffea" if left > 10 else "#ff7a5a", 3), py + 18)
+        # the seconds drain away along a bar
+        bw = pw - 24
+        screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, py + 40, bw, 3))
+        screen.fill(rgb(PHOSPHOR), (px + 12, py + 40, int(bw * self.countdown / IDLE_COUNTDOWN), 3))
+        blink = int(self.countdown * 2) % 2 == 0
+        centre(self.text.get("PRESS ANY BUTTON TO CONTINUE", "#eaffea" if blink else PHOSPHOR), py + 51)
+        centre(self.text.get("HOLD THE BUTTON TO RETURN", PHOSPHOR_DIM), py + 63)
+        centre(self.text.get("TO THE START SCREEN", PHOSPHOR_DIM), py + 71)
+        if self.hold is not None:                   # holding: a bar fills up to the exit
+            k = min(1.0, self.hold / HOLD_TO_EXIT)
+            screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, py + 81, bw, 4))
+            screen.fill(rgb("#eaffea"), (px + 12, py + 81, int(bw * k), 4))
 
     def overlay(self, window: pygame.Surface) -> None:
         """Called by the shell after scaling, on the real window: the rick roll plays here, at full res."""
-        if self.phase == "files":
+        if self.phase == "files" and self.countdown is None:
             self.term.overlay(window)
 
     def _camera(self, screen: pygame.Surface, k: float) -> None:
@@ -549,7 +664,8 @@ class LifeSim:
         screen.blit(self.text.get("LIFE LAB MAINFRAME", PHOSPHOR_DIM), (4, 3))
         s = self.text.get("PROGRAM: GENESIS", PHOSPHOR_DIM)
         screen.blit(s, (art.W - 4 - s.get_width(), 3))
-        screen.blit(self.cosmos.scanlines if self.cosmos else self.art.scanlines, (0, 0))
+        if self.cosmos:
+            screen.blit(self.cosmos.scanlines, (0, 0))
 
     def _draw_name_entry(self, screen: pygame.Surface, cx: float, y: int) -> None:
         """ENTER YOUR NAME and four big letter slots, the current one rolling."""
@@ -621,7 +737,6 @@ class LifeSim:
         bloom = pygame.transform.smoothscale(small, (sw, sh))
         bloom.set_alpha(80)
         crt.blit(bloom, (0, 0), special_flags=pygame.BLEND_ADD)
-        crt.blit(a.scanlines, (0, 0))
         if int(self.time * 30) % 17 == 0:                      # a little flicker
             crt.fill((6, 10, 6), special_flags=pygame.BLEND_ADD)
         crt.blit(a.vignette, (0, 0))
@@ -776,7 +891,7 @@ def autopilot(game: LifeSim) -> Input:
         # sign in as DEMO: roll to each letter, then press
         want = "DEMO"[len(game.entry.name)] if len(game.entry.name) < 4 else None
         if want and game.entry.letter != want:
-            inp.y = -1 if int(game.time * 30) % 2 else 0          # tap up, one letter at a time
+            inp.y = 1 if int(game.time * 30) % 2 else 0           # tap down, one letter at a time
         elif int(game.time * 4) != int((game.time - 1 / 60) * 4):
             inp.action = True
         return inp
@@ -801,7 +916,7 @@ def main() -> None:
     args = ap.parse_args()
     record = not args.demo and args.ticks is None
     run(lambda: LifeSim(skip_boot=args.skip_boot, mute=args.mute, seed=args.seed, record=record,
-                                log_activity=args.log_activity), "Theories of Life",
+                        log_activity=args.log_activity, idle_exit=not args.demo), "Theories of Life",
         scale=args.scale, fullscreen=args.fullscreen, autopilot=autopilot if args.demo else None,
         max_ticks=args.ticks, screenshot=args.screenshot)
 

@@ -8,7 +8,7 @@ floor), and one notebook gives up another.
 
 It's all stick-and-button, like the visitor name entry:
 
-    on the CODE row   button starts typing; up / down roll the letter, button or
+    on the CODE row   button starts typing; down rolls A -> B, up rolls back, button or
                       right locks it in, left backs up. Three letters and it runs:
                       a hidden code unlocks its file, anything else searches names
     on a file         button opens it; left (or the BACK row) leaves
@@ -313,7 +313,7 @@ class FileTerminal:
 
     def _update_code(self, dt: float, sx: int, sy: int, act: bool) -> None:
         if sy:
-            self.letter = (self.letter - sy) % len(LETTERS)      # up goes A -> B
+            self.letter = (self.letter + sy) % len(LETTERS)      # down goes A -> B, like the name entry
         if sx < 0:
             if self.code:
                 self.letter = LETTERS.index(self.code[-1])
