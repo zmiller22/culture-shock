@@ -1,8 +1,7 @@
 """Womb Rave's soundtrack and step chart, both generated from code.
 
-The song is a 120 BPM chiptune: amniotic whooshes,
-a square-wave bass and a lead that plays exactly on the notes you have to hit. Every SQUEEZE note has a contraction
-(a deep womp) baked into the music, so the button hits are audible too.
+The song is a 120 BPM chiptune: a square-wave bass and a lead that plays exactly on the notes you have to hit. Every SQUEEZE note has a contraction
+(a deep growl) baked into the music, so the button hits are audible too.
 
 The song is a list of bars (SONG). Each kind of bar has a fixed rhythm (PATTERNS);
 the lanes the notes come down are dealt from a fixed seed, so the chart is the
@@ -181,15 +180,14 @@ def swell(length: float, amp: float, tone: float = 0.05) -> list[float]:
 
 
 def womp(length: float = 0.45, amp: float = 0.55) -> list[float]:
-    """A contraction: a growl that sweeps down, over a dark whoosh."""
+    """A contraction: a growl that sweeps down."""
     out, ph = [], 0.0
     for i in range(_n(length)):
         t = i / RATE
         ph += math.tau * (45 + 150 * math.exp(-t * 7)) / RATE
         s = math.sin(ph)
         out.append(max(-0.7, min(0.7, s * 1.6)) * math.exp(-t * 5) * amp * min(1, i / 80))
-    w = swell(length, amp * 0.6, 0.08)
-    return [a + b for a, b in zip(out, w)]
+    return out
 
 
 def _add(buf: list[float], at: int, snd: list[float]) -> None:
@@ -207,7 +205,6 @@ class _Kit:
         self.hat = hiss(0.05, 70, 0.18)
         self.snare = [a + b for a, b in zip(hiss(0.2, 18, 0.38, 0.6), thump(220, 160, 0.2, 30, 0.3))]
         self.tick = square(1760, 0.05, 50, 0.18)
-        self.whoosh = swell(BEAT, 0.22)
         self.womp = womp()
         self.bass = {f: square(f, EIGHTH * 0.95, 7, 0.26, 0.5, 0.25) for f, _ in CHORDS}
         self.bass_hi = {f: square(f * 2, EIGHTH * 0.95, 9, 0.2, 0.5, 0.25) for f, _ in CHORDS}
@@ -227,9 +224,6 @@ def render_bar(kind: str, chord: int, k: _Kit) -> list[float]:
     if base == "count":
         for beat in range(4):
             _add(buf, at(beat * 2), k.tick)
-    if base in ("heart", "break"):
-        for beat in range(4):
-            _add(buf, at(beat * 2), k.whoosh)
     if base in ("verse", "chorus", "push"):
         for pos in range(8):
             _add(buf, at(pos), (k.bass if pos % 2 == 0 else k.bass_hi)[root])
