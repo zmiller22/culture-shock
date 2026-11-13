@@ -11,10 +11,36 @@ All art is generated from Python: no image editor, just code.
 
 | | |
 |---|---|
-| Tech Bro | Puffer vest, chinos, white sneakers, AirPods, eyes locked on his phone |
+| Tech Bro | Puffer vest, chinos, AirPods, phone held up to his face. Pitching YC at all times. |
 | Swamp Monster | Hunched, mossy, gill-slitted, dripping toxic slime |
 | Sasquatch | Shaggy, cone-headed, knuckle-dragging |
 | Banana Dude | A banana in shades and red sneakers. Thumbs up. |
+| Sassquatch | Sasquatch, plus a big pink bow, lashes and lipstick. Same knuckles. |
+| Fly Man | Teleporter mishap. Lab coat, pocket pens, giant compound eyes. Spits digestive goo. |
+| Alien | Little grey visitor in a silver jumpsuit. Huge black eyes, bigger ray gun. Comes in peace. Mostly. |
+| Zombie | Grey-green, stitched up, shirt in tatters. Arms out, jaw slack, in no particular hurry. |
+| Mermaid | Fish out of water. Hops around on her tail, trident always at the ready. |
+| Medusa | Gorgon on a coiled serpent tail. Her hair bites. Don't make eye contact. |
+| Giant Slug | A lab experiment that got out of hand. Glossy, orange, leaves a trail. Spits acid. |
+| Centaur | Half hero, half dappled-grey horse. Laurel wreath, wild beard, spear. Four hooves, zero chill. |
+| Wyvern | Purple, gold-bellied, horned, two legs and a pair of bat wings. Serious heartburn. |
+| Katana Chick | Yellow jumpsuit, black ponytail, red headband, very sharp sword. Says nothing. Doesn't need to. |
+| Pageant Queen | Big hair, tiara, sash, sequined gown. Waves at the crowd. Smiles through combat. |
+| Succubus | Pocket-sized cartoon demon. Little horns, bat wings, spade tail. Blows kisses that hurt. |
+| Fairy | Pocket-sized, glittery, buzzing. Leaf dress, hair bun, star wand. Never quite touches the floor. Sprays sparkles that sting. |
+| Cowboy | Ten-gallon hat, red bandana, leather vest, spurs that jingle. Fastest draw in the lab. Blows the smoke off the barrel every time. |
+| Spider | Red-kneed lab tarantula the size of a beagle. Eight hairy legs, a cluster of beady red eyes. Shoots webs. Nobody remembers ordering it. |
+| Stoner | Rasta beanie, tie-dye tee, cargo shorts, flip-flops, half-lidded red eyes. Joint always lit. Attacks with a hotbox cloud, eventually. |
+| Crawling Baby | Diapered infant on all fours, built entirely out of head. One curl, one pacifier, one rattle, zero fear. BONK. |
+| Technoviking | A viking who took a wrong turn at the fjord and ended up at a rave. Horned helmet, braided beard, no shirt, ever. Points at you. The bass drops. |
+| Jazz Saxophonist | Porkpie hat, shades, goatee, sharp suit. Never takes the sax out of his mouth. Plays the notes you don't hear, then the ones that hurt. |
+| Ghost | Classic bedsheet ghost. Hollow eyes, stubby sheet-arms, a hem that never touches the floor. Says BOO, which is somehow enough. |
+| Headless Horseman | Cloaked rider on a black horse with a burning red eye and a mane of smoke. Lost his head years ago. Throws flaming pumpkins about it. |
+| Detective | Trench coat, collar up, fedora pulled low, pipe going. Carries a magnifying glass for clues and, more often, for setting things on fire. |
+| Puppet | Wooden marionette in a painted red jacket. Ball joints, rosy cheeks, a nutcracker jaw that clacks. Nobody has ever seen who's holding the bar. |
+| Dominatrix | Patent catsuit, red corset, peaked cap, thigh-high stilettos. Taps her whip, waiting. You will address her as Madam. |
+| Gimp | Head-to-toe black leather, zippered hood, studded harness. Hunched, twitchy, swings his leash chain. Says "MMPH". |
+| Stephen Hawking | The lab's resident genius. Tweed jacket, square glasses, a motorized chair with a speech computer. Pops wheelies. Opens black holes on request. |
 
 **Kronenberg series**: DNA mashups. Each one is spliced from the *actual genes*
 (legs / torso / head / arms) of the control group, plus a few lab-only genes
@@ -93,6 +119,63 @@ assets/
 * Feet touch row 45 (`ground_row` in the atlas), so all characters share a baseline.
 * Transparent background with a 1px dark outline.
 
+## Level 1: The Court House
+
+![the court house](assets/previews/level_courthouse.png)
+
+A courthouse, as described to someone who has never seen one. Every legal term
+is taken completely literally:
+
+| Zone | What's there |
+|---|---|
+| Lobby | The **court** is a basketball court. **ORDER HERE** is a fast-food counter (today's rulings: GUILTY 2.99, MISTRIAL FREE). **ALL RISE** legal pads launch you up to a **pro bono** dog bone. |
+| Court of Appeals | Banana peels. Step on one and you skid. **Legal briefs** (underwear) dry on a clothesline. Climb the stacked **cases** (suitcases). |
+| The Dock | A **bailiff** (a bale of hay in a sheriff's hat), an actual **dock** over actual water, and floating rulers marked **OVERRULED**. |
+| The Bar | You must **pass the bar**. A **hung jury** of twelve cast portraits on strings. The **jury box** is a jukebox. |
+| Witness Stand | A lemonade stand (5 cents). **Exhibit A** is a rubber duck under glass. The **court reporter** is a news camera, ON AIR. **Motion to dismiss** is a conveyor belt that pushes you back. |
+| The Bench | A park bench. **Scales of justice**: a fish and a bathroom scale. Presiding: the Honorable Judge Spaghetti. |
+
+**The boss.** The Honorable Judge Spaghetti is a Flying Spaghetti Monster in a
+powdered barrister's wig and court bands. It has meatballs, eyes on noodly stalks,
+a gavel in one noodly appendage, and a lot of dangling noodles to fly on. It drifts
+over you and slams the gavel (ORDER!). Hit it six times and it collapses into a plate
+of spaghetti with the wig on top. CASE DISMISSED.
+
+![judge spaghetti](assets/previews/spaghetti_judge.gif)
+
+| State | Frames | FPS | Plays |
+|---|---|---|---|
+| `idle` | 4 | 6 | loop (hover bob baked in) |
+| `fly` | 4 | 10 | loop, noodles trailing |
+| `attack` | 4 | 10 | once. The gavel lands on frame 2 at `attack_point`. |
+| `hurt` | 2 | 10 | once, white flash on frame 1 |
+| `death` | 6 | 6 | once, hold the last frame (plated) |
+
+Bosses don't fit the 48×48 rig, so the judge has **80×80** frames, also facing right.
+"ORDER!" isn't baked into the sprite because it would read backwards when flipped. Draw it in the engine.
+
+Play it with any character (the controls are the viewer's, plus **R** to start over):
+
+```bash
+python -m sprites.play
+```
+
+The level output:
+
+```
+assets/levels/courthouse/
+  far.png              wall, columns, windows. 160px wide, repeats; scroll at 0.5x
+  level.png            everything else, 1920x192; scroll at 1x. The camera shows y=12..192
+  spaghetti_judge.png  boss sheet, one row per state, 80x80 frames
+  level.json           tile map, colliders, spawn, checkpoints, zones, boss animation table
+```
+
+`level.json` colliders are pixel rects with a `type`: `solid`, `oneway` (stand on
+top, jump up through), `bounce` (launches you at `launch` px/s), `conveyor` (pushes
+you at `push` px/s), `hazard` (banana peel) and `water`. `sprites/play.py` is a
+small reference implementation of all of them. Its `World` class has no pygame
+dependency. Rebuild just the level with `python -m sprites.levels.courthouse`.
+
 ## How it works
 
 ```
@@ -105,8 +188,11 @@ sprites/
     kronenberg.py  the splicer, the random generator, and the curated specimens
     mutant_parts.py  lab-only genes
   characters.py    the roster
+  bosses/          big characters that don't use the rig (Judge Spaghetti)
+  levels/          one module per level: art, layout, colliders (The Court House)
   build.py         exporter
   viewer.py        pygame-ce viewer
+  play.py          walk a level with any character
   font.py          3x5 pixel font
 ```
 
@@ -124,9 +210,12 @@ splice(legs="tentacle", torso="tech_bro", head="brain", front_arm="claw", eyes=2
 ```
 
 To add a new species, copy one of the modules in `species/` and give it four gene
-classes. An arm needs `draw_swing`, `draw_limb` and, optionally, its own
-`attack_fx`. Then register it in `characters.py` and `species/kronenberg.py`, and
-it joins the gene pool automatically.
+classes (or fewer: Sassquatch only donates a new head). An arm needs `draw_swing`,
+`draw_limb` and, optionally, its own `attack_fx`. Put its colors in `palette.py`,
+then add it to `CONTROL_GROUP` in `characters.py` and to `DONORS` in
+`species/kronenberg.py`, and it joins the gene pool automatically. Random splices
+that would poke out of the 48x48 frame (a tall head on a tall body) get rerolled,
+so a seed still always gives the same creature.
 
 ## Raspberry Pi 5
 
@@ -137,4 +226,4 @@ environment. You don't need conda on the Pi:
 python3 -m venv .venv && . .venv/bin/activate && pip install pillow pygame-ce
 ```
 
-The viewer renders at 320×180 and scales up. Use `--fullscreen` on the Pi.
+The viewer and `sprites.play` render at 320×180 and scale up. Use `--fullscreen` on the Pi.
