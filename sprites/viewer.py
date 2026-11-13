@@ -18,6 +18,8 @@ Controls (keyboard, or an arcade stick / gamepad):
 from __future__ import annotations
 
 import argparse
+import ctypes
+import os
 import random
 
 import pygame
@@ -39,7 +41,7 @@ CROUCH_TIME = 1 / FPS["jump"]
 RESPAWN_DELAY = 1.5      # seconds the puddle lingers
 STICK_THRESHOLD = 0.5    # arcade sticks are digital; this also ignores floating axes
 JOY_JUMP, JOY_ATTACK, JOY_MUTATE = 0, 1, 3   # button indices as reported by tools/controller_test.py
-STICK_FLIP_X = STICK_FLIP_Y = True           # the cabinet's DragonRise encoders read left/right and up/down reversed
+STICK_FLIP_X = STICK_FLIP_Y = False          # set True if a stick is wired rotated and reads mirrored
 
 
 def stick(joy: pygame.joystick.JoystickType) -> tuple[int, int]:
@@ -53,6 +55,41 @@ def stick(joy: pygame.joystick.JoystickType) -> tuple[int, int]:
         zone = lambda v: (v > STICK_THRESHOLD) - (v < -STICK_THRESHOLD)
         x, y = zone(axis(0)), zone(axis(1))
     return (-x if STICK_FLIP_X else x), (-y if STICK_FLIP_Y else y)
+
+
+_pad_ports: dict[int, str] = {}     # instance id -> USB port the encoder hangs off
+_sdl: ctypes.CDLL | None = None
+
+
+def _usb_port(device_index: int) -> str:
+    """The physical USB port of a pad, e.g. 'usb-xhci-hcd.0-1/input0', read from sysfs
+    via the evdev node SDL opened. '' if it can't be found (non-Linux, odd SDL)."""
+    global _sdl
+    try:
+        if _sdl is None:
+            with open("/proc/self/maps") as maps:
+                lib = next(w for w in maps.read().split() if "libSDL2-2.0.so" in w)
+            _sdl = ctypes.CDLL(lib)
+            _sdl.SDL_JoystickPathForIndex.restype = ctypes.c_char_p
+        path = _sdl.SDL_JoystickPathForIndex(device_index).decode()
+        with open(f"/sys/class/input/{os.path.basename(path)}/device/phys") as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+def open_pad(device_index: int) -> pygame.joystick.JoystickType:
+    """Open a pad from a JOYDEVICEADDED event and remember which USB port it's on."""
+    joy = pygame.joystick.Joystick(device_index)
+    _pad_ports[joy.get_instance_id()] = _usb_port(device_index)
+    return joy
+
+
+def players(pads: dict[int, pygame.joystick.JoystickType]) -> list[pygame.joystick.JoystickType]:
+    """Pads in player order. The two encoders are identical, so SDL's enumeration
+    order is arbitrary; sorting by USB port pins P1 to the left stick (xhci-hcd.0)
+    and P2 to the right (xhci-hcd.1) on the cabinet."""
+    return sorted(pads.values(), key=lambda j: (_pad_ports.get(j.get_instance_id(), "~"), j.get_instance_id()))
 
 
 class Actor:
@@ -222,7 +259,7 @@ def run(scale: int = 4, fullscreen: bool = False, max_ticks: int | None = None, 
                     cast.append(mutant())
                     idx = len(cast) - 1
             elif ev.type == pygame.JOYDEVICEADDED:
-                joy = pygame.joystick.Joystick(ev.device_index)
+                joy = open_pad(ev.device_index)
                 pads[joy.get_instance_id()] = joy
             elif ev.type == pygame.JOYDEVICEREMOVED:
                 pads.pop(ev.instance_id, None)
@@ -232,9 +269,9 @@ def run(scale: int = 4, fullscreen: bool = False, max_ticks: int | None = None, 
                     cast.append(mutant())
                     idx = len(cast) - 1
 
-        # Any connected pad drives the actor (one player for now).
+        # Any connected pad drives the actor (one player for now); P1 wins ties.
         sx, sy = 0, 0
-        for joy in pads.values():
+        for joy in players(pads):
             jx, jy = stick(joy)
             sx, sy = sx or jx, sy or jy
         interact = sy < 0 and last_y >= 0

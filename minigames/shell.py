@@ -12,7 +12,7 @@ The main game can drive the same object: call update/draw each tick and read
 `result` once `done` goes True.
 
 Two-player games read `inp.players` instead: one Input per player. Player 1 is
-WASD plus the first stick plugged in, player 2 is the arrows plus the second
+WASD plus the left stick (by USB port), player 2 is the arrows plus the right
 stick. The top-level x / y / action stay merged across everything, so one-player
 games work as before.
 """
@@ -24,7 +24,7 @@ from typing import Callable, Protocol
 
 import pygame
 
-from sprites.viewer import H, JOY_JUMP, W, stick
+from sprites.viewer import H, JOY_JUMP, W, open_pad, players, stick
 
 ACTION_KEYS = (pygame.K_SPACE, pygame.K_z, pygame.K_RETURN)
 P1_KEYS = (pygame.K_a, pygame.K_d, pygame.K_w, pygame.K_s, (pygame.K_SPACE, pygame.K_LSHIFT))   # left right up down action
@@ -78,7 +78,7 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
                 if ev.key in ACTION_KEYS:
                     inp.action = True
             elif ev.type == pygame.JOYDEVICEADDED:
-                joy = pygame.joystick.Joystick(ev.device_index)
+                joy = open_pad(ev.device_index)
                 pads[joy.get_instance_id()] = joy
             elif ev.type == pygame.JOYDEVICEREMOVED:
                 pads.pop(ev.instance_id, None)
@@ -88,13 +88,13 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
 
         keys = pygame.key.get_pressed()
         sx, sy = 0, 0
-        for joy in pads.values():
+        for joy in players(pads):
             jx, jy = stick(joy)
             sx, sy = sx or jx, sy or jy
         inp.x = max(-1, min(1, keys[pygame.K_RIGHT] - keys[pygame.K_LEFT] + sx))
         inp.y = max(-1, min(1, keys[pygame.K_DOWN] - keys[pygame.K_UP] + sy))
-        joys = list(pads.values())            # in the order they were plugged in
-        players = []
+        joys = players(pads)                  # P1 = left stick, by USB port
+        per_player = []
         for i, (left, right, up, down, acts) in enumerate((P1_KEYS, P2_KEYS)):
             px, py = keys[right] - keys[left], keys[down] - keys[up]
             act = bool(pressed_keys & set(acts))
@@ -102,8 +102,8 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
                 jx, jy = stick(joys[i])
                 px, py = px or jx, py or jy
                 act = act or joys[i].get_instance_id() in pad_presses
-            players.append(Input(max(-1, min(1, px)), max(-1, min(1, py)), act))
-        inp.players = tuple(players)
+            per_player.append(Input(max(-1, min(1, px)), max(-1, min(1, py)), act))
+        inp.players = tuple(per_player)
         if autopilot:
             inp = autopilot(game)
 

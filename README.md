@@ -676,6 +676,7 @@ If something doesn't register:
 
 * **No pad listed**: run `lsusb`. A zero-delay encoder shows up as `0079:0006 DragonRise`. If it's missing, try another cable or port.
 * **One button is dead**: the microswitch wires go on **COM** and **NO**, not NC. Check that the harness is fully seated in the encoder.
+* **P1 and P2 are swapped**: players are assigned by USB port, not by the order the encoders enumerate in. The encoder on `xhci-hcd.0` is P1 (left) and the one on `xhci-hcd.1` is P2 (right); the tester prints which is which. Swap the USB cables, or change `players()` in `sprites/viewer.py`.
 * **Directions are swapped or mirrored**: the 5-pin joystick harness is plugged in rotated, or the stick is mounted turned. Either fix the hardware or flip it in the game's mapping.
 
 To check below pygame, install the kernel-level tools with `sudo apt install joystick evtest`, then run `jstest /dev/input/js0`.

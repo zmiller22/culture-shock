@@ -15,11 +15,16 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))   # run as a script from anywhere
 
 # Keep receiving joystick events when the window isn't focused (or doesn't exist).
 os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
 
 import pygame
+
+from sprites.viewer import _pad_ports, open_pad, players
 
 W = 640
 PAD_H = 170
@@ -49,8 +54,8 @@ def log_event(e: pygame.event.Event) -> None:
         print(f"pad {e.instance_id}  hat {e.hat}  {e.value}")
 
 
-def draw_pad(screen: pygame.Surface, font: pygame.font.Font, joy, top: int) -> None:
-    screen.blit(font.render(f"P{joy.get_instance_id() + 1}  {joy.get_name()}", True, TEXT), (12, top + 8))
+def draw_pad(screen: pygame.Surface, font: pygame.font.Font, joy, player: int, top: int) -> None:
+    screen.blit(font.render(f"P{player}  {joy.get_name()}", True, TEXT), (12, top + 8))
 
     # Stick: axes 0/1 if present, overridden by hat 0 when it's pushed.
     x = joy.get_axis(0) if joy.get_numaxes() > 0 else 0.0
@@ -105,9 +110,12 @@ def main() -> None:
                 elif e.type == pygame.KEYDOWN and e.key in (pygame.K_ESCAPE, pygame.K_q):
                     running = False
                 elif e.type == pygame.JOYDEVICEADDED:
-                    joy = pygame.joystick.Joystick(e.device_index)
+                    joy = open_pad(e.device_index)
                     pads[joy.get_instance_id()] = joy
                     print("ADDED   " + describe(joy))
+                    print("        players: " + "  ".join(
+                        f"P{n}=[{j.get_instance_id()}] {_pad_ports.get(j.get_instance_id()) or '?'}"
+                        for n, j in enumerate(players(pads), 1)))
                 elif e.type == pygame.JOYDEVICEREMOVED:
                     joy = pads.pop(e.instance_id, None)
                     print(f"REMOVED [{e.instance_id}] {joy.get_name() if joy else ''}")
@@ -118,8 +126,8 @@ def main() -> None:
                 screen.fill(BG)
                 if not pads:
                     screen.blit(font.render("No controllers. Plug in an encoder.", True, TEXT), (12, 12))
-                for i, joy in enumerate(sorted(pads.values(), key=lambda j: j.get_instance_id())):
-                    draw_pad(screen, font, joy, i * PAD_H)
+                for i, joy in enumerate(players(pads)):
+                    draw_pad(screen, font, joy, i + 1, i * PAD_H)
                 pygame.display.flip()
             clock.tick(60)
     except KeyboardInterrupt:
