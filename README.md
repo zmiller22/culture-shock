@@ -90,22 +90,25 @@ two reel-to-reel tape drives, a wall of blinking lamps and a green-phosphor CRT.
 The CRT says LIFE LAB MAINFRAME over a big **PUSH TO BOOT UP** button. Push it
 and the lamps go wild, the reels spin up, green code rains down the screen and
 the camera dives into the glass. The program opens on a Powers-of-Ten zoom out,
-from the Earth to the edge of everything, labelled as it goes:
+from the Earth to the beginning of everything. It stops four times, long enough
+to get each joke (the labels just name things; the pictures do the joking), and glides smoothly out between them:
 
 | Scale | What you see |
 |---|---|
-| 1E+07 M | the Earth, with a stork in orbit making a delivery |
-| 1E+09 M | the Moon, and a cow jumping over it |
-| 1E+11 M | the inner planets, a sun in sunglasses, Russell's teapot, and a dildo (don't ask) |
-| 1E+13 M | the outer planets, Uranus (a butt, mid-fart), the Flying Spaghetti Monster |
+| 1E+07 M | the Earth. A heart pops up on it for every baby made (about 4 a second, the real rate), and a counter counts them |
+| 1E+13 M | the solar system: a sun in sunglasses, and Uranus, which is a butt (and has farted) |
 | 1E+21 M | the Milky Way, which is a pair of boobs. YOU ARE HERE. |
-| 1E+25 M | the cosmic web, which is a brain |
-| ONE SHELF | the brain is in a jar on a shelf in the lab: SPECIMEN: THE UNIVERSE, NO. 7 |
+| 1E+27 M | THE BIG BANG: two cosmic giants in bed under a starry quilt, going at it. The headboard goes BANG! BANG! and someone shouts OH GOD! |
 
 ![the zoom out](assets/previews/lifesim_zoom.png)
 
-Past the jar is the dark, where the program finds you: a **spirit** with no
-body yet. Then the camera pulls back out of the CRT to the terminal, where you
+Past the big bang is the dark, where the program finds you: a **spirit** with no
+body yet. You're the lab's next **visitor** (VISITOR NO. 0042, say), and you sign
+in with a 1-4 letter name the way old arcades take high-score initials: the
+stick rolls the letter, the button locks it in, left backs up, and END (one
+step down from A) finishes a short name. Every visitor is logged to
+`~/.life_lab/visitors.txt` (set `LIFE_LAB_VISITORS` to move it; `--demo` doesn't
+log). Then the camera pulls back out of the CRT to the terminal, where you
 pick a theory of life. The tape mounts, you get incarnated, and the CRT
 switches off into that simulation. Each simulation is one of the mini-games:
 
@@ -132,6 +135,7 @@ python -m lifesim --demo          # the computer boots it and plays every simula
 | Action | Keyboard | Arcade stick |
 |---|---|---|
 | Pick a theory | Up / Down | stick |
+| Name entry: roll the letter / back / next | Up, Down / Left / Right | stick |
 | Boot / skip the zoom / select / continue | Space, Z or Enter | button 0 |
 | Quit | Esc or Q | |
 
@@ -141,7 +145,7 @@ the zoom, and `game.py` runs the terminal and hands each tick to the running
 mini-game. Each zoom level is drawn 6x bigger than the one inside it, all
 centred on the Earth, so to add a stop on the way out, add a level to
 `space_art.py` and `build_levels()` in `intro.py`. Tune the pacing with
-`ZOOM_HOLD` and `ZOOM_MOVE` in `intro.py`. To add
+`ZOOM_MOVE` in `intro.py`, and each stop's `hold` (seconds) in `build_levels()` there. To add
 a theory, add a `Theory` to `theories()` in `game.py`. It just needs a
 mini-game that follows the `minigames/shell.py` protocol.
 

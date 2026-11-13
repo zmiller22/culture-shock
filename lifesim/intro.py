@@ -3,8 +3,10 @@
 `Rain` is falling columns of phosphor characters. It draws onto any surface,
 so it runs on the CRT and then fills the screen as the camera dives in.
 
-`Cosmos` is the Powers-of-Ten zoom from the Earth out to a universe in a jar,
-with labels and the props along the way. It has the same update/draw/done
+`Cosmos` is the Powers-of-Ten zoom from the Earth out to the big bang, four
+stops: the Earth, the solar system, the Milky Way and the big bang. The camera
+holds on each one long enough to get the joke, then glides smoothly out to
+the next. It has the same update/draw/done
 shape as a mini-game, so the main game just runs it until `done`.
 """
 
@@ -16,8 +18,8 @@ from dataclasses import dataclass, field
 
 import pygame
 
-from minigames.primordial_soup.art import utensil
-from minigames.stork_bomber.art import FSM_FRAMES, spaghetti_monster, stork
+from minigames.meet_cute.art import heart
+from minigames.stork_bomber.art import stork
 from sprites.canvas import hex_to_rgba
 from sprites.font import GLYPHS
 from sprites.viewer import H, W, text_surface, to_surface
@@ -30,10 +32,11 @@ RAIN_COL, RAIN_ROW = 4, 6                  # px per character cell
 RAIN_SPEED = (40.0, 110.0)                 # px/s a column falls
 RAIN_TRAIL = (5, 14)                       # characters per column
 RAIN_RAMP = 0.8                            # s for the rain to go from a few columns to all of them
-ZOOM_HOLD = 1.1                            # s the camera rests on each level (labels show here)
-ZOOM_MOVE = 1.25                           # s to zoom out to the next level
-FINAL_HOLD = 1.8
-FADE_IN = 0.7                              # levels of zoom over which an outer level fades in                           # s on the last level: the jar
+ZOOM_MOVE = 1.6                            # s to glide out from one stop to the next
+# how long the camera holds on each stop (the levels' `hold`) is set in build_levels()
+BIRTH_RATE = 4.3                           # babies born on Earth per second, roughly. One heart each.
+HEART_LIFE = 2.0                           # s each heart floats up before it fades
+FADE_IN = 0.7                              # levels of zoom over which an outer level fades in
 FADE_OUT = 1.4                             # s zooming on into the dark at the end
 K0 = 1.25                                  # screen px per canvas px when a level is "current"
 STARS = 160
@@ -100,6 +103,8 @@ class Prop:
     size: float = 1.0                          # canvas px per sprite px
     fps: float = 8.0
     orbit: tuple[float, float] | None = None   # radius (canvas px), degrees/s around (u, v)
+    phase: float = 0.0                         # degrees round the orbit it starts at
+    squash: float = 0.45                       # how flat the orbit is
     spin: float = 0.0                          # degrees/s
     hop: float = 0.0                           # canvas px it bounces up and down
     label: tuple[str, str] | None = None
@@ -112,42 +117,53 @@ class Level:
     props: list[Prop] = field(default_factory=list)
     front: pygame.Surface | None = None
     scale: str = ""
+    hold: float = 3.0                          # s the camera stays on it
+    fade_out: bool = False                     # fades away as the camera leaves it (the lab, into the flash)
 
 
 def _surf(c) -> pygame.Surface:
     return to_surface(c)
 
 
+def _text_frames(word: str, color: str, shadow: str, on: list[int], n: int) -> list[pygame.Surface]:
+    """A word that pops up on some frames of an n-frame loop (and is blank on the rest)."""
+    img = pygame.transform.scale_by(text_surface(word, color), 2)
+    sh = pygame.transform.scale_by(text_surface(word, shadow), 2)
+    pop = pygame.Surface((img.get_width() + 2, img.get_height() + 2), pygame.SRCALPHA)
+    pop.blit(sh, (2, 2))
+    pop.blit(img, (0, 0))
+    blank = pygame.Surface(pop.get_size(), pygame.SRCALPHA)
+    return [pop if f in on else blank for f in range(n)]
+
+
 def build_levels() -> list[Level]:
-    stork_frames = [_surf(stork(f, True)) for f in range(4)]
-    fsm_frames = [_surf(spaghetti_monster(f)) for f in range(FSM_FRAMES)]
-    cow_frames = [_surf(sa.cow(f)) for f in range(2)]
     cx, cy = sa.CX, sa.CY
+    stork_frames = [_surf(stork(f, True)) for f in range(4)]
+    bed = [_surf(sa.giants(f)) for f in range(sa.GIANTS_FRAMES)]
+    bed_fps = 6.0                               # one thrust every 4 frames; the BANGs land on the knock (frame 2)
+    gx, gy, gs = cx, cy + 4, 1.5                # where the bed sits, and canvas px per sprite px
+
+    def on_bed(sx: float, sy: float) -> tuple[float, float]:
+        return gx + (sx - sa.GIANTS_W / 2) * gs, gy + (sy - sa.GIANTS_H / 2) * gs
+
     return [
-        Level(_surf(sa.earth_level()), scale="1E+07 M",
-              labels=[(cx, cy, 52, "EARTH", "POP. 8 BILLION AND RISING")],
-              props=[Prop(stork_frames, cx, cy, size=0.32, orbit=(62, 40), label=("A STORK", "MAKING A DELIVERY"))]),
-        Level(_surf(sa.moon_level()), scale="1E+09 M",
-              labels=[(*sa.MOON, -6, "THE MOON", "")],
-              props=[Prop(cow_frames, sa.MOON[0] + 16, sa.MOON[1] - 4, size=0.55, fps=4, hop=3,
-                          label=("A COW", "JUMPING OVER IT"))]),
-        Level(_surf(sa.inner_level()), scale="1E+11 M",
-              labels=[(*sa.SUN, 13, "THE SUN", "LOOKING COOL")],
-              props=[Prop([_surf(sa.teapot())], *sa.TEAPOT_AT, size=0.6, hop=1,
-                          label=("RUSSELL'S TEAPOT", "YOU CAN'T PROVE IT ISN'T")),
-                     Prop([_surf(utensil("dildo"))], *sa.DILDO_AT, size=0.6, spin=90,
-                          label=("A DILDO", "DON'T ASK"))]),
-        Level(_surf(sa.outer_level()), scale="1E+13 M",
-              labels=[(*sa.URANUS, 6, "URANUS", "HEH"), (*sa.SATURN, 6, "SATURN", "")],
-              props=[Prop(fsm_frames, *sa.FSM_AT, size=0.55, fps=8, hop=2,
-                          label=("FLYING SPAGHETTI MONSTER", "R'AMEN"))]),
-        Level(_surf(sa.milky_way_level()), scale="1E+21 M",
-              labels=[(sa.CX + 2, sa.BOOBS[0][1], 36, "THE MILKY WAY", "BOTH OF THEM"),
+        Level(_surf(sa.earth_level()), scale="1E+07 M", hold=4.0,
+              labels=[(cx, cy, 52, "EARTH", ""),
+                      (cx, cy, -52, "BABIES MADE SINCE YOU GOT HERE:", "{births}")],
+              props=[Prop(stork_frames, cx, cy, size=0.32, orbit=(62, 40))]),
+        Level(_surf(sa.solar_level()), scale="1E+13 M", hold=4.5,
+              labels=[(*sa.URANUS, -(sa.CHEEK_R + 1), "URANUS", ""),
+                      (*sa.SUN, 13, "THE SUN", "")]),
+        Level(_surf(sa.milky_way_level()), scale="1E+21 M", hold=4.5, fade_out=True,
+              labels=[(sa.CX + 2, sa.BOOBS[0][1], 36, "THE MILKY WAY", ""),
                       (*sa.YOU_ARE_HERE, -3, "YOU ARE HERE", "V")]),
-        Level(_surf(sa.brain_level()), scale="1E+25 M",
-              labels=[(sa.BRAIN[0], sa.BRAIN[1], -(sa.BRAIN[3] + 2), "THE COSMIC WEB", "WAIT. IS THAT A BRAIN?")]),
-        Level(_surf(sa.jar_level()), front=_surf(sa.jar_front()), scale="ONE SHELF",
-              labels=[(sa.CX, sa.CY - 44, -6, "SPECIMEN: THE UNIVERSE", "PROPERTY OF LIFE LAB")]),
+        Level(_surf(sa.big_bang_level()), scale="1E+27 M", hold=5.5,
+              labels=[(cx, cy, -50, "THE BIG BANG", "")],
+              props=[Prop(bed, gx, gy, size=gs, fps=bed_fps),
+                     Prop(_text_frames("BANG!", "#ffe14d", "#c83a2a", [2, 3], 8), *on_bed(6, -6), fps=bed_fps),
+                     Prop(_text_frames("BANG!", "#ffe14d", "#c83a2a", [6, 7], 8), *on_bed(2, 30), fps=bed_fps),
+                     Prop(_text_frames("OH GOD!", "#ffffff", "#a84a90", list(range(8, 14)), 16), *on_bed(48, 8),
+                          fps=bed_fps)]),
     ]
 
 
@@ -163,8 +179,8 @@ class Cosmos:
         self.t = 0.0
         self.z = 0.0
         self.done = False
-        n = len(self.levels) - 1
-        self.length = n * (ZOOM_HOLD + ZOOM_MOVE) + FINAL_HOLD + FADE_OUT
+        self.length = sum(lv.hold for lv in self.levels) + ZOOM_MOVE * (len(self.levels) - 1) + FADE_OUT
+        self.hearts: list[list[float]] = []      # u, v, age: babies being made on the Earth
         self.stars = [self._star(anywhere=True) for _ in range(STARS)]
         self.text: dict[tuple[str, str], pygame.Surface] = {}
         self.scanlines = pygame.Surface((W, H), pygame.SRCALPHA)
@@ -188,19 +204,20 @@ class Cosmos:
         return self.text[(s, col)]
 
     def z_at(self, t: float) -> float:
-        n = len(self.levels) - 1
-        seg = ZOOM_HOLD + ZOOM_MOVE
-        if t < n * seg:
-            i, local = int(t // seg), t % seg
-            if local < ZOOM_HOLD:
+        """How far out the camera is: 0 is the Earth, 1 the solar system, and so on.
+        Hold on a level, glide out to the next (easing in and out), hold, ..."""
+        for i, lv in enumerate(self.levels):
+            if t < lv.hold:
                 return float(i)
-            k = (local - ZOOM_HOLD) / ZOOM_MOVE
-            return i + k * k * (3 - 2 * k)               # ease in and out of each level
-        t -= n * seg
-        if t < FINAL_HOLD:
-            return float(n)
-        k = min(1.0, (t - FINAL_HOLD) / FADE_OUT)
-        return n + k * k * 1.2
+            t -= lv.hold
+            if i == len(self.levels) - 1:
+                break
+            if t < ZOOM_MOVE:
+                k = t / ZOOM_MOVE
+                return i + k * k * k * (k * (k * 6 - 15) + 10)    # smootherstep: no jolt at either end
+            t -= ZOOM_MOVE
+        k = min(1.0, t / FADE_OUT)                   # then on out into the dark
+        return len(self.levels) - 1 + k * k * 1.2
 
     def skip(self) -> None:
         self.done = True
@@ -215,6 +232,13 @@ class Cosmos:
             s[1] *= shrink
             if math.hypot(s[0], s[1]) < s[4]:
                 self.stars[i] = self._star()
+        # a heart pops up somewhere on the Earth for every baby made
+        if self.z < 0.6 and self.rng.random() < BIRTH_RATE * dt:
+            a, r = self.rng.uniform(0, math.tau), 44 * math.sqrt(self.rng.random())
+            self.hearts.append([sa.CX + r * math.cos(a), sa.CY + r * math.sin(a), 0.0])
+        for h in self.hearts:
+            h[2] += dt
+        self.hearts = [h for h in self.hearts if h[2] < HEART_LIFE]
         if self.t >= self.length:
             self.done = True
 
@@ -229,7 +253,10 @@ class Cosmos:
     def _alpha(self, i: int) -> int:
         """Outer levels fade in as the camera pulls back to them, so their middles
         never show blown up over the level you're looking at."""
-        return int(255 * max(0.0, min(1.0, (self.z - (i - 1)) / FADE_IN)))
+        k = max(0.0, min(1.0, (self.z - (i - 1)) / FADE_IN))
+        if self.levels[i].fade_out:
+            k *= 1 - max(0.0, min(1.0, (self.z - i - 0.15) / 0.6))
+        return int(255 * k)
 
     def _blit_level(self, screen: pygame.Surface, surf: pygame.Surface, f: float, alpha: int = 255) -> None:
         ox, oy = W / 2 - sa.CX * f, H / 2 - sa.CY * f
@@ -252,8 +279,8 @@ class Cosmos:
         u, v = p.u, p.v
         if p.orbit:
             r, speed = p.orbit
-            a = math.radians(self.t * speed)
-            u, v = u + r * math.cos(a), v + r * 0.45 * math.sin(a)
+            a = math.radians(self.t * speed + p.phase)
+            u, v = u + r * math.cos(a), v + r * p.squash * math.sin(a)
         if p.hop:
             v -= abs(math.sin(self.t * 3.0)) * p.hop
         return u, v
@@ -264,7 +291,7 @@ class Cosmos:
         w, h = img.get_width() * f, img.get_height() * f
         if w < 1 or w > W * 3:
             return
-        if p.orbit and math.sin(math.radians(self.t * p.orbit[1])) < 0:
+        if p.orbit and not p.spin and math.sin(math.radians(self.t * p.orbit[1] + p.phase)) * p.orbit[1] > 0:
             img = pygame.transform.flip(img, True, False)      # fly the way it's going
         img = pygame.transform.scale(img, (max(1, round(w)), max(1, round(h))))
         if p.spin:
@@ -297,6 +324,7 @@ class Cosmos:
             self._blit_level(screen, lv.back, self._factor(i), a)
             for p in lv.props:
                 self._draw_prop(screen, i, p, a)
+        self._draw_hearts(screen)
         for i in reversed(range(n)):
             if self._visible(i) and self.levels[i].front:
                 self._blit_level(screen, self.levels[i].front, self._factor(i), self._alpha(i))
@@ -312,14 +340,26 @@ class Cosmos:
             dark.set_alpha(int(255 * k))
             screen.blit(dark, (0, 0))
 
+    def _draw_hearts(self, screen: pygame.Surface) -> None:
+        if not self.hearts:
+            return
+        if not hasattr(self, "_heart"):
+            self._heart = _surf(heart(False))
+        f = self._factor(0) * 2.2
+        img = pygame.transform.scale(self._heart, (max(1, round(5 * f)), max(1, round(4 * f))))
+        for u, v, age in self.hearts:
+            x, y = self._to_screen(0, u, v - age * 6)        # float up off the surface...
+            img.set_alpha(int(255 * min(1.0, (HEART_LIFE - age) / 0.5)))   # ...and fade
+            screen.blit(img, (x - img.get_width() / 2, y - img.get_height() / 2))
+
     def _draw_labels(self, screen: pygame.Surface) -> None:
         i = round(self.z)
         if i >= len(self.levels):
             return
         d = self.z - i
-        if not -0.12 < d < 0.4:
+        if not -0.2 < d < 0.32:
             return
-        alpha = int(255 * max(0.0, min(1.0, 1 - abs(d) / (0.12 if d < 0 else 0.4))))
+        alpha = int(255 * max(0.0, min(1.0, 1.6 * (1 - abs(d) / (0.2 if d < 0 else 0.32)))))
         lv = self.levels[i]
         tags = list(lv.labels)
         for p in lv.props:
@@ -327,7 +367,9 @@ class Cosmos:
                 u, v = self._prop_pos(p)
                 tags.append((u, v, p.frames[0].get_height() * p.size / 2, *p.label))
         f = self._factor(i)
+        births = f"{int(self.t * BIRTH_RATE):,}".replace(",", " ")
         for u, v, r, a, b in tags:
+            b = b.format(births=births)
             x, y = self._to_screen(i, u, v)
             rows = 2 if b else 1
             y = y + r * f + 3 if r >= 0 else y + r * f - 2 - 7 * rows      # negative radius: label above

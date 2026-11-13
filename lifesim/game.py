@@ -6,13 +6,16 @@ You're a spirit with no body yet. The Life Lab Mainframe, a 1970s machine the
 scientist insists is state of the art, runs a simulation of each theory of how
 life begins. Push the button to boot it: code pours down the screen, the camera
 dives into the CRT, and the program opens on a zoom out from the Earth to the
-edge of everything (see intro.py), where it finds you. Then pick a theory off
+edge of everything (see intro.py), where it finds you: you're the lab's next
+visitor, and you sign in with a 1-4 letter name, arcade high-score style. Then
+pick a theory off
 the terminal, get incarnated into it, and see whether it holds up. Every
 mini-game is one simulation.
 
 Controls (keyboard, or an arcade stick / gamepad):
-    STICK / ARROWS            pick a theory
-    SPACE / Z / ENTER / btn 0 boot, skip the intro, select, continue
+    STICK / ARROWS            pick a theory; on the name entry, up / down change the letter,
+                              left goes back a letter, right goes on to the next
+    SPACE / Z / ENTER / btn 0 boot, skip the intro, select, next letter, continue
     ESC / Q                   quit
 
 Win a simulation and the theory is CONFIRMED; lose and it's REFUTED. The
@@ -23,6 +26,8 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
+from pathlib import Path
 import random
 from dataclasses import dataclass
 from typing import Callable
@@ -41,7 +46,11 @@ from .intro import Cosmos, Rain
 # -- tuning ------------------------------------------------------------------------
 TYPE_RATE = 70.0           # characters/s the terminal types at
 LINE_PAUSE = 0.12          # s between lines
-SUBJECT = "0001"
+VISITOR_LOG = Path(os.environ.get("LIFE_LAB_VISITORS", Path.home() / ".life_lab" / "visitors.txt"))
+NAME_LEN = 4               # letters in a visitor's name, like an arcade high score
+NAME_END = "END"           # the choice after Z (and before A) that signs off a short name
+NAME_REPEAT = (0.4, 0.09)  # s before a held stick starts repeating, then s per letter
+NAME_TIMEOUT = 40.0        # s of nobody touching anything before it signs them in as is
 BUTTON_PRESS = 0.35        # s the boot button stays down before the code rain starts
 RAIN_TIME = 1.4            # s of code rain on the CRT before the camera dives in
 ENTER_TIME = 1.1           # s to dive into the CRT
@@ -53,12 +62,89 @@ CRT_OFF_TIME = 0.35
 CRT_ON_TIME = 0.35
 REEL_IDLE, REEL_FAST = 90.0, 900.0      # degrees/s
 DIVE = (SCREEN[0], SCREEN[1] + 7, SCREEN[2], SCREEN[2] * 9 // 16)     # the part of the glass the camera dives into
-SUMMON_LINES = [
-    "1 SPIRIT DETECTED.",
-    f"WELCOME SUBJECT {SUBJECT}.",
-    "YOU DO NOT HAVE A BODY YET.",
-    "PICK A THEORY OF LIFE. TRY IT ON.",
-]
+SUMMON_LINES = ["1 SPIRIT DETECTED.", "YOU ARE VISITOR NO. {num}."]
+WELCOME_LINES = ["WELCOME {name}.", "YOU DO NOT HAVE A BODY YET.", "PICK A THEORY OF LIFE. TRY IT ON."]
+
+
+def next_visitor() -> int:
+    """The next number in the lab's visitor log (1 if there's no log yet)."""
+    try:
+        last = VISITOR_LOG.read_text().split()
+        return int(last[-2]) + 1 if len(last) >= 2 else 1
+    except (OSError, ValueError):
+        return 1
+
+
+def sign_in(num: int, name: str) -> None:
+    try:
+        VISITOR_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with VISITOR_LOG.open("a") as f:
+            f.write(f"{num:04d} {name}\n")
+    except OSError:
+        pass                                          # a read-only cabinet still plays
+
+
+class NameEntry:
+    """Old-school arcade initials: up / down roll the letter, the button locks it
+    in and moves on. After the first letter, END (one step down from A) signs off
+    early, so names can be 1-4 letters."""
+
+    LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
+
+    def __init__(self) -> None:
+        self.name = ""
+        self.cur = 0                                  # index into choices()
+        self.done = False
+        self.held = (0, 0)
+        self.hold_t = 0.0
+        self.idle = 0.0
+
+    def choices(self) -> list[str]:
+        return self.LETTERS + ([NAME_END] if self.name else [])
+
+    @property
+    def letter(self) -> str:
+        return self.choices()[self.cur]
+
+    def _roll(self, step: int) -> None:
+        self.cur = (self.cur + step) % len(self.choices())
+
+    def update(self, dt: float, inp: Input) -> None:
+        if self.done:
+            return
+        self.idle += dt
+        dirs = (inp.x, inp.y)
+        if dirs != (0, 0) or inp.action:
+            self.idle = 0.0
+        if inp.y:
+            if dirs != self.held:
+                self._roll(-inp.y)                    # up goes A -> B
+                self.hold_t = 0.0
+            else:
+                self.hold_t += dt
+                while self.hold_t > NAME_REPEAT[0]:   # held: keep rolling
+                    self._roll(-inp.y)
+                    self.hold_t -= NAME_REPEAT[1]
+        elif inp.x and dirs != self.held:
+            if inp.x > 0:
+                self.lock()
+            elif self.name:                           # back up a letter
+                prev = self.name[-1]
+                self.name = self.name[:-1]
+                self.cur = self.choices().index(prev)
+        self.held = dirs
+        if inp.action:
+            self.lock()
+        if self.idle > NAME_TIMEOUT:
+            self.name = self.name or "GHST"
+            self.done = True
+
+    def lock(self) -> None:
+        if self.letter == NAME_END:
+            self.done = True
+            return
+        self.name += self.letter
+        self.done = len(self.name) == NAME_LEN        # otherwise the next slot starts on the same letter
 
 
 @dataclass
@@ -202,7 +288,8 @@ class LifeSim:
 
     title = "THEORIES OF LIFE"
 
-    def __init__(self, skip_boot: bool = False, mute: bool = False, seed: int | None = None) -> None:
+    def __init__(self, skip_boot: bool = False, mute: bool = False, seed: int | None = None,
+                 record: bool = True) -> None:
         global _ART
         _ART = _ART or Art()
         self.art = _ART
@@ -228,6 +315,11 @@ class LifeSim:
         self.rain: Rain | None = None
         self.cosmos: Cosmos | None = None
         self.pushed: float | None = None
+        self.record = record                    # write visitors to the log (not in demos and tests)
+        self.visitor = next_visitor()
+        self.name = "ANON"                      # until they sign in (--skip-boot never asks)
+        self.entry: NameEntry | None = None
+        self.stage = ""
         self._go("hub" if skip_boot else "off")
 
     # -- phases --------------------------------------------------------------------
@@ -240,15 +332,16 @@ class LifeSim:
         elif phase == "cosmos":
             self.cosmos = Cosmos(seed=self.rng.random())
         elif phase == "summon":
-            self.typer = Typer(SUMMON_LINES)
+            self.stage = "intro"                # intro lines -> name entry -> welcome lines
+            self.typer = Typer([s.format(num=f"{self.visitor:04d}") for s in SUMMON_LINES])
             self.motes = [[math.cos(a) * r, math.sin(a) * r * 0.6, self.rng.uniform(0.5, 1.0)]
                           for a, r in ((self.rng.uniform(0, math.tau), self.rng.uniform(50, 180)) for _ in range(70))]
         elif phase == "load":
             t = self.theories[self.sel]
-            self.typer = Typer([f"MOUNTING TAPE {t.code}: {t.name}", f"INCARNATING SUBJECT {SUBJECT}..."], rate=90)
+            self.typer = Typer([f"MOUNTING TAPE {t.code}: {t.name}", f"INCARNATING VISITOR {self.name}..."], rate=90)
         elif phase == "return":
             theory, res = self.last
-            lines = [f"SIMULATION {theory.code} ENDED.", f"SUBJECT {SUBJECT} DISINCARNATED.", "",
+            lines = [f"SIMULATION {theory.code} ENDED.", f"VISITOR {self.name} DISINCARNATED.", "",
                      f"RESULT: THEORY {VERDICT.get(res, VERDICT['?'])}", theory.quips.get(res, "THE DATA ARE A MESS."), ""]
             tested = [t for t in self.theories if self.results[t.code]]
             confirmed = [t for t in self.theories if "win" in self.results[t.code]]
@@ -304,11 +397,22 @@ class LifeSim:
             if self.cosmos.done:
                 self._go("summon")
         elif self.phase == "summon":
-            if inp.action and self.phase_t > SUMMON_FORM:
-                if self.typer.done:
-                    self._go("exit")
-                else:
+            if self.stage == "name":
+                self.entry.update(dt, inp)
+                if self.entry.done:
+                    self.name = self.entry.name
+                    if self.record:
+                        sign_in(self.visitor, self.name)
+                    self.stage = "welcome"
+                    self.typer = Typer([s.format(name=self.name) for s in WELCOME_LINES])
+            elif inp.action and self.phase_t > SUMMON_FORM:
+                if not self.typer.done:
                     self.typer.finish()
+                elif self.stage == "welcome":
+                    self._go("exit")
+            if self.stage == "intro" and self.typer.done and self.typer.t > self.typer.end + 0.4:
+                self.stage = "name"
+                self.entry = NameEntry()
         elif self.phase == "exit":
             if self.phase_t > EXIT_TIME:
                 self._go("hub")
@@ -395,15 +499,48 @@ class LifeSim:
         lines = self.typer.visible()
         for i, line in enumerate(lines):
             if line:
-                full = SUMMON_LINES[i]
-                screen.blit(self.text.get(line, PHOSPHOR), (cx - text_width(full) // 2, 108 + i * 9))
-        if self.typer.done and int(self.time * 2) % 2 == 0:
+                full = self.typer.lines[i]
+                screen.blit(self.text.get(line, PHOSPHOR), (cx - text_width(full) // 2, 104 + i * 9))
+        if self.stage == "name":
+            self._draw_name_entry(screen, cx, 126)
+        elif self.stage == "welcome" and self.typer.done and int(self.time * 2) % 2 == 0:
             s = self.text.get("PRESS BUTTON", PHOSPHOR_DIM)
             screen.blit(s, (cx - s.get_width() // 2, 160))
         screen.blit(self.text.get("LIFE LAB MAINFRAME", PHOSPHOR_DIM), (4, 3))
         s = self.text.get("PROGRAM: GENESIS", PHOSPHOR_DIM)
         screen.blit(s, (art.W - 4 - s.get_width(), 3))
         screen.blit(self.cosmos.scanlines if self.cosmos else self.art.scanlines, (0, 0))
+
+    def _draw_name_entry(self, screen: pygame.Surface, cx: float, y: int) -> None:
+        """ENTER YOUR NAME and four big letter slots, the current one rolling."""
+        e = self.entry
+        s = self.text.get("ENTER YOUR NAME:", PHOSPHOR_DIM)
+        screen.blit(s, (cx - s.get_width() // 2, y))
+        slot_w, gap = 14, 6
+        x0 = int(cx - (NAME_LEN * slot_w + (NAME_LEN - 1) * gap) / 2)
+        blink = int(self.time * 3) % 2 == 0
+        for i in range(NAME_LEN):
+            x, top = x0 + i * (slot_w + gap), y + 10
+            here = i == len(e.name)
+            if i < len(e.name):
+                img = self.text.get(e.name[i], "#eaffea", 2)
+            elif here and e.letter == NAME_END:
+                img = self.text.get(NAME_END, "#eaffea" if blink else PHOSPHOR)
+            elif here:
+                img = self.text.get(e.letter, "#eaffea" if blink else PHOSPHOR, 2)
+            else:
+                img = None
+            if img:
+                screen.blit(img, (x + (slot_w - img.get_width()) // 2, top + (10 - img.get_height()) // 2))
+            screen.fill(rgb(PHOSPHOR if here else PHOSPHOR_DIM), (x, top + 12, slot_w, 1))
+            if here:                                     # little arrows: the stick rolls this one
+                screen.fill(rgb(PHOSPHOR_DIM), (x + slot_w // 2 - 1, top - 3, 3, 1))
+                screen.fill(rgb(PHOSPHOR_DIM), (x + slot_w // 2, top - 4, 1, 1))
+                screen.fill(rgb(PHOSPHOR_DIM), (x + slot_w // 2 - 1, top + 15, 3, 1))
+                screen.fill(rgb(PHOSPHOR_DIM), (x + slot_w // 2, top + 16, 1, 1))
+        hint = "STICK: LETTER   BUTTON: NEXT" + ("   END: DONE" if e.name else "")
+        s = self.text.get(hint, PHOSPHOR_FAINT)
+        screen.blit(s, (cx - s.get_width() // 2, 166))
 
     def _draw_room(self, screen: pygame.Surface) -> None:
         a = self.art
@@ -522,7 +659,9 @@ class LifeSim:
 
     def _crt_hub(self, crt: pygame.Surface) -> None:
         sw = SCREEN[2]
-        crt.blit(self.text.get(f"LIFE LAB MAINFRAME   SUBJECT {SUBJECT}", PHOSPHOR_DIM), (4, 3))
+        crt.blit(self.text.get("LIFE LAB MAINFRAME", PHOSPHOR_DIM), (4, 3))
+        who = self.text.get(f"VISITOR {self.visitor:04d} {self.name}", PHOSPHOR_DIM)
+        crt.blit(who, (sw - 4 - who.get_width(), 3))
         crt.fill(rgb(PHOSPHOR_DIM), (4, 10, sw - 8, 1))
         crt.blit(self.text.get("SELECT A THEORY OF LIFE:", PHOSPHOR), (4, 14))
         for i, t in enumerate(self.theories):
@@ -582,6 +721,14 @@ def autopilot(game: LifeSim) -> Input:
             return inp
         inp.action = game.phase_t > 1.5
         return inp
+    if game.phase == "summon" and game.stage == "name":
+        # sign in as DEMO: roll to each letter, then press
+        want = "DEMO"[len(game.entry.name)] if len(game.entry.name) < 4 else None
+        if want and game.entry.letter != want:
+            inp.y = -1 if int(game.time * 30) % 2 else 0          # tap up, one letter at a time
+        elif int(game.time * 4) != int((game.time - 1 / 60) * 4):
+            inp.action = True
+        return inp
     if game.phase in ("rain", "cosmos", "exit") or game.phase == "off" and game.pushed is not None:
         return inp                                          # let the intro play
     inp.action = game.phase_t > (1.5 if game.phase == "off" else 2.5)
@@ -599,7 +746,8 @@ def main() -> None:
     ap.add_argument("--ticks", type=int, help="quit after this many frames (testing)")
     ap.add_argument("--screenshot", help="save the last frame here (with --ticks)")
     args = ap.parse_args()
-    run(lambda: LifeSim(skip_boot=args.skip_boot, mute=args.mute, seed=args.seed), "Theories of Life",
+    record = not args.demo and args.ticks is None
+    run(lambda: LifeSim(skip_boot=args.skip_boot, mute=args.mute, seed=args.seed, record=record), "Theories of Life",
         scale=args.scale, fullscreen=args.fullscreen, autopilot=autopilot if args.demo else None,
         max_ticks=args.ticks, screenshot=args.screenshot)
 
