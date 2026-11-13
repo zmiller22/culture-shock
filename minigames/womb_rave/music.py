@@ -322,10 +322,13 @@ def _glottal(ph: float, open_q: float = 0.6) -> float:
 def voice(length: float, pitch: list[tuple[float, float]], vowels: list[tuple[float, str]],
           amp: float = 0.5, breath: float = 0.25, vibrato: float = 0.02,
           env: list[tuple[float, float]] | None = None, onset: float = 0.06,
-          exhale: float = 0.18, voiced: bool = True) -> list[float]:
+          exhale: float = 0.18, voiced: bool = True, scoop: float = 2.0,
+          fry: float = 0.0) -> list[float]:
     """One breath of voice. pitch and vowels are (0..1 through the sound, value) points.
     onset: seconds of breathy "h" before the voice comes in; exhale: seconds of
-    breath left after it stops. voiced=False is breath only (a gasp, a sigh)."""
+    breath left after it stops. voiced=False is breath only (a gasp, a sigh).
+    scoop: semitones below the note it slides up from; fry: seconds of croaky,
+    crackly low voice (vocal fry) it trails off into at the end."""
     n_voice = _n(length)
     n_on, n_ex = _n(onset), _n(exhale)
     n = n_on + n_voice + n_ex
@@ -334,7 +337,8 @@ def voice(length: float, pitch: list[tuple[float, float]], vowels: list[tuple[fl
     out = []
     ph = flow_prev = 0.0
     drift = drift_v = 0.0                                    # slow random pitch wander
-    shimmer = 1.0
+    shimmer = cycle = 1.0
+    n_fry = _n(fry)
     state = [[0.0, 0.0] for _ in range(4)]
     lp = noise_lp = 0.0
     for i in range(n):
@@ -356,19 +360,32 @@ def voice(length: float, pitch: list[tuple[float, float]], vowels: list[tuple[fl
 
         drift_v += rng.uniform(-1, 1) * 0.002 - drift_v * 0.002 - drift * 0.0005
         drift += drift_v * 0.01
-        vib = vibrato * math.sin(t * math.tau * (5.2 + 0.6 * math.sin(t * 1.7))) * min(1, k * 3)
+        wob = math.sin(t * math.tau * (5.2 + 0.6 * math.sin(t * 1.7)))
+        vib = vibrato * wob * min(1, k * 3)
+        level *= 1 + 0.06 * wob * min(1, k * 3)              # tremor: loudness wavers with the pitch
         f0 = _curve(pitch, k) * (1 + vib + max(-0.03, min(0.03, drift)))
-        new_ph = ph + f0 / RATE
-        if new_ph >= 1:                                      # a new cycle: a touch of shimmer
+        f0 *= 2 ** (-scoop / 12 * max(0.0, 1 - (i - n_on) / _n(0.12)) ** 2)   # slide up into the note
+        to_end = n_on + n_voice - i
+        frying = n_fry and 0 < to_end < n_fry
+        if frying:                                           # sag down into a croak
+            fk = 1 - to_end / n_fry
+            f0 = f0 * (1 - fk) + 75 * fk
+        new_ph = ph + f0 * cycle / RATE
+        if new_ph >= 1:                                      # a new cycle: a touch of shimmer (lots in fry)
             new_ph -= 1
             shimmer = 1 + rng.uniform(-0.08, 0.08)
+            cycle = 1.0
+            if frying:
+                shimmer = 1 + rng.uniform(-0.45, 0.25)
+                cycle = 1 + rng.uniform(-0.3, 0.3)
         ph = new_ph
-        flow = _glottal(ph)
+        # louder means a tenser, brighter voice (shorter open phase); softer is breathier
+        flow = _glottal(ph, 0.75 - 0.3 * level if not frying else 0.3)
         pulse = (flow - flow_prev) * RATE / (f0 * 4) * shimmer    # lips radiate the flow's slope
         flow_prev = flow
         noise_lp += (_noise.uniform(-1, 1) - noise_lp) * 0.5
         air = noise_lp * (0.35 + 0.65 * flow if v_amt else 1.0)   # breath puffs with each cycle
-        breathiness = breath * v_amt + (1 - v_amt) * 0.55
+        breathiness = (breath + 0.15 * (1 - level)) * v_amt + (1 - v_amt) * 0.55
         src = pulse * v_amt * (1 - breath * 0.5) + air * breathiness * a_amt
 
         idx = max(j for j, (vk, _) in enumerate(vowels) if vk <= k or j == 0)
@@ -391,6 +408,27 @@ def voice(length: float, pitch: list[tuple[float, float]], vowels: list[tuple[fl
     return out
 
 
+def _room(snd: list[float], mix: float = 0.18, tail: float = 0.35) -> list[float]:
+    """A small, soft room (Schroeder reverb): four combs into two allpasses."""
+    dry = snd + [0.0] * _n(tail)
+    wet = [0.0] * len(dry)
+    for d_ms, g in ((29.7, 0.72), (37.1, 0.7), (41.1, 0.68), (43.7, 0.66)):
+        d, buf = _n(d_ms / 1000), [0.0] * _n(d_ms / 1000)
+        lp = 0.0
+        for i, x in enumerate(dry):
+            y = buf[i % d]
+            lp += (y - lp) * 0.45                            # damp the highs as it bounces
+            buf[i % d] = x + lp * g
+            wet[i] += y
+    for d_ms in (5.0, 1.7):
+        d, buf = _n(d_ms / 1000), [0.0] * _n(d_ms / 1000)
+        for i, x in enumerate(wet):
+            b = buf[i % d]
+            buf[i % d] = x + b * 0.5
+            wet[i] = b - x * 0.5
+    return [a + b * mix / 4 for a, b in zip(dry, wet)]
+
+
 def moans() -> dict[str, list[float]]:
     """Moans for streaks, getting more worked up as the combo grows."""
     fall = [(0, 0), (0.1, 1), (0.6, 0.85), (1, 0)]
@@ -400,23 +438,23 @@ def moans() -> dict[str, list[float]]:
     raw = {
         # warming up
         "mmm": voice(0.75, [(0, 200), (0.3, 235), (1, 190)], [(0, "mm"), (1, "mm")], amp=0.9,
-                     breath=0.12, env=fall, onset=0.03, exhale=0.25),
+                     breath=0.12, env=fall, onset=0.03, exhale=0.25, fry=0.15),
         "ooh": voice(0.65, [(0, 240), (0.4, 320), (1, 270)], [(0, "oo"), (0.6, "oh")], amp=0.8,
-                     breath=0.2, env=fall),
+                     breath=0.2, env=fall, scoop=3),
         "oh": voice(0.38, [(0, 350), (1, 270)], [(0, "oh"), (1, "oh")], amp=0.8, env=short,
                     onset=0.04, exhale=0.15),
-        "uhh": voice(0.6, [(0, 190), (1, 150)], [(0, "uh"), (1, "uh")], amp=0.85, breath=0.35,
-                     env=fall, onset=0.08, exhale=0.3),
+        "uhh": voice(0.65, [(0, 190), (1, 150)], [(0, "uh"), (1, "uh")], amp=0.85, breath=0.35,
+                     env=fall, onset=0.08, exhale=0.3, fry=0.2),
         # into it
         "mmm-ahh": voice(0.95, [(0, 210), (0.4, 235), (0.55, 340), (1, 250)],
                          [(0, "mm"), (0.4, "mm"), (0.55, "ah"), (1, "ah")], amp=0.85, breath=0.2,
-                         env=[(0, 0), (0.1, 0.7), (0.45, 0.7), (0.6, 1), (1, 0)]),
+                         env=[(0, 0), (0.1, 0.7), (0.45, 0.7), (0.6, 1), (1, 0)], fry=0.12),
         "oh-yeah": voice(0.85, [(0, 310), (0.4, 260), (0.55, 360), (1, 280)],
                          [(0, "oh"), (0.4, "oh"), (0.55, "eh"), (0.75, "ah"), (1, "ah")], amp=0.8,
-                         breath=0.2, env=fall),
+                         breath=0.2, env=fall, scoop=4, fry=0.1),
         "ah-ah": voice(0.28, [(0, 340), (1, 300)], [(0, "ah"), (1, "ah")], amp=0.8, env=short, exhale=0.06)
         + voice(0.5, [(0, 380), (0.3, 390), (1, 300)], [(0, "ah"), (1, "ah")], amp=0.85, env=fall,
-                onset=0.03, breath=0.25),
+                onset=0.03, breath=0.25, scoop=4, fry=0.12),
         # the big one
         "climax": gasp
         + voice(0.22, [(0, 320), (1, 340)], [(0, "ah"), (1, "ah")], amp=0.7, env=short, onset=0.02, exhale=0.05)
@@ -424,15 +462,15 @@ def moans() -> dict[str, list[float]]:
         + gasp
         + voice(1.2, [(0, 420), (0.25, 480), (0.7, 420), (1, 290)], [(0, "ah"), (0.75, "ah"), (1, "oh")],
                 amp=0.95, vibrato=0.045, breath=0.3, env=[(0, 0), (0.08, 1), (0.7, 0.9), (1, 0)],
-                onset=0.02, exhale=0.4),
+                onset=0.02, exhale=0.4, scoop=5, fry=0.18),
         # when a big streak breaks
         "aww": voice(0.8, [(0, 320), (0.3, 300), (1, 160)], [(0, "ah"), (1, "oo")], amp=0.75,
-                     breath=0.4, env=fall, exhale=0.3),
+                     breath=0.4, env=fall, exhale=0.3, scoop=0, fry=0.25),
     }
     out = {}
     for name, snd in raw.items():                            # all at the same loudness
         peak = max(abs(v) for v in snd) or 1.0
-        out[name] = [v * 0.75 / peak for v in snd]
+        out[name] = _room([v * 0.75 / peak for v in snd])
     return out
 
 

@@ -92,7 +92,7 @@ CLIMAX_EVERY = 32              # ...and every this many, the big one
 MOANS_SOFT = ("mmm", "ooh", "oh", "uhh")
 MOANS_HOT = ("mmm-ahh", "oh-yeah", "ah-ah")
 HOT_AT = 24                    # combo where the moans get more worked up
-VOLUME = 0.6                   # everything this game plays, song and effects
+VOLUME = 0.48                  # everything this game plays, song and effects
 STREAK_LINES = (
     "ALL ABOUT THE MOTION OF THE OCEAN", "FIND YOUR RHYTHM", "DON'T STOP NOW", "RIGHT THERE!",
     "OH YES. RIGHT ON THE BEAT", "IT'S NOT THE SIZE. IT'S THE TIMING", "BABY MAKING MUSIC",
