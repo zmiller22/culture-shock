@@ -78,6 +78,73 @@ and choose the frame from vertical velocity. `Actor` in `sprites/viewer.py` is a
 small state machine with no pygame dependency that does exactly this, so you can
 copy it into the game.
 
+## The main game: Theories of Life
+
+The cabinet lives in the mad-science room, where every exhibit is a different
+theory of how life begins. The arcade is the scientist's "state of the art"
+simulator for testing them: the **Life Lab Mainframe**, a 1970s computer with
+two reel-to-reel tape drives, a wall of blinking lamps and a green-phosphor CRT.
+
+![the Life Lab Mainframe, waiting to boot](assets/previews/lifesim_title.png)
+
+The CRT says LIFE LAB MAINFRAME over a big **PUSH TO BOOT UP** button. Push it
+and the lamps go wild, the reels spin up, green code rains down the screen and
+the camera dives into the glass. The program opens on a Powers-of-Ten zoom out,
+from the Earth to the edge of everything, labelled as it goes:
+
+| Scale | What you see |
+|---|---|
+| 1E+07 M | the Earth, with a stork in orbit making a delivery |
+| 1E+09 M | the Moon, and a cow jumping over it |
+| 1E+11 M | the inner planets, a sun in sunglasses, Russell's teapot, and a dildo (don't ask) |
+| 1E+13 M | the outer planets, Uranus (a butt, mid-fart), the Flying Spaghetti Monster |
+| 1E+21 M | the Milky Way, which is a pair of boobs. YOU ARE HERE. |
+| 1E+25 M | the cosmic web, which is a brain |
+| ONE SHELF | the brain is in a jar on a shelf in the lab: SPECIMEN: THE UNIVERSE, NO. 7 |
+
+![the zoom out](assets/previews/lifesim_zoom.png)
+
+Past the jar is the dark, where the program finds you: a **spirit** with no
+body yet. Then the camera pulls back out of the CRT to the terminal, where you
+pick a theory of life. The tape mounts, you get incarnated, and the CRT
+switches off into that simulation. Each simulation is one of the mini-games:
+
+| Tape | Theory | Simulation |
+|---|---|---|
+| 01 | The Stork Hypothesis: babies are delivered by air, by a large bird | Stork Bomber |
+| 02 | Primordial Soup: life began in a warm broth of chemicals | Primordial Soup |
+| 03 | The Meet Cute: life starts when two cells fall in love (2 players) | Meet Cute |
+| 04 | The Womb Rave: life is a nine-month party in a very small club | Womb Rave |
+
+![picking a theory](assets/previews/lifesim_menu.png)
+
+When the simulation ends you're disincarnated back into the terminal, which
+prints the result: win and the theory is CONFIRMED, lose and it's REFUTED. The
+menu keeps score for the session. Confirm them all and the machine is not sure
+what to make of it.
+
+```bash
+python -m lifesim                 # windowed; add --fullscreen on the cabinet (./play.sh does this)
+python -m lifesim --skip-boot     # skip the boot and the zoom: straight to the theory menu
+python -m lifesim --demo          # the computer boots it and plays every simulation
+```
+
+| Action | Keyboard | Arcade stick |
+|---|---|---|
+| Pick a theory | Up / Down | stick |
+| Boot / skip the zoom / select / continue | Space, Z or Enter | button 0 |
+| Quit | Esc or Q | |
+
+The code is in `lifesim/`: `art.py` draws the computer room and the spirit,
+`space_art.py` draws the levels of the zoom, `intro.py` runs the code rain and
+the zoom, and `game.py` runs the terminal and hands each tick to the running
+mini-game. Each zoom level is drawn 6x bigger than the one inside it, all
+centred on the Earth, so to add a stop on the way out, add a level to
+`space_art.py` and `build_levels()` in `intro.py`. Tune the pacing with
+`ZOOM_HOLD` and `ZOOM_MOVE` in `intro.py`. To add
+a theory, add a `Theory` to `theories()` in `game.py`. It just needs a
+mini-game that follows the `minigames/shell.py` protocol.
+
 ## Setup
 
 ```bash
@@ -117,7 +184,7 @@ python -m sprites.viewer
 | Take a hit / die | H / K | |
 | Quit | Esc or Q | |
 
-On the cabinet, `./play.sh` launches the game fullscreen on the monitor. It also works over SSH.
+On the cabinet, `./play.sh` launches the main game (Theories of Life) fullscreen on the monitor. It also works over SSH.
 
 ## Output format
 
@@ -134,7 +201,11 @@ assets/
 * Feet touch row 45 (`ground_row` in the atlas), so all characters share a baseline.
 * Transparent background with a 1px dark outline.
 
-## Level 1: The Court House
+## Retired: The Court House
+
+The original main-game idea, before Theories of Life replaced it. The level,
+the boss and `sprites/play.py` still build and run, but the main game doesn't
+use them.
 
 ![the court house](assets/previews/level_courthouse.png)
 
