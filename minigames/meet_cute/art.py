@@ -108,25 +108,29 @@ def folic(frame: int) -> Canvas:
 
 OVUM = {"corona": "#ffe0a0", "zona": "#fff4ec", "cyto": "#ffc4b0", "cyto_sh": "#f09a90",
         "nucleus": "#e0708a", "blush": "#ff6a8a", "mouth": "#c85a6a"}
+SHELL = {"shell": "#fff6e4", "shade": "#e8d2aa", "speck": "#c8a878", "shine": "#ffffff"}
+EGG_ROWS = (5, 7, 8, 9, 10, 10, 11, 11, 11, 11, 10, 9, 6)   # widths, pointy top to round bottom
+EGG_LEAN = (0, 1, 0, -1)                                   # she wobbles as she rolls
 
 
 def egg(frame: int) -> Canvas:
-    """An ovum: a big round cell in its clear shell, ringed with follicle cells,
-    nucleus showing. Rolls rather than swims."""
+    """A chicken egg: pointy on top, fat at the bottom, a few freckles.
+    Rocks side to side rather than swimming."""
     c = Canvas(13, 13)
-    for i in range(10):                                  # corona radiata
-        a = i * math.tau / 10 + frame * 0.4
-        c.set(6 + round(math.cos(a) * 5.6), 6 + round(math.sin(a) * 5.6), OVUM["corona"])
-    c.oval(1, 1, 11, 11, OVUM["zona"])
-    c.oval(2, 2, 9, 9, OVUM["cyto"])
-    for x in range(4, 9):
-        c.set(x, 10, OVUM["cyto_sh"])
-    c.oval(7, 2, 3, 3, OVUM["nucleus"])
-    hx, hy = [(4, 3), (3, 5), (4, 4), (5, 3)][frame % 4]
-    c.set(hx, hy, "#ffffff")
-    c.set(4, 6, INK)
-    c.set(8, 6, INK)
-    c.set(6, 8, OVUM["mouth"])
+    lean = EGG_LEAN[frame % 4]
+    for y, w in enumerate(EGG_ROWS):
+        x0 = 6 - w // 2 + round(lean * (6 - y) / 6)
+        c.hline(x0, x0 + w - 1, y, SHELL["shell"])
+        c.set(x0 + w - 1, y, SHELL["shade"])               # shadow down the right side
+        if y >= 10:
+            c.hline(x0 + 1, x0 + w - 2, y, SHELL["shade"])
+    c.set(4 + lean, 2, SHELL["shine"])
+    c.set(4 + lean, 3, SHELL["shine"])
+    for x, y in ((8, 4), (3, 9), (9, 9), (7, 11)):
+        c.set(x + round(lean * (6 - y) / 6), y, SHELL["speck"])
+    c.set(4, 7, INK)
+    c.set(8, 7, INK)
+    c.set(6, 9, OVUM["mouth"])
     c.outline(OUTLINE)
     return c
 
@@ -153,8 +157,8 @@ def sperm(frame: int, look: tuple[int, int] = (1, 0)) -> Canvas:
 def egg_blush(frame: int) -> Canvas:
     """The egg, flushed: she's spotted him."""
     c = egg(frame)
-    c.set(3, 7, OVUM["blush"])
-    c.set(9, 7, OVUM["blush"])
+    c.set(3, 8, OVUM["blush"])
+    c.set(9, 8, OVUM["blush"])
     return c
 
 

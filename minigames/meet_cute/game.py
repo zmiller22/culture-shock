@@ -55,6 +55,8 @@ from .art import F, TILE
 COLS, ROWS = 39, 21              # tiles; COLS // 2 must be odd so the maze mirrors on a corridor
 OX, OY = (W - COLS * TILE) // 2, H - ROWS * TILE - 1    # where tile (0, 0) sits on screen
 HALF = COLS // 2                 # the middle column
+PLAYER_HEX = {"egg": "#ff9ac8", "sperm": "#5ff3ff"}           # P1 / P2 marker colours
+PLAYER_COLOR = {k: tuple(int(v[i:i + 2], 16) for i in (1, 3, 5)) for k, v in PLAYER_HEX.items()}
 TIME_LIMIT = 90.0                # s before it all comes out as a period
 RIPE_SHARE = 0.6                 # share of the maze's nutrients the two of you eat before she's ready
 LIVES = 3                        # shared hearts
@@ -839,10 +841,24 @@ class MeetCute:
         if int(t * 5) % 4 == 0:
             return
         ex, ey = screen_pos(*EGG_START)
-        screen.blit(text_surface("P1 EGG", "#ff9ac8"), (ex + 9, ey - 3))
+        screen.blit(text_surface("P1 EGG", PLAYER_HEX["egg"]), (ex + 9, ey - 3))
         sx, sy = screen_pos(*SPERM_START)
-        s = text_surface("P2 SPERM", "#5ff3ff")
+        s = text_surface("P2 SPERM", PLAYER_HEX["sperm"])
         screen.blit(s, (sx - 10 - s.get_width(), sy - 3))
+
+    def _draw_marker(self, screen: pygame.Surface, kind: str, x: float, y: float, t: float) -> None:
+        """A dark pool, a pulsing ring and a bobbing arrow in the player's colour,
+        so you can find yourself among the walls, dots and contraception."""
+        col = PLAYER_COLOR[kind]
+        x, y = round(x), round(y)
+        r = 9 + round(math.sin(t * 7))
+        pool = pygame.Surface((r * 2 + 1, r * 2 + 1), pygame.SRCALPHA)
+        pygame.draw.circle(pool, (20, 6, 14, 150), (r, r), r)
+        pygame.draw.circle(pool, (*col, 210), (r, r), r, 1)
+        screen.blit(pool, (x - r, y - r))
+        ay = y - 14 + round(math.sin(t * 5) * 1.5)
+        pygame.draw.polygon(screen, (12, 4, 10), [(x - 4, ay - 1), (x + 4, ay - 1), (x, ay + 4)])
+        pygame.draw.polygon(screen, col, [(x - 3, ay), (x + 3, ay), (x, ay + 3)])
 
     def _draw_players(self, screen: pygame.Surface, t: float) -> None:
         for p in self.players:
@@ -851,6 +867,7 @@ class MeetCute:
             if self.phase == "caught" and p.invuln > INVULN:
                 continue                              # still off screen after getting caught
             x, y = screen_pos(p.fx, p.fy)
+            self._draw_marker(screen, p.kind, x, y, t)
             if p.kind == "egg":
                 frames = self.art.egg_ripe if self.ripe else self.art.egg
                 f = int(p.anim * 2) % 4
