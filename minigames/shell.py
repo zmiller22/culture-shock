@@ -110,6 +110,9 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
         game.update(dt, inp)
         game.draw(screen)
         pygame.transform.scale(screen, window.get_size(), window)
+        overlay = getattr(game, "overlay", None)     # optional: draw on the window itself, at full res
+        if overlay:
+            overlay(window)
         pygame.display.flip()
         if game.done:
             game = make_game()

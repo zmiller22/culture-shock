@@ -13,18 +13,23 @@ the terminal, get incarnated into it, and see whether it holds up. Every
 mini-game is one simulation.
 
 Controls (keyboard, or an arcade stick / gamepad):
-    STICK / ARROWS            pick a theory; on the name entry, up / down change the letter,
+    STICK / ARROWS            pick a theory (or C:/> FILES under them); on the name entry, up / down change the letter,
                               left goes back a letter, right goes on to the next
     SPACE / Z / ENTER / btn 0 boot, skip the intro, select, next letter, continue
     ESC / Q                   quit
 
 Win a simulation and the theory is CONFIRMED; lose and it's REFUTED. The
 terminal keeps score for the session.
+
+Under the theories there's a command line, C:/> FILES, that opens the lab's
+file drawer (see files.py): notebooks, photos of experiments gone wrong, and
+locked files whose 3-letter codes are hidden around the room.
 """
 
 from __future__ import annotations
 
 import argparse
+import atexit
 import math
 import os
 from pathlib import Path
@@ -41,6 +46,8 @@ from sprites.viewer import text_surface, to_surface
 
 from . import art
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT, SCREEN
+from .activity import ActivityLog, enabled_by_env
+from .files import FileTerminal
 from .intro import Cosmos, Rain
 
 # -- tuning ------------------------------------------------------------------------
@@ -177,6 +184,10 @@ def theories(mute: bool = False) -> list[Theory]:
         from minigames.womb_rave.game import WombRave
         return WombRave(mute=mute)
 
+    def spit():
+        from minigames.spit_kit.game import SpitKit
+        return SpitKit()
+
     def pilot(module: str):
         def go(game):
             import importlib
@@ -196,9 +207,14 @@ def theories(mute: bool = False) -> list[Theory]:
         Theory("04", "THE WOMB RAVE", ("LIFE IS A NINE MONTH PARTY", "IN A VERY SMALL CLUB."),
                "1P", womb, pilot("minigames.womb_rave.game"),
                {"win": "BIRTH ACHIEVED. VIBES IMMACULATE.", "lose": "EVICTED. THE BOUNCER WAS THE CERVIX."}),
+        Theory("05", "THE GENETIC CODE", ("LIFE IS A RECIPE IN YOUR SPIT.", "THE JAR WILL READ YOURS."),
+               "1P", spit, pilot("minigames.spit_kit.game"),
+               {"win": "YOU ARE MOSTLY SOMEONE ELSE.", "lose": "NO SPIT. NO SCIENCE."}),
     ]
 
 
+ROW = 9                    # px between theories on the menu (five fit above the divider)
+FILES_BLURB = ("THE LAB'S FILE DRAWER. MOSTLY", "NOTEBOOKS. SOME OF IT IS LOCKED.")
 VERDICT = {"win": "CONFIRMED", "lose": "REFUTED", None: "UNTESTED", "?": "INCONCLUSIVE"}
 
 
@@ -289,7 +305,7 @@ class LifeSim:
     title = "THEORIES OF LIFE"
 
     def __init__(self, skip_boot: bool = False, mute: bool = False, seed: int | None = None,
-                 record: bool = True) -> None:
+                 record: bool = True, log_activity: bool = False) -> None:
         global _ART
         _ART = _ART or Art()
         self.art = _ART
@@ -320,6 +336,12 @@ class LifeSim:
         self.name = "ANON"                      # until they sign in (--skip-boot never asks)
         self.entry: NameEntry | None = None
         self.stage = ""
+        # what each visitor does (files opened, codes, theories). Off unless asked for, never in demos/tests
+        self.activity = ActivityLog(enabled=record and (log_activity or enabled_by_env()),
+                                    visitor=self.visitor, name=self.name)
+        self.activity("session_start", skip_boot=skip_boot)
+        atexit.register(self.activity.close)
+        self.term = FileTerminal(mute, log=self.activity)
         self._go("hub" if skip_boot else "off")
 
     # -- phases --------------------------------------------------------------------
@@ -356,7 +378,7 @@ class LifeSim:
         self.phase_t += dt
         if self.phase == "off":
             target = 0.0
-        elif self.phase in ("load", "rain"):
+        elif self.phase in ("load", "rain") or self.phase == "files" and self.term.playing:
             target = REEL_FAST
         else:
             target = REEL_IDLE if int(self.time * 0.8) % 3 else 0.0   # tape drives move in fits
@@ -369,6 +391,7 @@ class LifeSim:
             if self.sim.done:
                 res = self.sim.result or "?"
                 self.results[self.sim_theory.code].append(res)
+                self.activity("theory_end", theory=self.sim_theory.code, result=res)
                 self.last = (self.sim_theory, res)
                 self.sim = None
                 if pygame.mixer.get_init():
@@ -400,9 +423,10 @@ class LifeSim:
             if self.stage == "name":
                 self.entry.update(dt, inp)
                 if self.entry.done:
-                    self.name = self.entry.name
+                    self.name = self.activity.name = self.entry.name
                     if self.record:
                         sign_in(self.visitor, self.name)
+                    self.activity("sign_in")
                     self.stage = "welcome"
                     self.typer = Typer([s.format(name=self.name) for s in WELCOME_LINES])
             elif inp.action and self.phase_t > SUMMON_FORM:
@@ -418,13 +442,24 @@ class LifeSim:
                 self._go("hub")
         elif self.phase == "hub":
             if inp.y and inp.y != self.held_y:
-                self.sel = (self.sel + inp.y) % len(self.theories)
+                self.sel = (self.sel + inp.y) % (len(self.theories) + 1)     # the last row is C:/> FILES
             self.held_y = inp.y
             if inp.action and self.phase_t > 0.2:
-                self._go("load")
+                if self.sel == len(self.theories):
+                    self.term.open()
+                    self.activity("files_open")
+                    self._go("files")
+                else:
+                    self._go("load")
+        elif self.phase == "files":
+            self.term.update(dt, inp)
+            if self.term.closed:
+                self.activity("files_close")
+                self._go("hub")
         elif self.phase == "load":
             if self.phase_t > LOAD_TIME + CRT_OFF_TIME + 0.2:
                 self.sim_theory = self.theories[self.sel]
+                self.activity("theory_start", theory=self.sim_theory.code)
                 self.sim = self.sim_theory.make()
                 self._go("sim")
         elif self.phase == "return":
@@ -458,6 +493,11 @@ class LifeSim:
                 self._camera(screen, k)
         else:
             self._draw_room(screen)
+
+    def overlay(self, window: pygame.Surface) -> None:
+        """Called by the shell after scaling, on the real window: the rick roll plays here, at full res."""
+        if self.phase == "files":
+            self.term.overlay(window)
 
     def _camera(self, screen: pygame.Surface, k: float) -> None:
         """Zoom the room picture toward the CRT glass: k=0 is the whole room, k=1 fills the screen with DIVE."""
@@ -571,6 +611,10 @@ class LifeSim:
         crt.fill(rgb(CRT_BG))
         self.spirits: list[tuple[float, float, float]] = []
         getattr(self, f"_crt_{self.phase}")(crt)
+        if self.phase == "files":                # crisp text for reading files: no bloom, no scanlines
+            crt.blit(a.vignette, (0, 0))
+            screen.blit(crt, (sx, sy))
+            return
 
         # phosphor bloom: a blurred copy added on top
         small = pygame.transform.smoothscale(crt, (sw // 4, sh // 4))
@@ -665,7 +709,7 @@ class LifeSim:
         crt.fill(rgb(PHOSPHOR_DIM), (4, 10, sw - 8, 1))
         crt.blit(self.text.get("SELECT A THEORY OF LIFE:", PHOSPHOR), (4, 14))
         for i, t in enumerate(self.theories):
-            y = 28 + i * 10
+            y = 26 + i * ROW
             runs = self.results[t.code]
             verdict = VERDICT["win"] if "win" in runs else VERDICT[runs[-1]] if runs and runs[-1] in VERDICT else \
                 VERDICT["?"] if runs else VERDICT[None]
@@ -675,15 +719,22 @@ class LifeSim:
                 crt.blit(self.text.get("2P", fg), (21 + text_width(f"{t.code} {t.name}") + 4, y))
             v = self.text.get(verdict, fg if i == self.sel or runs else PHOSPHOR_FAINT)
             crt.blit(v, (sw - 6 - v.get_width(), y))
-        self._spirit(crt, 10, 30 + self.sel * 10)
+        files = self.sel == len(self.theories)
         crt.fill(rgb(PHOSPHOR_DIM), (4, 70, sw - 8, 1))
-        t = self.theories[self.sel]
-        for i, line in enumerate(t.blurb):
+        blurb = FILES_BLURB if files else self.theories[self.sel].blurb
+        for i, line in enumerate(blurb):
             crt.blit(self.text.get(line, PHOSPHOR), (4, 75 + i * 7))
-        hint = "STICK: CHOOSE   BUTTON: INCARNATE"
-        crt.blit(self.text.get(hint, PHOSPHOR_FAINT), (4, 94))
+        # the command line: pick it like a theory
+        prompt = "C:/> FILES" if files else "C:/>"
+        if files:
+            crt.fill(rgb(PHOSPHOR_FAINT), (4, 91, sw - 8, 9))
+        crt.blit(self.text.get(prompt, PHOSPHOR if files else PHOSPHOR_FAINT), (21, 93))
         if int(self.time * 2.5) % 2 == 0:
-            crt.fill(rgb(PHOSPHOR), (4 + text_width(hint) + 2, 94, 3, 5))
+            crt.fill(rgb(PHOSPHOR), (21 + text_width(prompt) + 2, 93, 3, 5))
+        self._spirit(crt, 10, 95 if files else 28 + self.sel * ROW)
+
+    def _crt_files(self, crt: pygame.Surface) -> None:
+        self.term.draw(crt, self.text, self.time)
 
     def _crt_load(self, crt: pygame.Surface) -> None:
         self._lines(crt, self.typer.visible())
@@ -745,9 +796,12 @@ def main() -> None:
     ap.add_argument("--seed", type=int)
     ap.add_argument("--ticks", type=int, help="quit after this many frames (testing)")
     ap.add_argument("--screenshot", help="save the last frame here (with --ticks)")
+    ap.add_argument("--log-activity", action="store_true",
+                    help="log what each visitor does to ~/.life_lab/activity.jsonl (or set LIFE_LAB_ACTIVITY=1)")
     args = ap.parse_args()
     record = not args.demo and args.ticks is None
-    run(lambda: LifeSim(skip_boot=args.skip_boot, mute=args.mute, seed=args.seed, record=record), "Theories of Life",
+    run(lambda: LifeSim(skip_boot=args.skip_boot, mute=args.mute, seed=args.seed, record=record,
+                                log_activity=args.log_activity), "Theories of Life",
         scale=args.scale, fullscreen=args.fullscreen, autopilot=autopilot if args.demo else None,
         max_ticks=args.ticks, screenshot=args.screenshot)
 

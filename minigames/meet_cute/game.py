@@ -48,7 +48,7 @@ from sprites.palette import LAB_DIM, LAB_TEXT
 from sprites.viewer import H, W, text_surface, to_surface
 
 from ..shell import Input, run
-from . import art
+from . import art, tutorial
 from .art import F, TILE
 
 # -- tuning ------------------------------------------------------------------------
@@ -338,6 +338,7 @@ class MeetCute:
         self.pops: list[tuple[float, float, str, float]] = []
         self.phase = "title" if show_title else "intro"
         self.phase_t = 0.0
+        self.howto = tutorial.make(self.art)
         self.lose_reason = ""
         self.meet_at = (0.0, 0.0)
         self.result: str | None = None
@@ -475,7 +476,8 @@ class MeetCute:
         self.phase_t += dt
         self._update_fx(dt)
         if self.phase == "title":
-            if inp.action or any(p.action for p in inp.players):
+            self.howto.update(dt, inp)
+            if self.howto.done:
                 self._enter("intro")
         elif self.phase == "intro":
             self._update_intro(dt, inp)
@@ -701,10 +703,7 @@ class MeetCute:
 
         blink = int(t * 4) % 2
         if self.phase == "title":
-            self._banner(screen, "MEET CUTE", ["P1 EGG: WASD OR STICK 1     P2 SPERM: ARROWS OR STICK 2",
-                                               f"EAT {self.need} NUTRIENTS BETWEEN YOU TO RIPEN THE EGG",
-                                               "THEN FIND EACH OTHER. DODGE THE CONTRACEPTION!",
-                                               "", "PRESS START" if blink else ""])
+            self.howto.draw(screen)
         elif self.phase == "ready":
             s = big_text("READY..." if self.phase_t < 1.0 else "GO!", "#ffe14d")
             screen.blit(s, (W / 2 - s.get_width() / 2, OY + (PEN[1] + ROWS) // 2 * TILE + 2))

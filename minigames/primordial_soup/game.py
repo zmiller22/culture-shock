@@ -33,7 +33,7 @@ from sprites.viewer import H, W, text_surface, to_surface
 
 from ..shell import Input, run
 from ..stork_bomber import art as stork_art
-from . import art, people
+from . import art, people, tutorial
 
 NEED = 4                        # critters in the soup to bring it to life
 TIME_LIMIT = 45.0               # seconds before the diners lose patience
@@ -333,6 +333,7 @@ class PrimordialSoup:
         self.done = False
         self.phase = "title" if show_title else "play"
         self.phase_t = 0.0
+        self.howto = tutorial.make(self.art, NEED, TIME_LIMIT)
         self.time = 0.0
         self.clock = TIME_LIMIT
 
@@ -455,7 +456,8 @@ class PrimordialSoup:
         self._update_lab(dt)
         if self.phase == "title":
             self._update_critters(dt)
-            if inp.action and self.phase_t > 0.3:
+            self.howto.update(dt, inp)
+            if self.howto.done:
                 self.phase, self.phase_t = "play", 0.0
             self._update_fx(dt)
             return
@@ -1353,10 +1355,7 @@ class PrimordialSoup:
     # -- HUD ------------------------------------------------------------------------------
     def _draw_hud(self, screen: pygame.Surface) -> None:
         if self.phase == "title":
-            self._banner(screen, self.title, [f"PUT {NEED} CRITTERS IN THE SOUP",
-                                              f"YOU HAVE {int(TIME_LIMIT)} SECONDS",
-                                              "MOVE: STICK   POUNCE / THROW: BUTTON",
-                                              "PRESS BUTTON TO START" if int(self.time * 2) % 2 == 0 else ""])
+            self.howto.draw(screen)
             return
         panel = pygame.Surface((76, 9), pygame.SRCALPHA)                    # bottom-left, over the near wall
         panel.fill((20, 15, 38, 220))

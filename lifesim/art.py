@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 
 from sprites.canvas import Canvas, mix
-from sprites.font import draw_text_centered
+from sprites.font import draw_text, draw_text_centered
 from sprites.palette import INK, OUTLINE
 
 W, H = 320, 180
@@ -95,11 +95,8 @@ def _tape_drive(c: Canvas, x: int, y: int, n: int) -> None:
         if x <= sx < x + 60:
             c.rect(sx - 1, sy - 1, sw + 2, sh + 2, METAL_DARK)
             c.rect(sx, sy, sw, sh, GLASS)
-    # lamp strip and a blue name plate
+    # lamp strip
     c.rect(x + 5, y + 69, 50, 7, BEIGE_DARK)
-    c.rect(x + 6, y + 84, 48, 9, BLUE)
-    c.hline(x + 6, x + 53, y + 84, BLUE_LIGHT)
-    draw_text_centered(c, x + 30, y + 86, f"TAPE {n}", BEIGE_LIGHT)
     # two door panels and their handles
     for py in (y + 98, y + 116):
         c.rect(x + 5, py, 50, 16, BEIGE_SHADE)
@@ -131,9 +128,8 @@ def _console(c: Canvas) -> None:
     c.rect(188, 127, 54, 23, BLUE)
     c.hline(188, 241, 127, BLUE_LIGHT)
     c.rect(188, 149, 54, 1, BLUE_DARK)
-    draw_text_centered(c, 215, 130, "LIFE LAB", BEIGE_LIGHT)
-    draw_text_centered(c, 215, 137, "MAINFRAME", mix(BEIGE_LIGHT, BLUE, 0.35))
-    draw_text_centered(c, 215, 143, "MOD 1974", mix(BEIGE_LIGHT, BLUE, 0.35))
+    draw_text_centered(c, 215, 131, "LIFE LAB", BEIGE_LIGHT)
+    draw_text_centered(c, 215, 138, "MAINFRAME", mix(BEIGE_LIGHT, BLUE, 0.35))
     # a big red power button nobody is allowed to touch
     c.oval(237, 145, 3, 3, "#d03030")
 
@@ -161,7 +157,32 @@ def room() -> Canvas:
     for n, (dx, dy) in enumerate(DRIVES, 1):
         _tape_drive(c, dx, dy, n)
     _console(c)
+    _codes(c)
     return c
+
+
+# where the file codes hide (see files.py): small, scruffy, easy to miss
+CODES = {"RKR": "masking tape on the left drive's bottom door", "STK": "sticky note on the right drive's top door",
+         "SUP": "chalk on the wall over the console", "BRN": "scratched into a floor tile"}
+
+
+def _codes(c: Canvas) -> None:
+    d1, d2 = DRIVES
+    # masking tape, written on in marker
+    tx, ty = d1[0] + 8, d1[1] + 118
+    c.rect(tx, ty, 15, 7, "#e9dcae")
+    c.set(tx + 14, ty, BEIGE)                                  # torn corner
+    draw_text(c, tx + 1, ty + 1, "RKR", "#5a3a22")
+    # a sticky note, a little crooked
+    nx, ny = d2[0] + 40, d2[1] + 100
+    c.rect(nx, ny, 13, 9, "#f4e04a")
+    c.hline(nx, nx + 12, ny, "#d8c030")
+    c.set(nx + 12, ny + 8, BEIGE_SHADE)
+    draw_text(c, nx + 1, ny + 3, "STK", "#8a3e1c")
+    # chalk on the wall, above the console
+    draw_text(c, 186, 1, "SUP", mix(WALL, "#eee2c4", 0.35))
+    # scratched into the floor, out in front of the right drive
+    draw_text(c, 284, 167, "BRN", mix(FLOOR, FLOOR_LINE, 0.8))
 
 
 # -- the moving bits -------------------------------------------------------------------

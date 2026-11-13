@@ -29,7 +29,7 @@ from sprites.rig import GROUND, SIZE
 from sprites.viewer import H, W, text_surface, to_surface
 
 from ..shell import Input, run
-from . import art, hairy_man
+from . import art, hairy_man, tutorial
 
 BABIES, NEED = 5, 3            # babies per round, deliveries needed to win
 FLOOR_Y = 168
@@ -206,6 +206,7 @@ class StorkBomber:
         self.done = False
         self.phase = "title" if show_title else "play"
         self.phase_t = 0.0
+        self.howto = tutorial.make(self.art, NEED, BABIES)
 
         self.x, self.y = W * 0.3, 50.0
         self.vx = self.vy = 0.0
@@ -281,7 +282,8 @@ class StorkBomber:
 
         if self.phase == "title":
             self.flap += FLAP_FPS * dt
-            if inp.action and self.phase_t > 0.3:
+            self.howto.update(dt, inp)
+            if self.howto.done:
                 self.phase, self.phase_t = "play", 0.0
             return
         if self.phase in ("won", "lost"):
@@ -652,9 +654,7 @@ class StorkBomber:
 
     def _draw_hud(self, screen: pygame.Surface) -> None:
         if self.phase == "title":
-            self._banner(screen, self.title, [f"DELIVER {NEED} OF {BABIES} BABIES",
-                                              "FLY: STICK   DROP: BUTTON",
-                                              "PRESS BUTTON TO START" if int(self.time * 2) % 2 == 0 else ""])
+            self.howto.draw(screen)
             return
         screen.blit(text_surface(f"BABIES LEFT {self.babies_in_play}", LAB_DIM), (6, 6))
         score = text_surface(f"DELIVERED {self.delivered}/{NEED}", LAB_TEXT)

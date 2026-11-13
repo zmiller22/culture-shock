@@ -3,3 +3,6 @@ __pycache__/
 .DS_Store
 .venv/
 logs/
+
+# rick roll media is yours to supply, not ours to ship
+assets/files/rickroll.*

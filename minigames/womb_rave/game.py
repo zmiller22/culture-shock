@@ -37,7 +37,7 @@ from sprites.rig import GROUND, SIZE
 from sprites.viewer import H, W, Loaded, text_surface, to_surface
 
 from ..shell import Input, run
-from . import art, music
+from . import art, music, tutorial
 from .art import CX, CY, MEM_RX, MEM_RY, RECEPTOR, SAC_RX, SAC_RY
 from .music import BEAT, SONG_LEN
 
@@ -289,6 +289,7 @@ class WombRave:
         self.done = False
         self.phase = "select" if show_title else "walk"
         self.phase_t = 0.0
+        self.howto: tutorial.Tutorial | None = None    # how to play, shown once after the first pick
         self.time = 0.0
         if show_title:
             self.audio.play_lobby()
@@ -393,6 +394,11 @@ class WombRave:
 
         if self.phase == "select":
             self._update_select(dt, inp)
+        elif self.phase == "howto":
+            self.howto.update(dt, inp)
+            if self.howto.done:
+                self.audio.stop_lobby(600)
+                self._enter_phase("walk")
         elif self.phase == "walk":
             self.x += WALK_SPEED * dt
             self.door_open = max(0.0, min(1.0, (self.x - (art.DOOR_X - 70)) / 50))
@@ -460,11 +466,16 @@ class WombRave:
                 self.picked, self.phase_t = True, 0.0
                 self._choose(self.cast[self.pick])
                 self.audio.play("pop")
-                self.audio.stop_lobby(int(PICK_TIME * 1000))
+                if self.howto:                         # seen it already: straight in
+                    self.audio.stop_lobby(int(PICK_TIME * 1000))
                 self._popup("LET'S GO!", W // 2, 22, "#ffe14d", big=True, life=PICK_TIME, rise=2)
         elif self.phase_t >= PICK_TIME:
-            self._enter_phase("walk")
             self.popups.clear()
+            if self.howto is None:
+                self.howto = tutorial.make(self.art, self._frame)
+                self._enter_phase("howto")
+            else:
+                self._enter_phase("walk")
             return
         # ease the carousel round the shortest way, wrapping at the ends
         d = (self.pick - self.slide + n / 2) % n - n / 2
@@ -635,7 +646,7 @@ class WombRave:
 
     # -- draw -------------------------------------------------------------------
     def draw(self, screen: pygame.Surface) -> None:
-        if self.phase == "select":
+        if self.phase in ("select", "howto"):
             self._draw_select(screen)
         elif self.phase in ("dance", "flush"):
             self._draw_inside(screen)
@@ -650,6 +661,8 @@ class WombRave:
                 screen.blit(p.text, (round(x), round(p.y)))
         self._draw_hud(screen)
         self._draw_fade(screen)
+        if self.phase == "howto":
+            self.howto.draw(screen)
 
     def _frame(self, anim: str, i: int, facing: int | None = None) -> pygame.Surface:
         frames = self.dancer.frames[anim][facing or self.facing]
@@ -993,7 +1006,7 @@ class WombRave:
 
     # HUD and overlays
     def _draw_hud(self, screen: pygame.Surface) -> None:
-        if self.phase == "select":
+        if self.phase in ("select", "howto"):
             return
         if self.phase == "rejected" and self.phase_t > REJECT_LINE_TIME * len(REJECT_LINES):
             self._banner(screen, "REJECTED", ["THE WOMB IS CLOSED FOR BUSINESS", "PRESS BUTTON TO PICK SOMEONE ELSE"])
@@ -1064,7 +1077,7 @@ def autopilot(game: WombRave) -> Input:
         inp.x = 1 if int(game.time * 10) % 2 else 0
         return inp
     if game.phase != "dance":
-        inp.action = game.phase in ("select", "won", "lost") and game.phase_t > 1.2 or \
+        inp.action = game.phase in ("select", "howto", "won", "lost") and game.phase_t > 1.2 or \
             game.phase == "rejected" and game.phase_t > REJECT_LINE_TIME * len(REJECT_LINES) + 0.5
         return inp
     now = game.song_t

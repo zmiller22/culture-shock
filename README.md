@@ -118,6 +118,7 @@ switches off into that simulation. Each simulation is one of the mini-games:
 | 02 | Primordial Soup: life began in a warm broth of chemicals | Primordial Soup |
 | 03 | The Meet Cute: life starts when two cells fall in love (2 players) | Meet Cute |
 | 04 | The Womb Rave: life is a nine-month party in a very small club | Womb Rave |
+| 05 | The Genetic Code: life is a recipe, and it's in your spit | Spit Kit |
 
 ![picking a theory](assets/previews/lifesim_menu.png)
 
@@ -125,6 +126,29 @@ When the simulation ends you're disincarnated back into the terminal, which
 prints the result: win and the theory is CONFIRMED, lose and it's REFUTED. The
 menu keeps score for the session. Confirm them all and the machine is not sure
 what to make of it.
+
+### The file drawer
+
+Under the theories sits a command line, `C:/> FILES`. Pick it and the CRT
+turns into the lab's file system: lab notebooks, incident reports, and photos
+of experiments that went wrong (the Kronenbergs, in phosphor green). Browse
+with the stick, open with the button.
+
+Some files are locked. Their 3-letter codes are hidden around the room: on
+masking tape, on a sticky note, chalked on the wall, scratched into the floor.
+One notebook gives up another code. Pick the CODE row, roll three letters like
+the name entry, and a hidden code opens its file. Anything else searches the
+file names.
+
+![the lab's file drawer](assets/previews/lifesim_files.png)
+
+Then there's `WATCH_IF_YOU_ARE_ROLLING.VID` and
+`WATCH_IF_YOU_ARE_NOT_ROLLING.VID`. Both rick roll you, and they're the one
+place the game drops the pixels: the video plays smooth at the window's full
+resolution, with sound. Watch the NOT ROLLING one and you are now rolling, so
+the terminal sends you to the other one. The media isn't shipped: drop
+`rickroll.gif` and `rickroll.ogg` into `assets/files/` (see the README there).
+Without them, the drive reports TAPE MISSING.
 
 ```bash
 python -m lifesim                 # windowed; add --fullscreen on the cabinet (./play.sh does this)
@@ -136,13 +160,17 @@ python -m lifesim --demo          # the computer boots it and plays every simula
 |---|---|---|
 | Pick a theory | Up / Down | stick |
 | Name entry: roll the letter / back / next | Up, Down / Left / Right | stick |
+| Files: browse / back out | Up, Down / Left | stick |
+| Files: type a code (roll / undo / lock) | Up, Down / Left / Right or Space | stick, button 0 |
 | Boot / skip the zoom / select / continue | Space, Z or Enter | button 0 |
 | Quit | Esc or Q | |
 
 The code is in `lifesim/`: `art.py` draws the computer room and the spirit,
 `space_art.py` draws the levels of the zoom, `intro.py` runs the code rain and
-the zoom, and `game.py` runs the terminal and hands each tick to the running
-mini-game. Each zoom level is drawn 6x bigger than the one inside it, all
+the zoom, `game.py` runs the terminal and hands each tick to the running
+mini-game, and `files.py` runs the file drawer. To add a file, add a `LabFile`
+to `FILES` in `files.py` (give it a `code` to lock it, and hide the code in
+`_codes()` in `art.py`). Each zoom level is drawn 6x bigger than the one inside it, all
 centred on the Earth, so to add a stop on the way out, add a level to
 `space_art.py` and `build_levels()` in `intro.py`. Tune the pacing with
 `ZOOM_MOVE` in `intro.py`, and each stop's `hold` (seconds) in `build_levels()` there. To add
@@ -497,6 +525,53 @@ python -m minigames.womb_rave --demo                   # the computer plays
 | Choose a dancer | Left / right | stick |
 | Dance (left, right, up, down) | Arrows | stick |
 | Pick / squeeze / continue | Space, Z or Enter | button 0 |
+| Quit | Esc or Q | |
+
+### Spit Kit
+
+You spit in a real jar next to the cabinet, and the mainframe reads your DNA.
+
+After the how-to pages the screen says SPIT IN THE JAR and points at the real
+one. The jar sits on the HX711 load cell, and a live SALIVA SENSOR bar shows
+what the scale feels. One spit (a step up in weight that settles) and you get
+SAMPLE RECEIVED, with the volume rated from A DRIBBLE to FRANKLY ALARMING. Then
+the analysis: a green terminal spins the centrifuge, filters out lunch,
+sequences 3.2 billion bases and matches you against the lab's specimens while a
+double helix spins. The button hurries it along.
+
+The **genetic report** comes next: three to five of the cast, each with a
+percentage and a one-line diagnosis, and then the verdict, *YOU ARE 40% SPIDER,
+25% BANANA, 25% VIKING AND 10% CENTAUR*. The donors spin together into a helix,
+there's a flash, and the new you is printed from the feet up. Every body part
+(legs, torso, head, both arms) comes from one of your species, and the biggest
+percentages get the most parts. The Kronenberg mutations then zap on one at a
+time: extra eyes, neck bolts, a second head, a radioactive limb.
+
+**THIS IS YOU.** Walk your new body around the lab (stick to walk, up to jump,
+button to attack), then walk it out the EXIT. That's a win. If nobody spits
+within `SPIT_TIMEOUT` seconds, the jar is disappointed in you and you lose.
+
+The genetics live in `minigames/spit_kit/dna.py`: `NICK` holds each species'
+report name and diagnosis, and `DONORS_PER_VISITOR` and `_roll_mutations` set
+how mixed up you come out. The sensor code is in `jar.py`. It runs the same state
+machine as `tools/spit_detector.py` in a child process, so the game loop can't
+stretch an HX711 clock pulse. If you retune the tool, copy the numbers into
+`Tuning`. Without the sensor (no `lgpio`, say on a laptop), or if it stays in
+ERROR, the button counts as the spit. Set `SPIT_JAR=off` to force that,
+`SPIT_JAR_INVERT=1` if adding weight reads negative, and `SPIT_JAR_PINS=chip,sck,data`
+to move it off the default `0,5,13`. Turn `JAR_SIDE` in `game.py` to `-1` if the jar
+sits on the left of the cabinet.
+
+```bash
+python -m minigames.spit_kit                    # windowed; add --fullscreen on the cabinet
+python -m minigames.spit_kit --seed 7           # same seed, same DNA
+python -m minigames.spit_kit --demo             # the computer spits (keyboard spit)
+```
+
+| Action | Keyboard | Arcade stick |
+|---|---|---|
+| Spit (no sensor) / next / hurry / attack | Space, Z or Enter | button 0 |
+| Walk / jump the new you | Arrows | stick |
 | Quit | Esc or Q | |
 
 ### Meet Cute
