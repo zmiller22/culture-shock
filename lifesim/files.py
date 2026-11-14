@@ -44,7 +44,7 @@ import pygame
 
 from sprites.font import BIG_ADV, BIG_H, big_width
 
-from minigames.shell import PROMPT, SKIP_GRACE, ink
+from minigames.shell import PROMPT as VIOLET, SKIP_GRACE, ink   # (PROMPT here is the DOS prompt)
 
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
 from .ooh import Ooh
@@ -775,7 +775,7 @@ class FileTerminal:
             self._put(screen, msg, X0, y)
         else:
             self._put(screen, "TAP BUTTON: BACK TO THEORIES" if row == "UP" else
-                      "TAP BUTTON: TYPE A CODE" if row == "CODE" else "TAP BUTTON: OPEN", X0, y, PROMPT)
+                      "TAP BUTTON: TYPE A CODE" if row == "CODE" else "TAP BUTTON: OPEN", X0, y, VIOLET)
         self._draw_hold_hint(screen)
 
     def _draw_code(self, screen, time: float) -> None:
@@ -807,14 +807,14 @@ class FileTerminal:
                     screen.fill(hi, (mx - k, top - 8 - bob + k, 2 * k + 1, 1))
                     screen.fill(hi, (mx - k, top + 26 + bob - k, 2 * k + 1, 1))
         for i, line in enumerate(("STICK UP / DOWN: CHANGE THE LETTER", "TAP BUTTON: SELECT LETTER")):
-            self._put(screen, line, SW // 2 - big_width(line) // 2, 116 + i * LINE, PROMPT)
+            self._put(screen, line, SW // 2 - big_width(line) // 2, 116 + i * LINE, VIOLET)
         self._footer(screen, "STICK LEFT: BACK")
 
     def _draw_hold_hint(self, screen) -> None:
         """HOLD BUTTON: EXIT at the right of the footer, with a bar filling up while the button's held."""
         label = "HOLD BUTTON: EXIT"
         x = SW - X0 - big_width(label)
-        self._put(screen, label, x, HINT_Y, PROMPT)
+        self._put(screen, label, x, HINT_Y, VIOLET)
         if self.hold_k > 0:
             screen.fill(rgb(PHOSPHOR), (x, HINT_Y + BIG_H + 2, int(big_width(label) * self.hold_k), 2))
 

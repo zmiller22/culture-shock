@@ -25,7 +25,7 @@ import pygame
 from sprites.canvas import Canvas
 from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.viewer import to_surface
-from minigames.shell import PROMPT, SKIP_GRACE
+from minigames.shell import SKIP_GRACE, prompt_text
 
 W, H = 320, 180
 LW, LH = 160, 90            # the light show's own resolution, doubled up to the screen
@@ -74,7 +74,6 @@ class Trip:
         self.plasma = _indexed(_plasma)
         self.tunnel = _indexed(_tunnel)
         self.glyphs: dict[tuple[str, int, int], pygame.Surface] = {}
-        self.hint = self._render("TAP BUTTON: BACK", PROMPT, 1)
 
     def update(self, dt: float, sx: int, act: bool) -> None:
         self.t += dt
@@ -125,6 +124,7 @@ class Trip:
                     screen.blit(dark, (x + dx, yy + dy))
                 screen.blit(self._glyph(ch, hue, scale), (x, yy))
             y += BIG_H * scale + (10 if n == 2 else 7)
-        if self.t > MIN_TIME and int(t * 2) % 2 == 0:
-            screen.fill((10, 0, 20), (W - 8 - self.hint.get_width(), H - 12, self.hint.get_width() + 6, BIG_H + 4))
-            screen.blit(self.hint, (W - 5 - self.hint.get_width(), H - 10))
+        if self.t > MIN_TIME:
+            hint = prompt_text("TAP BUTTON: BACK")
+            screen.fill((10, 0, 20), (W - 8 - hint.get_width(), H - 12, hint.get_width() + 6, BIG_H + 4))
+            screen.blit(hint, (W - 5 - hint.get_width(), H - 10))

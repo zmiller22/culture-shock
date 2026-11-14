@@ -56,7 +56,7 @@ from typing import Callable
 
 import pygame
 
-from minigames.shell import PROMPT, SKIP_GRACE, Input, MiniGame, run
+from minigames.shell import PROMPT, PROMPT_FLASH, SKIP_GRACE, Input, MiniGame, prompt_color, run
 from sprites.canvas import Canvas, hex_to_rgba
 from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.viewer import text_surface, to_surface
@@ -115,10 +115,8 @@ FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF 
                   "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
 # the tour of the map, the first time on it: what to light up, and what to say
 RETURN_OPTIONS = ["PLAY AGAIN", "EXPLORE OTHER THEORIES"]   # after a simulation's verdict
-TOUR_TRY = {"move"}         # the tour pages where they have a go (the rest they just watch)
 TUTORIAL = [
     ("tiles", ("EACH TILE IS A SIMULATION OF ONE", "THEORY OF HOW LIFE BEGINS.")),
-    ("move", ("PUSH THE STICK TO FLOAT FROM", "TILE TO TILE. GO ON, TRY IT.")),
     ("labels", ("TAP THE BUTTON TO JUMP IN. WIN AND", "THE THEORY IS CONFIRMED. LOSE: REFUTED.")),
     ("files", ("WAIT... WHAT IS THIS?",)),
     ("exit", ("HOLD THE BUTTON DOWN AT ANY TIME", "TO OPEN THE EXIT MENU.")),
@@ -325,7 +323,7 @@ def theories(mute: bool = False) -> list[Theory]:
 
     def spit(prev=None):
         from minigames.spit_kit.game import SpitKit
-        return SpitKit()                        # no how-to: the spit screen says what to do
+        return SpitKit(walk_out=False)          # no how-to, and straight to the map once you're spliced
 
     def bear(prev=None):
         from minigames.build_a_bear.game import BuildABear
@@ -408,7 +406,8 @@ class Glyphs:
     The terminal is one colour: every shade of phosphor (dim, faint, the white-hot
     highlight) comes out as plain PHOSPHOR, so text is always the brightest, easiest
     thing to read. The exceptions are CRT_BG, for dark text on a lit bar, and
-    PROMPT, the violet every stick and button instruction is drawn in.
+    PROMPT, the violet every stick and button instruction is drawn in. PROMPT
+    comes out flashing (see prompt_color).
     `big` uses the 5x7 font instead of the 3x5 one."""
 
     def __init__(self, mono: bool = True) -> None:
@@ -416,7 +415,9 @@ class Glyphs:
         self.cache: dict[tuple[str, str, int, bool], pygame.Surface] = {}
 
     def get(self, s: str, color: str, scale: int = 1, big: bool = False) -> pygame.Surface:
-        if self.mono and color not in (CRT_BG, PROMPT):
+        if color == PROMPT:
+            color = prompt_color()
+        if self.mono and color not in (CRT_BG, PROMPT, PROMPT_FLASH):
             color = PHOSPHOR
         key = (s, color, scale, big)
         if key not in self.cache:
@@ -1417,9 +1418,6 @@ class LifeSim:
         screen.blit(img, (px, py))
 
     def _tutorial(self, dt: float, inp: Input) -> None:
-        what, _ = TUTORIAL[self.tutorial]
-        if what == "move":                                 # this page lets them try the stick
-            self._walk(dt, inp)
         if inp.action and self.phase_t > 0.4 and not self.map.moving:
             self.tutorial += 1
             self.phase_t = MAP_FADE                        # (no fade between pages)
@@ -1432,8 +1430,6 @@ class LifeSim:
         grid = tile_rect(0).unionall([tile_rect(i) for i in range(n)])
         if what == "tiles":
             return [grid.inflate(6, 6)]
-        if what == "move":
-            return [grid.union(tile_rect(FILES)).union(EXIT_RECT).inflate(6, 6)]
         if what == "labels":
             return [pygame.Rect(tile_at(i)[0] - 2, tile_at(i)[1] + TILE_H + 1, TILE_W + 4, 9) for i in range(n)] + \
                 [tile_rect(self.sel).inflate(6, 6)] * (self.sel >= 0)
@@ -1451,22 +1447,20 @@ class LifeSim:
             screen.blit(lit, r, r)
             if on:
                 pygame.draw.rect(screen, rgb(PROMPT), r, 1)
+        # INSTRUCTIONS, big across the top, in place of the header
+        screen.fill(VOID, (0, 0, art.W, 17))
+        title = self.text.get("INSTRUCTIONS", PROMPT, 2, big=True)
+        screen.blit(title, (art.W // 2 - title.get_width() // 2, 2))
         box = pygame.Rect(4, 137, art.W - 8, 42)              # over the controls line, which the tour explains
         screen.fill(rgb(CRT_BG), box)
         pygame.draw.rect(screen, rgb(PROMPT), box, 1)
-        # what kind of page: WATCH, or TRY IT! when the stick is theirs
-        tag = "TRY IT!" if what in TOUR_TRY else "WATCH"
-        t = self.text.get(tag, CRT_BG, big=True)
-        badge = pygame.Rect(box.x + 4, box.y + 4, t.get_width() + 6, 11)
-        screen.fill(rgb(PROMPT), badge)
-        screen.blit(t, (badge.x + 3, badge.y + 2))
         for i, line in enumerate(lines):
-            screen.blit(self.text.get(line, PROMPT, big=True), (badge.right + 6, box.y + 6 + i * 10))
+            screen.blit(self.text.get(line, PROMPT, big=True), (box.x + 6, box.y + 4 + i * 10))
         page = self.text.get(f"{self.tutorial + 1}/{len(TUTORIAL)}", PHOSPHOR_DIM)
-        screen.blit(page, (box.x + 6, box.bottom - 9))
-        if int(self.time * 2) % 2 == 0:
-            s = self.text.get("TAP BUTTON: NEXT", PROMPT, big=True)
-            screen.blit(s, (box.right - 5 - s.get_width(), box.bottom - 11))
+        screen.blit(page, (box.right - 5 - page.get_width(), box.y + 4))
+        if int(self.time * 2.5) % 2 == 0:                  # big and flashing: how to move on
+            s = self.text.get("TAP FOR NEXT INSTRUCTION", PROMPT, 2, big=True)
+            screen.blit(s, (box.centerx - s.get_width() // 2, box.bottom - 18))
 
     def _draw_load(self, screen: pygame.Surface) -> None:
         """The body dives into the tile, the tile grows to fill the screen, then it switches off."""

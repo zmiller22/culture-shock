@@ -26,7 +26,7 @@ from sprites.viewer import H, W, text_surface, to_surface
 
 from . import space_art as sa
 from .art import PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
-from minigames.shell import PROMPT, SKIP_GRACE
+from minigames.shell import SKIP_GRACE, prompt_color
 from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.canvas import Canvas
 
@@ -452,5 +452,5 @@ class Cosmos:
         i = min(len(self.levels) - 1, int(self.z + 0.5))
         screen.blit(self._label(f"SCALE: {self.levels[i].scale}", PHOSPHOR), (4, H - 9))
         if self.t > SKIP_GRACE:                                 # (the button can't skip it before then)
-            s = self._big("TAP BUTTON: SKIP", PROMPT)
+            s = self._big("TAP BUTTON: SKIP", prompt_color())
             screen.blit(s, (W - 4 - s.get_width(), H - 10))

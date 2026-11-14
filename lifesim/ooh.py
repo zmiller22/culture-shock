@@ -28,7 +28,7 @@ import pygame
 from sprites.canvas import Canvas, hex_to_rgba
 from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.viewer import to_surface
-from minigames.shell import PROMPT, SKIP_GRACE
+from minigames.shell import SKIP_GRACE, prompt_text
 
 SONG = Path(__file__).resolve().parent.parent / "assets" / "sounds" / "ooh_2001.mp3"
 W, H = 320, 180
@@ -202,9 +202,6 @@ class Ooh:
         self.beams = pygame.Surface((W, H))
         self.words = [text_surface(s, TEXT, 3) for s in LINES]
         self.shadows = [text_surface(s, TEXT_SHADOW, 3) for s in LINES]
-        c = Canvas(big_width("TAP BUTTON: BACK"), BIG_H)
-        draw_big_text(c, 0, 0, "TAP BUTTON: BACK", PROMPT)
-        self.hint = to_surface(c)
         self.scaled: dict[tuple[int, int, int], pygame.Surface] = {}
         if not mute and SONG.exists():
             try:
@@ -515,5 +512,6 @@ class Ooh:
             punch = round(max(0.0, 1 - since / 0.15) * 3)        # a little jolt as each line lands
             screen.blit(sh, (x + 2, y + 2 - punch))
             screen.blit(img, (x, y - punch))
-        if self.words_up and self.t > SKIP_GRACE and int(self.t * 2) % 2 == 0:
-            screen.blit(self.hint, (W - 4 - self.hint.get_width(), H - 10))
+        if self.words_up and self.t > SKIP_GRACE:
+            hint = prompt_text("TAP BUTTON: BACK")
+            screen.blit(hint, (W - 4 - hint.get_width(), H - 10))

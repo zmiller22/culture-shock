@@ -20,7 +20,8 @@ The round (no how-to pages: the spit screen says what to do):
     report    YOU ARE 40% DOM, 30% BANANA AND 30% GENIUS
     splice    the donors spin together, you get scanned in, mutations zap on
     reveal    THIS IS YOU. Walk it around; walk out the door, ENTER SIMULATION, to
-              finish (win)
+              finish (win). Only with walk_out: the main game skips it and goes
+              straight to the theory map once the splice is done
 
 Controls (keyboard, or an arcade stick / gamepad):
     SPACE / Z / ENTER / button 0    next / hurry / attack (and the spit, with no sensor); on the
@@ -46,7 +47,7 @@ from sprites.palette import LAB_BG, LAB_DIM, LAB_FLOOR, LAB_GRID, LAB_TEXT
 from sprites.rig import SIZE, poses
 from sprites.viewer import H, W, Actor, text_surface, to_surface
 
-from ..shell import PROMPT, Input, prompt_text, run
+from ..shell import Input, prompt_color, prompt_text, run
 from . import dna
 from .jar import get_jar
 
@@ -276,7 +277,8 @@ _ART: Art | None = None
 class SpitKit:
     title = "SPIT KIT"
 
-    def __init__(self, seed: int | None = None) -> None:
+    def __init__(self, seed: int | None = None, walk_out: bool = True) -> None:
+        self.walk_out = walk_out                         # False: done as soon as the splice is (no walking out)
         global _ART
         _ART = _ART or Art()
         self.art = _ART
@@ -466,6 +468,9 @@ class SpitKit:
 
     def _start_drive(self) -> None:
         self.result = "win"
+        if not self.walk_out:                            # the main game: straight on to the theory map
+            self.done = True
+            return
         self.actor = Actor()
         self.ax = W / 2
         self.idle_t = 0.0
@@ -555,7 +560,7 @@ class SpitKit:
         jar = self.jar
         blink = int(self.time * 3) % 2 == 0
         if not jar.live:
-            return ("NO SENSOR: TAP BUTTON TO SPIT", PROMPT if blink else LAB_DIM)
+            return ("NO SENSOR: TAP BUTTON TO SPIT", prompt_color())
         if jar.state == "CHANGING":
             return ("SOMETHING IS HAPPENING...", ACCENT if blink else LAB_TEXT)
         if jar.state == "IDLE":
@@ -565,7 +570,7 @@ class SpitKit:
         if jar.state == "START":
             return ("CALIBRATING. DON'T TOUCH THE JAR.", LAB_DIM)
         if self.not_ready_t > FALLBACK_AFTER:
-            return ("SENSOR TROUBLE: TAP BUTTON TO SPIT", PROMPT if blink else LAB_DIM)
+            return ("SENSOR TROUBLE: TAP BUTTON TO SPIT", prompt_color())
         return ("SENSOR TROUBLE. HOLD ON...", "#ff6a6a")
 
     def _draw_got(self, screen: pygame.Surface) -> None:
@@ -657,7 +662,7 @@ class SpitKit:
             screen.set_clip(box.inflate(-2, -2))
             blit_c(screen, img, box.centerx + dx, box.centery)
             screen.set_clip(clip)
-        blit_c(screen, txt("STICK LEFT / RIGHT: CHANGE ANSWER    UP / DOWN: QUESTION", PROMPT), W / 2, H - 30)
+        blit_c(screen, txt("STICK LEFT / RIGHT: CHANGE ANSWER    UP / DOWN: QUESTION", prompt_color()), W / 2, H - 30)
         submit = prompt_text("HOLD BUTTON DOWN TO SUBMIT YOUR ANSWERS")
         if int(self.time * 2.5) % 2 == 0 or sv.hold_k > 0:
             blit_c(screen, submit, W / 2, H - 18)

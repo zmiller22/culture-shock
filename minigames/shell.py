@@ -26,6 +26,7 @@ On screen, instructions for the stick and the button are drawn in PROMPT
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
@@ -34,9 +35,16 @@ import pygame
 from sprites.viewer import H, W, open_pad, players, stick
 
 ACTION_KEYS = (pygame.K_SPACE, pygame.K_z, pygame.K_RETURN)
-PROMPT = "#c79bff"         # violet: every on-screen instruction for the stick or the button
+PROMPT = "#c79bff"         # violet: every on-screen instruction for the stick or the button...
+PROMPT_FLASH = "#ffd9ff"   # ...which flashes to this and back, to catch the eye
+PROMPT_RATE = 0.3          # s on each colour
 SKIP_GRACE = 3.0           # s a video or visual sequence plays before the button can skip it (people tap fast
                            # to pick things, and the extra taps shouldn't skip what they just picked)
+
+
+def prompt_color() -> str:
+    """The instruction colour right now: violet, flashing to pink-white and back."""
+    return PROMPT_FLASH if (pygame.time.get_ticks() // int(PROMPT_RATE * 1000)) % 2 else PROMPT
 
 
 def ink(line: str, default):
@@ -48,8 +56,14 @@ def is_prompt(line: str) -> bool:
     return "BUTTON" in line or "STICK" in line
 
 
-def prompt_text(text: str, color: str = PROMPT) -> pygame.Surface:
-    """An instruction, in the big 5x7 font, violet: big enough to read from arm's length."""
+def prompt_text(text: str, color: str | None = None) -> pygame.Surface:
+    """An instruction, in the big 5x7 font: big enough to read from arm's length. With no
+    colour it's the flashing instruction colour, so call it every frame (it's cached)."""
+    return _prompt_text(text, color or prompt_color())
+
+
+@functools.lru_cache(maxsize=512)
+def _prompt_text(text: str, color: str) -> pygame.Surface:
     from sprites.canvas import Canvas
     from sprites.font import BIG_H, big_width, draw_big_text
     from sprites.viewer import to_surface

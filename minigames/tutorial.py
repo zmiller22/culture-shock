@@ -172,11 +172,6 @@ class Tutorial:
         self.shade.fill((*INK, 232))
         self._title = big(self.title, self.accent)
         self._premise = text_surface(self.premise, LAB_DIM)
-        self._captions = [[prompt_text(line) for line in p.caption] for p in self.pages]
-        self._labels = {k: prompt_text(v) for k, v in self.labels.items()}
-        self._next = prompt_text("TAP BUTTON: NEXT")
-        self._start = prompt_text("TAP BUTTON TO START")
-        self._try = prompt_text("YOUR TURN: TRY IT!")
         self._badges = {kind: badge(kind) for kind in ("WATCH", "TRY IT!")}
         self._intro = Intro(self.intro, self.accent) if self.intro else None
         self._open()
@@ -286,11 +281,11 @@ class Tutorial:
                 draw_jar(screen, 37, cy, down, self.time)
             else:
                 draw_stick(screen, 37, cy, sx, sy)
-            label = self._labels[kind]
+            label = prompt_text(self.labels[kind])
             screen.blit(label, (37 - label.get_width() // 2, cy + 15))
 
         y = DEMO_Y + DEMO_H + 6
-        for s in self._captions[self.page]:                  # big, so centred on the whole screen to fit
+        for s in map(prompt_text, p.caption):                # big, so centred on the whole screen to fit
             screen.blit(s, (W // 2 - s.get_width() // 2, y))
             y += BIG_H + 3
 
@@ -303,12 +298,10 @@ class Tutorial:
             col = self.accent if i == self.page else "#5a4e7a"
             pygame.draw.rect(screen, col, (8 + i * 7, H - 9, 4, 4))
         if self.trial:
-            prompt = self._try if self.cheer_t is None else None
-            blink = True
+            prompt = prompt_text("YOUR TURN: TRY IT!") if self.cheer_t is None else None
         else:
-            prompt = (self._start if self.last else self._next) if self.t >= p.lock else None
-            blink = self.last
-        if prompt and (not blink or int(self.time * 2.5) % 2 == 0):
+            prompt = prompt_text("TAP BUTTON TO START" if self.last else "TAP BUTTON: NEXT") if self.t >= p.lock else None
+        if prompt:                                           # (it flashes colour, see prompt_color)
             screen.blit(prompt, (W - prompt.get_width() - 6, H - BIG_H - 2))
         if self.trial and self.cheer_t is None and self.t > TRY_TIME - 5:       # running out: a bar shrinks
             k = (TRY_TIME - self.t) / 5
