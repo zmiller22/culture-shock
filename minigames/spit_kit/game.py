@@ -20,10 +20,8 @@ The round:
     reveal    THIS IS YOU. Walk it around; walk out the EXIT to finish (win)
 
 Controls (keyboard, or an arcade stick / gamepad):
-    SPACE / Z / ENTER / button 0    next / hurry / attack (and the spit, with no sensor); on the
-                                    survey, a tap is the next question and a hold hands it in
-    STICK / ARROWS                  survey: sideways changes the answer, up / down the question;
-                                    walk your new body, up jumps
+    SPACE / Z / ENTER / button 0    next / hurry / pick a survey answer / attack (and the spit, with no sensor)
+    STICK / ARROWS                  change a survey answer; walk your new body, up jumps
     ESC / Q                         quit
 """
 
@@ -73,17 +71,16 @@ TAUNTS = ("DON'T BE SHY.", "HOCK ONE UP.", "IT'S FOR SCIENCE.", "WE'VE SEEN WORS
 ANALYSIS = (
     ("SAMPLE VOLUME: {vol}", 0.9, ""),
     ("SPINNING CENTRIFUGE", 1.6, " OK"),
-    ("FILTERING OUT FOREIGN DNA", 1.6, "... HOW MANY PEOPLE HAVE YOU KISSED?!?"),
-    ("DRUG TEST", 1.3, "... POSITIVE"),
+    ("FILTERING OUT LUNCH", 1.3, " OK"),
     ("EXTRACTING DNA", 1.4, " OK"),
     (SURVEY_LINE := "BEHAVIORAL ANALYSIS SURVEY", 0.4, " DONE"),
     ("SEQUENCING 3,200,000,000 BASES", 2.6, " OK"),
     ("MATCHING LAB SPECIMENS", 1.9, " OK"),
+    ("DELETING EMBARRASSING GENES", 1.3, " OK"),
     ("{n} MATCHES FOUND.", 1.2, ""),
 )
 TYPE_RATE = 40.0
 SURVEY_REPEAT = (0.4, 0.12)  # s before a held stick starts rolling the answers, then s per answer
-SUBMIT_HOLD = 0.8            # s of holding the button that hands the survey in
 ROOM_WASH = 110              # alpha of the favourite colour washed over the room you walk out into
 
 
@@ -119,57 +116,31 @@ def wrap(text: str, width: int) -> list[str]:
 
 
 class Survey:
-    """Three questions, every one with an answer already picked. Up and down move
-    between the questions, left and right slide through the answers, a tap of the
-    button goes on to the next question, and holding it hands the survey in."""
+    """Three questions; stick up/down rolls the answer, the button locks it in."""
 
     def __init__(self) -> None:
         self.q = 0
         self.picks = [0] * len(dna.SURVEY)
-        self.held = (0, 0)
+        self.held_y = 0
         self.hold_t = 0.0
-        self.press: float | None = None               # s the button's been down, while it is
-        self.slide = 0                                # which way the answer just slid, for the animation
-        self.slide_t = 9.0
         self.done = False
 
-    @property
-    def hold_k(self) -> float:
-        """0..1, how far a held button is to handing it in (0 for a tap)."""
-        if self.press is None or self.press < 0.15:
-            return 0.0
-        return min(1.0, (self.press - 0.15) / (SUBMIT_HOLD - 0.15))
-
-    def _roll(self, step: int) -> None:
-        n = len(dna.SURVEY[self.q][1])
-        self.picks[self.q] = (self.picks[self.q] + step) % n
-        self.slide, self.slide_t = step, 0.0
-
     def update(self, dt: float, inp: Input, pressed: bool) -> None:
-        self.slide_t += dt
-        dirs = (inp.x, inp.y)
-        if inp.y and dirs != self.held:               # up and down: another question
-            self.q = max(0, min(len(dna.SURVEY) - 1, self.q + inp.y))
-        elif inp.x:                                   # sideways: another answer, held keeps sliding
-            if dirs != self.held:
-                self._roll(inp.x)
+        n = len(dna.SURVEY[self.q][1])
+        if inp.y:
+            if inp.y != self.held_y:
+                self.picks[self.q] = (self.picks[self.q] + inp.y) % n
                 self.hold_t = 0.0
             else:
                 self.hold_t += dt
                 while self.hold_t > SURVEY_REPEAT[0]:
-                    self._roll(inp.x)
+                    self.picks[self.q] = (self.picks[self.q] + inp.y) % n
                     self.hold_t -= SURVEY_REPEAT[1]
-        self.held = dirs
+        self.held_y = inp.y
         if pressed:
-            self.press = 0.0
-        elif self.press is not None:
-            if inp.held:
-                self.press += dt
-                self.done = self.press >= SUBMIT_HOLD
-            else:                                     # a tap: on to the next question
-                if self.press < SUBMIT_HOLD:
-                    self.q = min(len(dna.SURVEY) - 1, self.q + 1)
-                self.press = None
+            self.q += 1
+            self.done = self.q == len(dna.SURVEY)
+            self.q = min(self.q, len(dna.SURVEY) - 1)
 
 
 def volume_word(delta: float) -> str:
@@ -553,9 +524,8 @@ class SpitKit:
                     seq_live = text.startswith("SEQUENCING")
                 else:
                     line += suffix
-            for part in wrap(line, panel.w - 8) or [""]:     # a long one carries on underneath
-                screen.blit(txt(part, PHOS), (panel.x + 4, y))
-                y += 9
+            screen.blit(txt(line, PHOS), (panel.x + 4, y))
+            y += 9
             if seq_live and text.startswith("SEQUENCING"):
                 rnd = random.Random(int(t * 20))
                 bases = "".join(rnd.choice("ACGT") for _ in range(40))
@@ -590,32 +560,25 @@ class SpitKit:
         blit_c(screen, txt("THIS BEHAVIORAL ANALYSIS SURVEY.", PHOS), W / 2, 33)
         bob = int(self.time * 4) % 2
         for i, (question, options) in enumerate(dna.SURVEY):
-            y = 50 + i * 28
-            here = i == sv.q
-            screen.blit(txt(f"{i + 1}. {question}", PHOS if here else PHOS_DIM), (20, y + 3))
-            box = pygame.Rect(150, y - 4, 140, 20)
-            col = dna.COLORS[sv.picks[i]][1] if i == 2 else PHOS     # the colour question shows the colour
-            img = txt(options[sv.picks[i]], col if here else PHOS_DIM if i != 2 else col, 2)
-            dx = 0
+            y = 52 + i * 34
+            here, answered = i == sv.q and not sv.done, i < sv.q or sv.done
+            screen.blit(txt(f"{i + 1}. {question}", PHOS if here or answered else PHOS_DIM), (20, y + 3))
+            box = pygame.Rect(150, y - 4, 150, 22)
             if here:
                 pygame.draw.rect(screen, rgb(PHOS), box, 1)
-                for k in range(4):                        # arrows either side: sideways slides the answer
-                    pygame.draw.rect(screen, rgb(PHOS), (box.x - 6 - bob + k, box.centery - k, 1, 2 * k + 1))
-                    pygame.draw.rect(screen, rgb(PHOS), (box.right + 5 + bob - k, box.centery - k, 1, 2 * k + 1))
-                k = min(1.0, sv.slide_t / 0.15)
-                dx = round(sv.slide * 24 * (1 - k))       # the new answer slides in from the side it came
-            clip = screen.get_clip()
-            screen.set_clip(box.inflate(-2, -2))
-            blit_c(screen, img, box.centerx + dx, box.centery)
-            screen.set_clip(clip)
-        blit_c(screen, txt("STICK LEFT / RIGHT: CHANGE ANSWER    UP / DOWN: QUESTION", PHOS_DIM), W / 2, H - 30)
-        submit = txt("HOLD ANY BUTTON TO SUBMIT YOUR ANSWERS", PHOS)
-        if int(self.time * 2.5) % 2 == 0 or sv.hold_k > 0:
-            blit_c(screen, submit, W / 2, H - 18)
-        if sv.hold_k > 0:                                 # holding: a bar fills up to handing it in
-            x0, w = W // 2 - submit.get_width() // 2, submit.get_width()
-            pygame.draw.rect(screen, rgb(PHOS_DIM), (x0, H - 12, w, 2))
-            pygame.draw.rect(screen, (234, 255, 234), (x0, H - 12, round(w * sv.hold_k), 2))
+                for k in range(4):                        # arrows: up and down roll the answer
+                    pygame.draw.rect(screen, rgb(PHOS), (box.centerx - k, box.y - 6 - bob + k, 2 * k + 1, 1))
+                    pygame.draw.rect(screen, rgb(PHOS), (box.centerx - k, box.bottom + 5 + bob - k, 2 * k + 1, 1))
+            if here or answered:
+                answer = options[sv.picks[i]]
+                col = PHOS
+                if i == 2:                                # the colour question shows the colour
+                    col = dna.COLORS[sv.picks[i]][1]
+                blit_c(screen, txt(answer, col, 2), box.centerx, box.centery)
+            else:
+                blit_c(screen, txt("...", PHOS_DIM, 2), box.centerx, box.centery)
+        if int(self.time * 2.5) % 2 == 0 or not self.phase_t > 3:
+            blit_c(screen, txt("STICK UP / DOWN: CHANGE ANSWER    BUTTON: SELECT", PHOS), W / 2, H - 14)
 
     def _draw_report(self, screen: pygame.Surface) -> None:
         sp, t = self._surfaces(), self.phase_t
@@ -794,10 +757,9 @@ def autopilot(game: SpitKit) -> Input:
         press = game.phase_t > 1.5 and tick % 20 == 0
     if game.phase == "analyze":
         press = False
-    if game.phase == "survey":                    # slide an answer or two along, then hold the button
-        roll = tick % 20 == 10 and game.phase_t < 1.5
-        hold = game.phase_t > 2.0
-        return Input(x=1 if roll else 0, action=hold and game.survey.press is None, held=hold)
+    if game.phase == "survey":
+        roll = tick % 20 == 10 and game.phase_t < 2 + 2 * game.survey.q
+        return Input(y=1 if roll else 0, action=press and not roll, players=(Input(action=press),))
     return Input(action=press, players=(Input(action=press),))
 
 

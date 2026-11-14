@@ -15,7 +15,7 @@ Events:
     sign_in                        the visitor typed their name
     files_open / files_close       C:/> FILES opened / backed out of
     file_open                      a file was opened. "via": list, code or next (the button a message ends on)
-    code                           a password was typed into UNLOCK.EXE. "result": granted or denied
+    code                           a 3-letter code was typed. "result": unlocked, already, found or miss
     roll_end                       a rick roll finished. "bailed": true if they skipped out early
     theory_start / theory_end      a simulation was picked / ended (theory_end has "result")
     idle_prompt                    nobody touched anything for a while: the countdown came up ("phase")
