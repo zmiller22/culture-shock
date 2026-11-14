@@ -108,7 +108,14 @@ in with a 1-4 letter name the way old arcades take high-score initials: the
 stick rolls the letter (down goes A -> B, up goes back), the button locks it
 in, left backs up, and END (one step up from A) finishes a short name. Every visitor is logged to
 `~/.life_lab/visitors.txt` (set `LIFE_LAB_VISITORS` to move it; `--demo` doesn't
-log). Then the camera pulls back out of the CRT to the terminal, where you
+log).
+
+Names are unique. Pick one that's taken and it asks HAVE YOU PLAYED HERE
+BEFORE? Say NO and you choose another name. Say YES and you pick up where you
+left off: the same visitor number, body and results, straight to the theory map
+with no intro and no Spit Kit. Each visitor's game is saved once they have a
+body, in `~/.life_lab/players/<NAME>/` (set `LIFE_LAB_PLAYERS` to move it).
+Then the camera pulls back out of the CRT to the terminal, where you
 pick a theory of life. The tape mounts, you get incarnated, and the CRT
 switches off into that simulation. Each simulation is one of the mini-games:
 
@@ -123,8 +130,9 @@ switches off into that simulation. Each simulation is one of the mini-games:
 ![picking a theory](assets/previews/lifesim_menu.png)
 
 When the simulation ends you're disincarnated back into the terminal, which
-prints the result: win and the theory is CONFIRMED, lose and it's REFUTED. The
-menu keeps score for the session. Confirm them all and the machine is not sure
+prints the result: win and the theory is CONFIRMED, lose and it's REFUTED. Then
+you choose PLAY AGAIN (straight back into the same simulation) or EXPLORE OTHER
+THEORIES (back to the map). The menu keeps score. Confirm them all and the machine is not sure
 what to make of it.
 
 ### The file drawer
@@ -190,6 +198,20 @@ centred on the Earth, so to add a stop on the way out, add a level to
 `ZOOM_MOVE` in `intro.py`, and each stop's `hold` (seconds) in `build_levels()` there. To add
 a theory, add a `Theory` to `theories()` in `game.py`. It just needs a
 mini-game that follows the `minigames/shell.py` protocol.
+
+### On the cabinet
+
+Fullscreen hides the mouse pointer. To have the Pi start the main game by
+itself after every boot (it logs in to the desktop automatically), run this
+once on the Pi:
+
+```bash
+~/dev/culture-shock/tools/install_autostart.sh
+```
+
+That adds `~/.config/autostart/culture-shock.desktop`, which runs
+`tools/cabinet_start.sh` and logs to `~/.life_lab/autostart.log`. Take it out
+with `tools/install_autostart.sh --remove`.
 
 ## Setup
 

@@ -63,7 +63,7 @@ from sprites.viewer import text_surface, to_surface
 
 from . import art
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT, SCREEN
-from . import scores
+from . import saves, scores
 from .activity import ActivityLog, disabled_by_env
 from .files import FileTerminal
 from .intro import Cosmos, Rain
@@ -78,7 +78,7 @@ NAME_LEN = 4               # letters in a visitor's name, like an arcade high sc
 NAME_HOLD = 0.8            # s of holding the button that signs off a name shorter than NAME_LEN
 NAME_REPEAT = (0.4, 0.09)  # s before a held stick starts repeating, then s per letter
 NAME_TIMEOUT = 40.0        # s of nobody touching anything before it signs them in as is
-NAME_TAKEN_TIME = 1.8      # s NAME TAKEN stays up when they pick a name someone already has
+NAME_TAKEN_TIME = 2.5      # s NAME TAKEN stays up when they say a taken name isn't theirs
 SCORES_TIME = 8.0          # s of HIGH SCORES when a visit ends, before the next visitor's start screen
 ATTRACT = (8.0, 6.0)       # s of PUSH TO BOOT UP, then s of HIGH SCORES, round and round on the start screen
 SCORE_ROWS = 10            # rows on the high score table
@@ -112,6 +112,7 @@ FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF 
                   "WHAT YOU LEARNED...", "XXX IS THE ANSWER.", "",
                   "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
 # the tour of the map, the first time on it: what to light up, and what to say
+RETURN_OPTIONS = ["PLAY AGAIN", "EXPLORE OTHER THEORIES"]   # after a simulation's verdict
 TUTORIAL = [
     ("tiles", ("EACH TILE IS A SIMULATION OF ONE", "THEORY OF HOW LIFE BEGINS.")),
     ("move", ("PUSH THE STICK TO FLOAT FROM", "TILE TO TILE. GO ON, TRY IT.")),
@@ -131,12 +132,14 @@ def next_visitor() -> int:
 
 
 def taken_names() -> set[str]:
-    """Every name already in the visitor log: nobody gets to sign in as someone else."""
+    """Every name already in the visitor log or with a saved game: signing in as one
+    asks whether it's theirs."""
     try:
         words = VISITOR_LOG.read_text().split()
-        return set(words[1::2])
+        logged = set(words[1::2])
     except OSError:
-        return set()
+        logged = set()
+    return logged | saves.names()
 
 
 def sign_in(num: int, name: str) -> None:
@@ -152,7 +155,11 @@ class NameEntry:
     """Old-school arcade initials: down rolls on through the alphabet (A -> B),
     up rolls back, and a tap of the button locks the letter in and moves on.
     Holding the button down signs off with the letters so far, so names can be
-    1-4 letters. The button acts when it's let go, so a hold never adds a letter."""
+    1-4 letters. The button acts when it's let go, so a hold never adds a letter.
+
+    A name someone already has asks HAVE YOU PLAYED HERE BEFORE? YES signs them
+    in as that name (`returning`, so the game can pick up their saved game); NO
+    says the name's taken and takes the last letter back off."""
 
     LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
 
@@ -166,6 +173,10 @@ class NameEntry:
         self.hold_t = 0.0
         self.press: float | None = None               # s the button's been down, while it is
         self.idle = 0.0
+        self.ask: str | None = None                   # the taken name, while PLAYED HERE BEFORE? is up
+        self.ask_sel = 0                              # 0 = YES, 1 = NO
+        self.ask_armed = False                        # the button has to come up before it answers
+        self.returning = False                        # they said YES: it's their name from before
 
     @property
     def letter(self) -> str:
@@ -189,6 +200,9 @@ class NameEntry:
         dirs = (inp.x, inp.y)
         if dirs != (0, 0) or inp.action or inp.held:
             self.idle = 0.0
+        if self.ask is not None:
+            self._update_ask(inp, dirs)
+            return
         if inp.y:
             if dirs != self.held:
                 self._roll(inp.y)                     # down goes A -> B
@@ -212,11 +226,11 @@ class NameEntry:
             if inp.held:
                 self.press += dt
                 if self.press >= NAME_HOLD and self.name:
-                    if self.name in self.taken:       # someone has it: pick another
-                        self.taken_t = NAME_TAKEN_TIME
-                        self.press = None
-                    else:
-                        self.done = True              # held down: that's the name
+                    self.press = None
+                    if self.name in self.taken:       # someone has it: is it them?
+                        self._ask(self.name)
+                        return
+                    self.done = True                  # held down: that's the name
             else:                                     # let go quickly: a tap, lock the letter
                 if self.press < NAME_HOLD:
                     self.lock()
@@ -231,10 +245,38 @@ class NameEntry:
     def lock(self) -> None:
         self.name += self.letter
         if len(self.name) == NAME_LEN and self.name in self.taken:
-            self.name = self.name[:-1]                # someone has it: that last letter doesn't go in
-            self.taken_t = NAME_TAKEN_TIME
+            self._ask(self.name)                      # someone has it: is it them?
             return
         self.done = len(self.name) == NAME_LEN        # otherwise the next slot starts on the same letter
+
+    def _ask(self, name: str) -> None:
+        self.ask, self.ask_sel, self.ask_armed = name, 0, False
+        self.name = name
+        self.held = (1, 1)                            # a stick already pushed doesn't move it straight away
+
+    def _update_ask(self, inp: Input, dirs: tuple[int, int]) -> None:
+        """PLAYED HERE BEFORE? The stick picks YES or NO, a press of the button answers."""
+        move = inp.x or inp.y
+        if move and dirs != self.held:
+            self.ask_sel = 0 if move < 0 else 1
+        self.held = dirs
+        if not self.ask_armed:                        # the press that finished the name isn't an answer
+            self.ask_armed = not inp.held
+        elif inp.action:
+            self.answer(self.ask_sel == 0)
+        if self.idle > NAME_TIMEOUT:                  # nobody's answering: not them, then
+            self.answer(False)
+            self.idle = NAME_TIMEOUT + 1              # and the timeout below makes a name up
+
+    def answer(self, yes: bool) -> None:
+        name, self.ask = self.ask, None
+        if yes:
+            self.name, self.returning, self.done = name, True, True
+            return
+        self.name = name[:-1]                         # that last letter comes back off
+        self.cur = self.LETTERS.index(name[-1])
+        self.taken_t = NAME_TAKEN_TIME
+        self.press = None
 
 
 @dataclass
@@ -450,7 +492,12 @@ class LifeSim:
         self.visitor = next_visitor()
         self.name = "ANON"                      # until they sign in (--skip-boot never asks)
         self.signed_in = False
-        self.confirmed_at = 0.0                 # self.time when they confirmed their latest new theory
+        self.confirmed_at = 0.0                 # s of play (over every visit) when they confirmed their latest new theory
+        self.time_base = 0.0                    # s of play on earlier visits, for a visitor who's come back
+        self.has_save = False                   # they've got a body, so there's a game to save (see saves.py)
+        self.saved_frames: dict[str, int] = {}  # what's in the saved body's strips
+        self.return_sel = 1                     # the picked option on a simulation's verdict screen
+        self.return_y = 0
         self.score_saved = False
         self.scores = scores.ranked(scores.load())
         self.entry: NameEntry | None = None
@@ -525,6 +572,8 @@ class LifeSim:
             else:
                 lines += [f"THEORIES TESTED: {len(tested)} OF {len(self.theories)}"]
             self.typer = Typer(lines)
+            self.return_sel = RETURN_OPTIONS.index("PLAY AGAIN" if res != "win" else "EXPLORE OTHER THEORIES")
+            self.return_y = 1                   # a stick already held doesn't move it straight away
         elif phase == "frontier":
             self.typer = Typer(FRONTIER_LINES, rate=30, pause=0.6)
 
@@ -705,8 +754,38 @@ class LifeSim:
     def my_score(self) -> scores.Score:
         return scores.Score(self.visitor, self.name, self.confirmed, round(self.confirmed_at))
 
+    def _save_game(self, avatar=None) -> None:
+        """Their saved game, so they can come back to it under the same name. Only once they've got a body."""
+        if not (self.record and self.signed_in and self.has_save):
+            return
+        state = saves.Save(self.name, self.visitor, {k: list(v) for k, v in self.results.items()},
+                           self.frontier_shown, self.confirmed_at, self.time_base + self.time, dict(self.saved_frames))
+        saves.save(state, avatar)                     # with a body, this fills in state.frames
+        self.saved_frames = state.frames
+
+    def _resume(self, save: saves.Save) -> None:
+        """A visitor who's been before: their body and results back, and straight to the theory map."""
+        self.visitor = self.activity.visitor = save.visitor
+        for code in self.results:
+            self.results[code] = list(save.results.get(code, []))
+        self.frontier_shown = save.frontier_shown
+        self.confirmed_at = save.confirmed_at
+        self.time_base = save.played - self.time      # so time_base + self.time carries on from where they were
+        self.saved_frames = dict(save.frames)
+        frames = saves.load_avatar(save)
+        if frames:
+            self.avatar = {anim: {1: right, -1: [pygame.transform.flip(img, True, False) for img in right]}
+                           for anim, right in frames.items()}
+        else:
+            self._random_avatar()
+        self.has_save = self.hold_exit = True
+        self.tutorial = None
+        self.activity("resume", confirmed=self.confirmed)
+        self._go("hub")
+
     def _save_score(self) -> None:
         """Once per visit, and only for a visitor who signed in."""
+        self._save_game()
         if self.signed_in and not self.score_saved:
             self.score_saved = True
             if self.record:
@@ -777,11 +856,12 @@ class LifeSim:
             elif self.sim.done:
                 res = self.sim.result or "?"
                 if res == "win" and "win" not in self.results[self.sim_theory.code]:
-                    self.confirmed_at = self.time       # a new theory confirmed: the clock for the high scores
+                    self.confirmed_at = self.time_base + self.time   # a new theory confirmed: the high-score clock
                 self.results[self.sim_theory.code].append(res)
                 self.activity("theory_end", theory=self.sim_theory.code, result=res, secs=self._sim_secs())
                 self.last = (self.sim_theory, res)
                 self.sim = None
+                self._save_game()
                 if pygame.mixer.get_init():
                     pygame.mixer.fadeout(300)     # the womb rave leaves its lobby music on
                 self._go("return")
@@ -817,10 +897,14 @@ class LifeSim:
                 if self.entry.done:
                     self.name = self.activity.name = self.entry.name
                     self.signed_in = True
-                    if self.record:
-                        sign_in(self.visitor, self.name)
-                    self.activity("sign_in")
-                    self._go("journey")
+                    save = saves.load(self.name) if self.entry.returning else None
+                    if save:                            # they've been before: pick up where they left off
+                        self._resume(save)
+                    else:
+                        if self.record:
+                            sign_in(self.visitor, self.name)
+                        self.activity("sign_in", returning=self.entry.returning)
+                        self._go("journey")
             elif inp.action and not self.typer.done:
                 self.typer.finish()
             if not self.entry and self.typer.done and self.typer.t > self.typer.end + 0.3:
@@ -865,16 +949,15 @@ class LifeSim:
                 self.sim = self.sim_theory.make()
                 self._go("sim")
         elif self.phase == "return":
+            y = inp.y or inp.x or next((p.y or p.x for p in inp.players if p.y or p.x), 0)
+            if self.typer.done and y and not self.return_y:   # the stick: PLAY AGAIN or EXPLORE OTHER THEORIES
+                self.return_sel = max(0, min(len(RETURN_OPTIONS) - 1, self.return_sel + y))
+            self.return_y = y
             if inp.action and self.phase_t > CRT_ON_TIME + 0.5:
                 if not self.typer.done:
                     self.typer.finish()
-                elif all(self.results.values()) and not self.frontier_shown:   # every theory tested
-                    self.frontier_shown = True
-                    self.activity("frontier")
-                    self._go("frontier")
                 else:
-                    self.map.place(self.theories.index(self.last[0]))
-                    self._go("hub")
+                    self._after_return(RETURN_OPTIONS[self.return_sel])
         elif self.phase == "frontier":                  # CONGRATULATIONS! ... XXX IS THE ANSWER.
             if inp.action and self.phase_t > 0.5:
                 if not self.typer.done:
@@ -883,6 +966,21 @@ class LifeSim:
                     if self.last:
                         self.map.place(self.theories.index(self.last[0]))
                     self._go("hub")
+
+    def _after_return(self, option: str) -> None:
+        """Off the verdict screen: the same simulation again, or back to the map (by way of
+        CONGRATULATIONS! the first time every theory's been tested)."""
+        self.activity("return_choice", option=option, theory=self.last[0].code)
+        self.map.place(self.theories.index(self.last[0]))
+        if option == "PLAY AGAIN":
+            self._go("load")
+        elif all(self.results.values()) and not self.frontier_shown:   # every theory tested
+            self.frontier_shown = True
+            self._save_game()
+            self.activity("frontier")
+            self._go("frontier")
+        else:
+            self._go("hub")
 
     # -- drawing -----------------------------------------------------------------------
     def draw(self, screen: pygame.Surface) -> None:
@@ -1055,10 +1153,25 @@ class LifeSim:
                 for k in range(4):
                     screen.fill(hi, (mx - k, top - 7 - bob + k, 2 * k + 1, 1))
                     screen.fill(hi, (mx - k, top + 25 + bob - k, 2 * k + 1, 1))
+        if e.ask is not None:                              # a taken name: is it theirs?
+            q = self.text.get(f"{e.ask} IS TAKEN. HAVE YOU PLAYED HERE BEFORE?", PHOSPHOR, big=True)
+            screen.blit(q, (cx - q.get_width() // 2, top + 34))
+            for i, opt in enumerate(("YES", "NO")):
+                row = pygame.Rect(int(cx) - 54 + i * 60, top + 47, 48, 12)
+                if i == e.ask_sel:
+                    screen.fill(rgb(PHOSPHOR), row)
+                    s = self.text.get(opt, CRT_BG, big=True)
+                else:
+                    pygame.draw.rect(screen, rgb(PHOSPHOR_DIM), row, 1)
+                    s = self.text.get(opt, PHOSPHOR, big=True)
+                screen.blit(s, (row.centerx - s.get_width() // 2, row.y + 3))
+            h = self.text.get("STICK: CHOOSE    BUTTON: SELECT", PHOSPHOR_DIM)
+            screen.blit(h, (cx - h.get_width() // 2, top + 64))
+            return
         lines = ["STICK UP / DOWN: CHANGE THE LETTER", "BUTTON: SELECT LETTER",
                  "HOLD BUTTON DOWN WHEN DONE"]
         if e.taken_t > 0:                                  # that name's someone else's
-            lines[0] = "NAME TAKEN! TRY ANOTHER" if int(self.time * 6) % 2 == 0 else ""
+            lines[0] = "NAME TAKEN! CHOOSE A UNIQUE NAME" if int(self.time * 6) % 2 == 0 else ""
         for i, line in enumerate(lines):
             if not line:
                 continue
@@ -1221,6 +1334,8 @@ class LifeSim:
         if canvases:
             self._set_avatar(canvases["final"])
         self.sim = None
+        self.has_save = True                    # from here on there's a game to come back to
+        self._save_game(canvases["final"] if canvases else None)
         self.tutorial = 0                       # first time on the map: show them round it
         self.hold_exit = True                   # from here on, holding the button anywhere exits
         self._go("hub")
@@ -1344,9 +1459,18 @@ class LifeSim:
             if line:
                 screen.blit(self.text.get(line, PHOSPHOR, big=True), (12, 24 + i * 11))
         if self.typer.done:
-            if int(self.time * 2) % 2 == 0:
-                s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
-                screen.blit(s, (art.W // 2 - s.get_width() // 2, 160))
+            bw, x = 150, 12
+            for i, opt in enumerate(RETURN_OPTIONS):       # PLAY AGAIN / EXPLORE OTHER THEORIES
+                row = pygame.Rect(x, 120 + i * 14, bw, 12)
+                if i == self.return_sel:
+                    screen.fill(rgb(PHOSPHOR), row)
+                    s = self.text.get(opt, CRT_BG, big=True)
+                else:
+                    pygame.draw.rect(screen, rgb(PHOSPHOR_DIM), row, 1)
+                    s = self.text.get(opt, PHOSPHOR, big=True)
+                screen.blit(s, (row.centerx - s.get_width() // 2, row.y + 3))
+            s = self.text.get("STICK: CHOOSE    BUTTON: SELECT", PHOSPHOR_DIM)
+            screen.blit(s, (x, 152))
             self._draw_body(screen, art.W - 40, 172, "idle", 2.0)
         if self.phase_t < CRT_ON_TIME:
             self._squash(screen, 1.0 - self.phase_t / CRT_ON_TIME)
@@ -1525,6 +1649,9 @@ def autopilot(game: LifeSim) -> Input:
             return game.map.steer(want)
         inp.action = game.phase_t > 1.5
         return inp
+    if game.phase == "summon" and game.entry and game.entry.ask is not None:
+        game.entry.answer(False)                            # a demo never played before
+        return inp
     if game.phase == "summon" and game.entry:
         # sign in as DEMO: roll to each letter, then press
         want = "DEMO"[len(game.entry.name)] if len(game.entry.name) < 4 else None
@@ -1532,6 +1659,9 @@ def autopilot(game: LifeSim) -> Input:
             inp.y = 1 if int(game.time * 30) % 2 else 0           # tap down, one letter at a time
         elif int(game.time * 4) != int((game.time - 1 / 60) * 4):
             inp.action = True
+        return inp
+    if game.phase == "return" and game.typer.done and RETURN_OPTIONS[game.return_sel] != "EXPLORE OTHER THEORIES":
+        inp.y = 1 if int(game.time * 30) % 2 else 0           # tap down to EXPLORE OTHER THEORIES
         return inp
     if game.phase in ("dive", "journey", "rain", "cosmos") or game.phase == "off" and game.pushed is not None:
         return inp                                          # let the intro play

@@ -13,6 +13,7 @@ The lab terminal's two `.VID` files (`WATCH_IF_YOU_ARE_ROLLING` and
 - `rickroll.ogg` (or `.mp3` / `.wav`): a song. It plays instead of the video's
   own sound, or alongside the picture. Playback ends when the song does.
 
-Files named `rickroll.*` win; otherwise the first file with a matching extension
-is used. A picture with no song runs for 20 seconds. With nothing playable, the
+Files named `rickroll.*` win; otherwise the first video or picture with a
+matching extension is used. A song only counts if it's named `rickroll.*`, since
+other sound files live in this folder too. A picture with no song runs for 20 seconds. With nothing playable, the
 terminal says TAPE MISSING.

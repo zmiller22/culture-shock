@@ -5,7 +5,9 @@ with LIFE_LAB_SCORES):
 
     0019 ZACH 3 412        visitor, name, theories confirmed, seconds to the last one
 
-Only visitors who signed in get a line (not --skip-boot runs). More confirmed
+Only visitors who signed in get a line (not --skip-boot runs). A visitor who
+comes back under the same name (see saves.py) keeps their number, so their next
+line replaces the last one. More confirmed
 ranks higher; on a tie, whoever got there in fewer seconds; then whoever came first.
 """
 
@@ -30,18 +32,20 @@ class Score:
 
 
 def load(path: Path = SCORES_LOG) -> list[Score]:
-    scores = []
+    """Every visitor's latest line (a returning visitor writes another one)."""
+    scores: dict[int, Score] = {}
     try:
         for line in path.read_text().splitlines():
             parts = line.split()
             if len(parts) == 4:
                 try:
-                    scores.append(Score(int(parts[0]), parts[1], int(parts[2]), int(parts[3])))
+                    sc = Score(int(parts[0]), parts[1], int(parts[2]), int(parts[3]))
                 except ValueError:
-                    pass
+                    continue
+                scores[sc.visitor] = sc
     except OSError:
         pass
-    return scores
+    return list(scores.values())
 
 
 def save(score: Score, path: Path = SCORES_LOG) -> None:

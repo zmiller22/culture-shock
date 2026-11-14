@@ -75,6 +75,7 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
         window = pygame.display.set_mode((cw, ch), pygame.FULLSCREEN | pygame.SCALED)
         window.fill((0, 0, 0))
         view = window.subsurface(((cw - W) // 2, (ch - H) // 2, W, H))     # the picture, inside the border
+        pygame.mouse.set_visible(False)                                   # no pointer on the cabinet
     else:
         window = view = pygame.display.set_mode((W * scale, H * scale))
     pygame.display.set_caption(caption)

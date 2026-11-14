@@ -182,12 +182,14 @@ def human_size(n: int) -> str:
     return f"{n}" if n < 1000 else f"{n / 1000:.1f}K" if n < 1_000_000 else f"{n / 1_000_000:.1f}M"
 
 
-def _find(exts: tuple[str, ...]) -> Path | None:
-    """assets/files/rickroll.<ext>, or else any file there with one of these extensions."""
+def _find(exts: tuple[str, ...], loose: bool = True) -> Path | None:
+    """assets/files/rickroll.<ext>, or else (if `loose`) any file there with one of these extensions."""
     for ext in exts:
         p = MEDIA_DIR / f"{MEDIA_NAME}{ext}"
         if p.exists():
             return p
+    if not loose:
+        return None
     hits = sorted(p for p in MEDIA_DIR.glob("*") if p.suffix.lower() in exts)
     return hits[0] if hits else None
 
@@ -326,7 +328,8 @@ class Media:
         if self.loaded:
             return
         self.loaded = True
-        self.audio = _find(AUDIO_EXTS)
+        # only a song named rickroll.* counts: other sound files live here too (the 2001 theme)
+        self.audio = _find(AUDIO_EXTS, loose=False)
         self.movie = _find(MOVIE_EXTS) if FFMPEG else None
         if self.movie:
             self.audio = self.audio or _soundtrack(self.movie)
