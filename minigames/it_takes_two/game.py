@@ -19,7 +19,7 @@ Controls (keyboard, or one arcade stick / gamepad per player):
     ESC / Q                     quit
 
 It's co-op. Both of you eat the nutrients lining the tubes. Once you've eaten
-enough between you, the egg is RIPE, and the round is won the moment you two
+enough between you, the egg is FERTILE, and the round is won the moment you two
 touch. Bump into each other before that and she isn't ready yet.
 
 Contraception patrols the maze and wants you apart:
@@ -631,7 +631,7 @@ class ItTakesTwo:
             self.score += POINTS_DOT
             if self.ripe and not was_ripe:
                 x, y = screen_pos(self.egg.fx, self.egg.fy)
-                self._popup("SHE'S RIPE!", x, y - 10, "#ff9ac8", big=True, life=1.6)
+                self._popup("SHE'S FERTILE!", x, y - 10, "#ff9ac8", big=True, life=1.6)
                 self._burst(x, y, ["#ff6a9a", "#ffc0cc", "#ffe14d"], n=20)
         if t in self.pills:
             self.pills.discard(t)
@@ -1064,7 +1064,7 @@ class ItTakesTwo:
         egg = self.art.egg_ripe[0] if self.ripe else self.art.egg[0]
         small = pygame.transform.scale(egg, (9, 9))
         screen.blit(small, (3, 1))
-        label = "RIPE!" if self.ripe else "RIPENESS"
+        label = "FERTILE!" if self.ripe else "FERTILITY"
         screen.blit(text_surface(label, "#ff9ac8" if self.ripe and int(t * 4) % 2 else LAB_DIM), (14, 3))
         bx, bw = 52, 50
         screen.fill(rgb(F["deep"]), (bx, 3, bw, 5))

@@ -1,7 +1,14 @@
 """It Takes Two's how-to-play pages. They play on a tiny maze, drawn at 1x and blown
-up 2x so the egg and the sperm read from across the room. Most are try-it pages:
-P1 steers the egg and P2 the sperm round the little maze, with the game's own
-speeds and cornering."""
+up 2x so the egg and the sperm read from across the room. Every page but one is
+a try-it page: P1 steers the egg and P2 the sperm round the little maze, with the
+game's own speeds and cornering.
+
+    1. Steer, and find each other (done when you touch).
+    2. She has to be fertile first: eat 4 nutrients together to fill the bar.
+    3. Watch out (a show-me): a condom catches the egg, a heart goes, back to start.
+    4. Eat folic acid to fight back: grab the capsule, then eat the condom.
+    5. The bar's full: find each other and conceive, and the round starts.
+"""
 
 from __future__ import annotations
 
@@ -22,23 +29,12 @@ GRID = ["##############",
         "#............#",
         "##############"]
 OX, OY = 3, 2                       # tile (0, 0), on the half-size surface
-RING = [(1, 1), (12, 1), (12, 4), (1, 4)]    # the corridor loop, in tiles (clockwise)
-PERIM = 2 * (11 + 3)
 EGG_AT, SPERM_AT = (1, 1), (12, 4)  # where they start, in opposite corners like the real maze
-MOVED = 1.5                         # tiles each has to swim on the first page
-FOOD = [(4, 1), (8, 1), (12, 2), (9, 2), (4, 3), (1, 3), (5, 4), (9, 4)]   # the nutrients on the eating page
-
-
-def at(s: float) -> tuple[float, float, int, int]:
-    """Tile position s tiles clockwise round the loop from the top-left, and the heading."""
-    s %= PERIM
-    for (ax, ay), (bx, by) in zip(RING, RING[1:] + RING[:1]):
-        n = abs(bx - ax) + abs(by - ay)
-        if s <= n:
-            dx, dy = (bx > ax) - (bx < ax), (by > ay) - (by < ay)
-            return ax + dx * s, ay + dy * s, dx, dy
-        s -= n
-    return RING[0][0], RING[0][1], 1, 0
+FOOD = [(7, 1), (12, 2), (5, 4), (1, 3)]    # the four nutrients on the fertility page
+CAPSULE = (6, 4)                    # the folic acid on the fight-back page
+CONDOM_AT = (9, 1)                  # and the condom it's for
+CONDOM_SPEED, FLEE_SPEED = 2.6, 2.0   # tiles/s: slower than either of you, so it's learnable
+SAFE = 1.2                          # s of blinking after getting sent back to start
 
 
 def px(tx: float, ty: float) -> tuple[float, float]:
@@ -47,7 +43,7 @@ def px(tx: float, ty: float) -> tuple[float, float]:
 
 def make(a) -> Tutorial:
     """`a` is the game's Art (pre-rendered surfaces)."""
-    from .game import PLAYER_HEX, TOUCH, EGG_SPEED, SPERM_SPEED, ItTakesTwo, Player
+    from .game import PLAYER_HEX, TOUCH, EGG_SPEED, SPERM_SPEED, Enemy, ItTakesTwo, Player
     from ..shell import Input
 
     half = pygame.Surface((DEMO_W // 2, DEMO_H // 2))
@@ -78,40 +74,73 @@ def make(a) -> Tutorial:
         """Darken a strip behind the cheer, so it reads over the pink walls."""
         s.blit(band, (0, DEMO_H // 2 - 15))
 
-    # 3. dodge the contraception; a folic acid capsule turns the tables
-    CAP, TURN = 8.0, 2.0                                     # capsule at s=8; the egg gets there at t=2
+    def shout(s: pygame.Surface, text: str, x: float, y: float, col: str) -> None:
+        """A caption with a dark shadow, so it reads over the pink walls."""
+        caption(s, text, x + 1, y + 1, "#140c1c")
+        caption(s, text, x, y, col)
 
-    def dodge(s: pygame.Surface, t: float):
-        t = loop(t, 5.5) * 5.5
+    def meter(s: pygame.Surface, share: float, t: float) -> None:
+        """The fertility bar, like the one in the game's HUD, flashing a yellow box
+        round it and an arrow pointing at it."""
+        full = share >= 1
+        x0, y0, w_, h_ = DEMO_W // 2 - 52, 4, 104, 11
+        pygame.draw.rect(s, (20, 12, 28), (x0, y0, w_, h_))
+        s.blit(pygame.transform.scale(a.egg_ripe[0] if full else a.egg[0], (9, 9)), (x0 + 2, y0 + 1))
+        label = text_surface("FERTILE!" if full else "FERTILITY",
+                             "#ff9ac8" if full and int(t * 4) % 2 else "#f4f4f4")
+        s.blit(label, (x0 + 13, y0 + 3))
+        bx, bw = x0 + 51, 50
+        pygame.draw.rect(s, (60, 30, 50), (bx, y0 + 3, bw, 5))
+        pygame.draw.rect(s, (255, 106, 154) if full else (255, 225, 77), (bx, y0 + 3, round(bw * min(1.0, share)), 5))
+        if int(t * 3) % 2 == 0:                               # the highlight
+            pygame.draw.rect(s, (255, 225, 77), (x0 - 2, y0 - 2, w_ + 4, h_ + 4), 1)
+        ay = y0 + h_ + 5 + round(math.sin(t * 6) * 2)
+        for ax in (x0 - 8, x0 + w_ + 8):
+            pygame.draw.polygon(s, (20, 12, 28), [(ax - 4, ay + 5), (ax + 4, ay + 5), (ax, ay - 1)])
+            pygame.draw.polygon(s, (255, 225, 77), [(ax - 3, ay + 4), (ax + 3, ay + 4), (ax, ay)])
+
+    def hearts(s: pygame.Surface, n: int, lost: float | None = None) -> None:
+        """Shared hearts, top right. `lost`: s since the last one went (it floats off)."""
+        for i in range(3):
+            x = DEMO_W - 46 + i * 14
+            if i < n:
+                s.blit(pygame.transform.scale_by(a.heart_big, 2), (x, 4))
+            elif i == n and lost is not None and lost < 0.8:
+                h = pygame.transform.scale_by(a.heart_big, 2)
+                h.set_alpha(int(255 * (1 - lost / 0.8)))
+                s.blit(h, (x, 4 - lost * 20))
+
+    # 3. watch out: a condom catches the egg, a heart goes, back to the start
+    SPAN, HIT = 5.0, 1.4                                     # loop length; when they collide
+
+    def caught(s: pygame.Surface, t: float):
+        t = loop(t, SPAN) * SPAN
         floor()
-        for d in [(x, y) for y, row in enumerate(GRID) for x, ch in enumerate(row) if ch == "."]:
-            if not _arc(d) <= min(t, TURN) * 4:
-                blit(a.nutrient[(d[0] + d[1] + int(t * 3)) % 2], *d)
-        if t < TURN:
-            se, sc, scared = t * 4, t * 4 - 3.5, False
+        sperm(*SPERM_AT, (-1, 0), t)
+        if t < HIT:
+            ex, cx = 1 + 3.0 * t, 12 - 4.5 * t
+            egg(ex, 1, t)
+            blit(a.enemy[("condom", int(t * 5) % 2, (-1, 0))], cx, 1)
         else:
-            u = t - TURN
-            se, sc, scared = CAP - 4 * u, CAP - 3.5 - 1.6 * u, True
-        caught = scared and se - sc <= 0.5
-        if not t >= TURN:
-            blit(a.folic[int(t * 4) % 2], *at(CAP)[:2])
-        ex, ey, edx, edy = at(se)
-        cx, cy, cdx, cdy = at(sc)
-        if not caught:
-            if scared:
-                blit(a.scared[(int(t * 5) % 2, t - TURN > 1.0 and int(t * 8) % 2 == 0)], cx, cy)
-            else:
-                blit(a.enemy[("condom", int(t * 5) % 2, (cdx, cdy))], cx, cy)
-        elif t - TURN < 2.8:
-            blit(a.eyes[(-1, 0)], cx - (t - TURN - 1.0) * 8, cy)
-        egg(ex, ey, t)
+            u = t - HIT
+            hx = 1 + 3.0 * HIT
+            cx = 12 - 4.5 * HIT + min(u, 2.0) * 2.0           # it wanders off, pleased with itself
+            blit(a.enemy[("condom", int(t * 5) % 2, (1, 0) if u > 0.6 else (0, 0))], cx, 1)
+            if u < 0.4:
+                blit(a.pop["#ff4a6a"][min(3, int(u / 0.1))], hx, 1)
+            if u > 0.6 and int(t * 10) % 2:                   # back at the start, blinking
+                egg(1, 1, t)
         done(s)
-        if TURN <= t < TURN + 1.0:
-            caption(s, "SCARED!", px(cx, cy)[0] * 2, 6, "#5ff3ff")
-        if caught and t - TURN < 2.6:
-            caption(s, "CHOMP!", px(ex, ey)[0] * 2 + 20, 6, "#ffe14d")
-        heading = (edx, edy) if t < TURN else (-edx, -edy)
-        return [(*heading, False), (0, 0, False)]
+        if t >= HIT:
+            u = t - HIT
+            hearts(s, 2, u)
+            if u < 1.6:
+                shout(s, "BAGGED!", px(1 + 3.0 * HIT, 1)[0] * 2, px(0, 1)[1] * 2 + 12 - u * 4, "#ff4a6a")
+            if u > 0.6:
+                shout(s, "-1 HEART. BACK TO START!", DEMO_W // 2, DEMO_H - 22, "#ffe14d")
+        else:
+            hearts(s, 3)
+        return [(1, 0, False) if t < HIT else (0, 0, False), (0, 0, False)]
 
     # -- try it --------------------------------------------------------------------------
     class Box:
@@ -124,114 +153,220 @@ def make(a) -> Tutorial:
     box = Box()
 
     class Swim:
-        """Both of them loose in the tiny maze; done once each has swum a bit."""
-        cheer = "BOTH READY!"
-        ripe = False
+        """Both of them loose in the tiny maze; done when they find each other."""
+        cheer = "FOUND YOU!"
+        share = 0.0                                       # how full the fertility bar is
 
         def __init__(self) -> None:
             self.egg = Player(*map(float, EGG_AT), EGG_SPEED, kind="egg", start=EGG_AT)
             self.sperm = Player(*map(float, SPERM_AT), SPERM_SPEED, kind="sperm", start=SPERM_AT, face=(-1, 0))
-            self.swum = [0.0, 0.0]
             self.done = False
+            self.met_t: float | None = None               # page time they touched
+            self.met_at = (0.0, 0.0)
+
+        @property
+        def ripe(self) -> bool:
+            return self.share >= 1
 
         def swim(self, dt: float, inp) -> None:
             pads = inp.players or (inp, Input())
-            for i, (p, pin) in enumerate(zip((self.egg, self.sperm), pads)):
+            for p, pin in zip((self.egg, self.sperm), pads):
                 box._steer(p, pin)
-                before = p.anim
                 box._move(p, p.speed * dt)
-                if pin.x or pin.y:
-                    self.swum[i] += p.anim - before
+                p.invuln = max(0.0, p.invuln - dt)
+
+        def touching(self) -> bool:
+            e, s = self.egg, self.sperm
+            if math.dist((e.fx, e.fy), (s.fx, s.fy)) < TOUCH:
+                self.met_at = ((e.fx + s.fx) / 2, (e.fy + s.fy) / 2)
+                return True
+            return False
 
         def update(self, dt: float, inp) -> None:
             self.swim(dt, inp)
-            self.done = min(self.swum) >= MOVED
+            self.done = self.touching()
 
         def players(self, t: float) -> None:
-            e, s = self.egg, self.sperm
-            sperm(s.fx, s.fy, s.face, t)
-            blit((a.egg_ripe if self.ripe else a.egg)[int(e.anim * 2) % 4], e.fx, e.fy)
+            for p in (self.egg, self.sperm):
+                if p.invuln > 0 and int(t * 12) % 2:
+                    continue
+                if p.kind == "egg":
+                    blit((a.egg_ripe if self.ripe else a.egg)[int(p.anim * 2) % 4], p.fx, p.fy)
+                else:
+                    sperm(p.fx, p.fy, p.face, t)
 
-        def tag(self, s: pygame.Surface, p, label: str, ready: bool, t: float) -> None:
-            """P1 / P2 over each of them, or READY! with a tick once they've swum."""
+        def tag(self, s: pygame.Surface, p, label: str, t: float) -> None:
+            """P1 / P2 over each of them."""
             x, y = px(p.fx, p.fy)
-            x, y = x * 2, y * 2 - 22 + (0 if ready else round(math.sin(t * 5)))
-            text = "READY!" if ready else label
+            x, y = x * 2, y * 2 - 22 + round(math.sin(t * 5))
             col = PLAYER_HEX[p.kind]
-            caption(s, text, x + 1, y + 1, "#140c1c")         # a shadow, so it reads over the walls
-            caption(s, text, x, y, col)
-            if ready:
-                x0 = x - text_surface(text, col).get_width() / 2 - 3
-                tick = [(x0 - 6, y + 2), (x0 - 4, y + 4), (x0, y)]
-                pygame.draw.lines(s, (20, 12, 28), False, [(i + 1, j + 1) for i, j in tick], 2)
-                pygame.draw.lines(s, col, False, tick, 2)
+            caption(s, label, x + 1, y + 1, "#140c1c")        # a shadow, so it reads over the walls
+            caption(s, label, x, y, col)
 
-        def draw(self, s: pygame.Surface, t: float):
+        def tags(self, s: pygame.Surface, t: float) -> None:
+            if not self.done:
+                self.tag(s, self.egg, "P1", t)
+                self.tag(s, self.sperm, "P2", t)
+
+        def found(self, s: pygame.Surface, t: float) -> None:
+            """A heart pops up where they touched."""
+            if self.met_t is None:
+                self.met_t = t
+            u = t - self.met_t
+            x, y = px(*self.met_at)
+            h = pygame.transform.scale_by(a.heart_big, 3)
+            s.blit(h, (round(x * 2 - h.get_width() / 2), round(y * 2 - 20 - min(u, 0.4) * 20)))
+
+        def scene(self, t: float) -> None:
             floor()
             self.players(t)
+
+        def draw(self, s: pygame.Surface, t: float):
+            self.scene(t)
             done(s)
-            self.tag(s, self.egg, "P1", self.swum[0] >= MOVED, t)
-            self.tag(s, self.sperm, "P2", self.swum[1] >= MOVED, t)
+            self.tags(s, t)
             if self.done:
                 hush(s)
+                self.found(s, t)
             k = loop(t, 2.4)                                  # the icons: egg right then down, sperm left then up
             return [(1, 0, False) if k < 0.5 else (0, 1, False), (-1, 0, False) if k < 0.5 else (0, -1, False)]
 
     class Feast(Swim):
-        """A few nutrients round the maze; eat them all, between you, and she's ripe."""
-        cheer = "SHE'S RIPE!"
+        """Four nutrients round the maze; eat them all, between you, and she's fertile."""
+        cheer = "SHE'S FERTILE!"
 
         def __init__(self) -> None:
             super().__init__()
             self.food = set(FOOD)
+            self.flash: list[tuple[float, float, float]] = []    # where a nutrient just went, and how long ago
 
         @property
-        def ripe(self) -> bool:
-            return not self.food
+        def share(self) -> float:
+            return 1 - len(self.food) / len(FOOD)
 
         def update(self, dt: float, inp) -> None:
             self.swim(dt, inp)
-            self.food -= {self.egg.tile, self.sperm.tile}
+            self.flash = [(x, y, u + dt) for x, y, u in self.flash if u + dt < 0.4]
+            for p in (self.egg, self.sperm):
+                if p.tile in self.food:
+                    self.food.discard(p.tile)
+                    self.flash.append((*p.tile, 0.0))
             self.done = self.ripe
 
         def draw(self, s: pygame.Surface, t: float):
             floor()
             for d in self.food:
                 blit(a.nutrient[(d[0] + d[1] + int(t * 3)) % 2], *d)
+            for x, y, u in self.flash:
+                blit(a.pop["#ffe14d"][min(3, int(u / 0.1))], x, y)
             self.players(t)
             done(s)
-            share = 1 - len(self.food) / len(FOOD)
-            pygame.draw.rect(s, (20, 12, 28), (DEMO_W // 2 - 40, 4, 80, 7))     # the ripeness meter
-            pygame.draw.rect(s, (255, 106, 138), (DEMO_W // 2 - 39, 5, round(78 * share), 5))
-            caption(s, "RIPE!" if self.ripe else "RIPENESS", DEMO_W // 2, 13,
-                    "#ff6a8a" if self.ripe and int(t * 4) % 2 else "#f4f4f4")
+            self.tags(s, t)
+            meter(s, self.share, t)
             if self.done:
                 hush(s)
             k = loop(t, 3.0)                                  # the icons: egg along the top, sperm along the bottom
             return [(1, 0, False) if k < 0.6 else (0, 1, False), (-1, 0, False) if k < 0.6 else (0, -1, False)]
 
-    class Meet(Swim):
-        """She's ripe from the start: swim into each other and it's conception."""
-        cheer = "IT'S CONCEPTION!"
-        ripe = True
+    class Fight(Swim):
+        """A condom hunts whoever's closest; touch it and you're sent back. Grab the
+        folic acid and it turns blue and runs, and you can eat it."""
+        cheer = "GOT 'EM!"
 
         def __init__(self) -> None:
             super().__init__()
-            self.met_t: float | None = None                   # page time they touched, for the zygote
-            self.met_at = (0.0, 0.0)
+            self.capsule = True
+            self.condom = Enemy(*map(float, CONDOM_AT), CONDOM_SPEED, kind="condom", state="roam")
+            self.eaten_t: float | None = None
+            self.caught: list[tuple[float, float, float]] = []   # BAGGED! popups: x, y, age
+            self.time = 0.0
+
+        def choose(self, e) -> tuple[int, int]:
+            tx, ty = round(e.fx), round(e.fy)
+            opts = [d for d in ((1, 0), (-1, 0), (0, 1), (0, -1)) if box.passable((tx + d[0], ty + d[1]), e)]
+            back = (-e.dir[0], -e.dir[1])
+            if len(opts) > 1 and back in opts:
+                opts.remove(back)
+            live = [p for p in (self.egg, self.sperm) if p.invuln <= 0] or [self.egg, self.sperm]
+            near = min(live, key=lambda p: math.dist((p.fx, p.fy), (e.fx, e.fy)))
+            score = lambda d: math.dist((tx + d[0], ty + d[1]), (near.fx, near.fy))
+            return (max if not self.capsule else min)(opts, key=score)
 
         def update(self, dt: float, inp) -> None:
+            self.time += dt
             self.swim(dt, inp)
-            e, s = self.egg, self.sperm
-            if math.dist((e.fx, e.fy), (s.fx, s.fy)) < TOUCH:
-                self.met_at = ((e.fx + s.fx) / 2, (e.fy + s.fy) / 2)
-                self.done = True
+            self.caught = [(x, y, u + dt) for x, y, u in self.caught if u + dt < 1.0]
+            if self.eaten_t is not None:
+                self.eaten_t += dt
+                return
+            e = self.condom
+            e.speed = CONDOM_SPEED if self.capsule else FLEE_SPEED
+            box._move(e, e.speed * dt, self.choose)
+            e.anim += dt
+            for p in (self.egg, self.sperm):
+                if self.capsule and p.tile == CAPSULE:
+                    self.capsule = False
+                    e.dir = (-e.dir[0], -e.dir[1])
+                if math.dist((p.fx, p.fy), (e.fx, e.fy)) >= TOUCH:
+                    continue
+                if not self.capsule:                      # chomp
+                    self.eaten_t = 0.0
+                    self.eaten_at = (e.fx, e.fy)
+                    self.done = True
+                    return
+                if p.invuln <= 0:                         # bagged: back to the start
+                    self.caught.append((p.fx, p.fy, 0.0))
+                    p.place(p.start)
+                    p.invuln = SAFE
+
+        def draw(self, s: pygame.Surface, t: float):
+            floor()
+            f = int(t * 5) % 2
+            if self.capsule:
+                blit(a.folic[int(t * 4) % 2], *CAPSULE)
+            e = self.condom
+            if self.eaten_t is None:
+                if self.capsule:
+                    blit(a.enemy[("condom", f, e.dir)], e.fx, e.fy)
+                else:
+                    blit(a.scared[(f, int(t * 6) % 3 == 0)], e.fx, e.fy)
+            else:
+                ex, ey = self.eaten_at
+                u = self.eaten_t
+                if u < 0.4:
+                    blit(a.pop["#5ff3ff"][min(3, int(u / 0.1))], ex, ey)
+                blit(a.eyes[(0, -1)], ex, ey - u * 6)          # what's left of it, legging it
+            for x, y, u in self.caught:
+                if u < 0.4:
+                    blit(a.pop["#ff4a6a"][min(3, int(u / 0.1))], x, y)
+            self.players(t)
+            done(s)
+            self.tags(s, t)
+            for x, y, u in self.caught:
+                cx, cy = px(x, y)
+                shout(s, "BAGGED!", cx * 2, cy * 2 - 26 - u * 8, "#ff4a6a")
+            if not self.capsule and self.eaten_t is None:
+                cx, cy = px(e.fx, e.fy)
+                shout(s, "SCARED! EAT IT!", min(DEMO_W - 34, max(34, cx * 2)), cy * 2 - 24, "#5ff3ff")
+            if self.done:
+                hush(s)
+                ex, ey = px(*self.eaten_at)
+                shout(s, "CHOMP!", ex * 2, ey * 2 + 14, "#ffe14d")
+            k = loop(t, 3.0)                                  # the icons: egg along the bottom to the capsule
+            return [(0, 1, False) if k < 0.35 else (1, 0, False), (-1, 0, False)]
+
+    class Meet(Swim):
+        """The bar's full: swim into each other and it's conception, and the round starts."""
+        cheer = "IT'S CONCEPTION!"
+        share = 1.0
 
         def draw(self, s: pygame.Surface, t: float):
             floor()
             if not self.done:
                 self.players(t)
                 done(s)
+                self.tags(s, t)
+                meter(s, 1.0, t)
                 k = loop(t, 3.0)                              # the icons: egg down then right, sperm left
                 return [(0, 1, False) if k < 0.35 else (1, 0, False), (-1, 0, False)]
             if self.met_t is None:
@@ -251,30 +386,20 @@ def make(a) -> Tutorial:
     return Tutorial(
         "IT TAKES TWO", "LIFE STARTS WHEN TWO CELLS FALL IN LOVE.",
         [
-            Page(("P1: MOVE STICK 1 TO STEER THE EGG", "P2: MOVE STICK 2 TO STEER THE SPERM"),
-                 controls=both, trial=Swim),
-            Page(("IT'S CO-OP. EAT THE NUTRIENTS", "TOGETHER TO RIPEN THE EGG"), controls=both, trial=Feast),
-            Page(("DODGE THE CONTRACEPTION. EAT A FOLIC", "ACID CAPSULE AND YOU CAN EAT THEM"), dodge,
-                 both, time=5.5),
-            Page(("ONCE SHE'S RIPE, TOUCH TO WIN.", "BEAT THE CLOCK OR IT'S A PERIOD!"), controls=both, trial=Meet),
+            Page(("P1 STEERS THE EGG WITH STICK 1, P2 THE SPERM WITH STICK 2.",
+                  "SWIM ROUND THE MAZE AND FIND EACH OTHER!"), controls=both, trial=Swim),
+            Page(("SHE HAS TO BE FERTILE BEFORE YOU CAN CONCEIVE.",
+                  "EAT 4 NUTRIENTS TOGETHER TO FILL THE BAR!"), controls=both, trial=Feast),
+            Page(("WATCH OUT FOR CONTRACEPTIVES! IF ONE CATCHES",
+                  "YOU, YOU LOSE A HEART AND GO BACK TO START."), caught, both, time=SPAN),
+            Page(("EAT FOLIC ACID TO FIGHT BACK!",
+                  "GRAB THE CAPSULE, THEN EAT THE CONDOM."), controls=both, trial=Fight),
+            Page(("THE BAR IS FULL! NOW FIND EACH OTHER AND",
+                  "TOUCH TO CONCEIVE. BEAT THE CLOCK!"), controls=both, trial=Meet),
         ],
         labels={"stick": "P1 EGG", "stick2": "P2 SPERM"},
         accent="#ff6a8a",
     )
-
-
-def _arc(d: tuple[int, int]) -> float:
-    """How far clockwise round the loop a tile is (dots off the loop get a huge number)."""
-    x, y = d
-    if y == 1:
-        return x - 1
-    if x == 12:
-        return 11 + (y - 1)
-    if y == 4:
-        return 14 + (12 - x)
-    if x == 1:
-        return 25 + (4 - y)
-    return 1e9
 
 
 def _maze_bytes(size: tuple[int, int]):

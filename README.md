@@ -611,10 +611,23 @@ joining a line at the bottom. Then the camera pulls back (*NOW FIND EACH
 OTHER!*): the egg and sperm drift to opposite corners, the contraception flies
 into the pen, the maze walls fly in from every side and lock together, and the
 nutrients sparkle in. Press start to skip the intro. The how-to-play pages come
-next, over the finished maze, and then *READY... GO!*
+next, over the finished maze. All but one are try-it pages where both players
+steer for real:
+
+1. Steer the egg and sperm and find each other. The page turns when you touch
+   (*FOUND YOU!*).
+2. She has to be fertile before you can conceive. The fertility bar flashes
+   with arrows on it, and the two of you eat 4 nutrients to fill it.
+3. Watch out for contraceptives (a demo): a condom catches the egg (*BAGGED!*),
+   a heart floats away and she blinks back at her start.
+4. Eat folic acid to fight back: a slow condom chases whoever's closest and
+   sends you back to start if it catches you. Grab the capsule and it turns
+   blue and runs, then eat it (*GOT 'EM!*).
+5. The bar's full: find each other and touch to conceive, which starts the
+   round with *READY... GO!*
 
 It's co-op. You both eat the nutrients lining the tubes, and once you've eaten
-40% of them between you, the egg is **ripe**: she blushes and glows. Touch
+40% of them between you, the egg is **fertile** (the FERTILITY bar at the top fills up): she blushes and glows. Touch
 before that and you bounce off (*NOT YET!*). Touch after it and you win. The
 sperm swims faster than the egg rolls.
 
@@ -633,7 +646,7 @@ the round. After the first 14 seconds, another one joins every 30 seconds. Get c
 your start. Eat a folic-acid capsule (one near each corner) and they turn blue
 and scared for a few seconds, and you can eat them for points.
 
-**Win:** meet once she's ripe. The sperm burrows in and the zygote divides
+**Win:** meet once she's fertile. The sperm burrows in and the zygote divides
 into 2, 4 and 8 cells under a shower of hearts: *IT'S CONCEPTION!*
 
 **Lose:** all three hearts go (*MISSED CONNECTION: PROTECTION WORKED*), or the 90-second clock
