@@ -77,7 +77,7 @@ class Page:
 @dataclass
 class Tutorial:
     title: str
-    premise: str                                   # the theory, in one line
+    premise: str                                   # the theory, in one line ("" for none)
     pages: list[Page]
     labels: dict[str, str] = field(default_factory=lambda: {"stick": "STICK", "button": "BUTTON",
                                                             "stick2": "STICK 2", "jar": "SPIT JAR"})
@@ -166,7 +166,8 @@ class Tutorial:
         drop = max(0.0, 1 - self.time / 0.4)                 # the title drops in when the screen opens
         bounce = round(-24 * drop * drop + 2 * math.sin(self.time * 3))
         screen.blit(self._title, (W // 2 - self._title.get_width() // 2, 4 + bounce))
-        screen.blit(self._premise, (W // 2 - self._premise.get_width() // 2, 22))
+        if self.premise:
+            screen.blit(self._premise, (W // 2 - self._premise.get_width() // 2, 22))
 
         p = self.pages[self.page]
         self.canvas.fill(PANEL)

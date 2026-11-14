@@ -120,6 +120,13 @@ HIT_LINES = {"U": ["NOM!", "YUM!", "CRAVING!", "PICKLES!"], "D": ["SWIM!", "ZOOM
              "L": ["PLOP!", "OVULATE!", "EGG-CELLENT!"], "R": ["PLOP!", "OVULATE!", "EGG-CELLENT!"],
              "B": ["SQUEEZE!", "CLENCH!", "OOF!"]}
 COUNT_IN = ("READY", "3", "2", "1")
+INTRO_LINES = ("LIFE STARTS WHEN YOU'RE", "FEELING THE RHYTHM...")
+INTRO_LINE = " ".join(INTRO_LINES)
+INTRO_TYPE = 0.05              # s per letter as the intro line types out
+INTRO_HOLD = 1.8               # s it stays up once it's all there
+INTRO_FADE = 0.4               # s fading in from, and out to, the dark
+INTRO_LEN = INTRO_FADE + len(INTRO_LINE) * INTRO_TYPE + INTRO_HOLD
+BACKDROP = (20, 12, 28)        # behind the intro and the how-to pages
 
 
 @dataclass
@@ -329,6 +336,7 @@ class WombRave:
         self.phase = "select" if show_title else "walk"
         self.phase_t = 0.0
         self.howto: tutorial.Tutorial | None = None    # how to play, shown once after the first pick
+        self._intro_text: tuple[int, list] | None = None   # letters typed, and each line's (width, height, typed bit)
         self.time = 0.0
         if show_title:
             self.audio.play_lobby()
@@ -444,6 +452,10 @@ class WombRave:
 
         if self.phase == "select":
             self._update_select(dt, inp)
+        elif self.phase == "intro":
+            typed = INTRO_FADE + len(INTRO_LINE) * INTRO_TYPE
+            if self.phase_t >= INTRO_LEN or (inp.action and self.phase_t > typed + 0.3):
+                self._enter_phase("howto")
         elif self.phase == "howto":
             self.howto.update(dt, inp)
             if self.howto.done:
@@ -523,7 +535,7 @@ class WombRave:
             self.popups.clear()
             if self.howto is None:
                 self.howto = tutorial.make(self.art, self._frame, heckle=self._heckle)
-                self._enter_phase("howto")
+                self._enter_phase("intro")
             else:
                 self._enter_phase("walk")
             return
@@ -711,8 +723,12 @@ class WombRave:
 
     # -- draw -------------------------------------------------------------------
     def draw(self, screen: pygame.Surface) -> None:
-        if self.phase in ("select", "howto"):
+        if self.phase == "select":
             self._draw_select(screen)
+        elif self.phase == "intro":
+            self._draw_intro(screen)
+        elif self.phase == "howto":
+            screen.fill(BACKDROP)                      # just the lesson, nothing showing through
         elif self.phase in ("dance", "flush"):
             self._draw_inside(screen)
         else:
@@ -728,6 +744,37 @@ class WombRave:
         self._draw_fade(screen)
         if self.phase == "howto":
             self.howto.draw(screen)
+
+    def _draw_intro(self, screen: pygame.Surface) -> None:
+        """The line types itself out over a heartbeat, then it all fades into the how-to."""
+        t = self.phase_t
+        screen.fill(BACKDROP)
+        pulse = (1 - (t * 2) % 1) ** 3                 # the heartbeat, 120 BPM
+        for i in range(6, 0, -1):
+            r = i * 22 + pulse * 5 + (t * 12) % 22
+            col = rgb(mix(art.F["deep"], art.F["pink"], 0.10 + 0.05 * (i % 2)))
+            pygame.draw.ellipse(screen, col, (W // 2 - r * 1.6, H // 2 - r * 0.9, r * 3.2, r * 1.8), 2)
+        n = max(0, min(len(INTRO_LINE), int((t - INTRO_FADE) / INTRO_TYPE)))
+        if n and (self._intro_text is None or self._intro_text[0] != n):
+            imgs, left = [], n                         # type into each line where it'll end up, so nothing jumps
+            for line in INTRO_LINES:
+                full = outlined(line, "#ff9ac8", 2)
+                part = outlined(line[:left], "#ff9ac8", 2) if left > 0 else None
+                imgs.append((full.get_width(), full.get_height(), part))
+                left -= len(line) + 1
+            self._intro_text = (n, imgs)
+        if n:
+            gap = 4
+            y = H // 2 - (sum(h for _, h, _ in self._intro_text[1]) + gap) // 2
+            for w_full, h, part in self._intro_text[1]:
+                if part:
+                    screen.blit(part, (W // 2 - w_full // 2, y))
+                y += h + gap
+        dark = max(1 - t / INTRO_FADE, (t - (INTRO_LEN - INTRO_FADE)) / INTRO_FADE)
+        if dark > 0:
+            self.art.fade.fill(BACKDROP)
+            self.art.fade.set_alpha(round(255 * min(1.0, dark)))
+            screen.blit(self.art.fade, (0, 0))
 
     def _frame(self, anim: str, i: int, facing: int | None = None) -> pygame.Surface:
         frames = self.dancer.frames[anim][facing or self.facing]
@@ -1071,7 +1118,7 @@ class WombRave:
 
     # HUD and overlays
     def _draw_hud(self, screen: pygame.Surface) -> None:
-        if self.phase in ("select", "howto"):
+        if self.phase in ("select", "intro", "howto"):
             return
         if self.phase == "rejected" and self.phase_t > REJECT_LINE_TIME * len(REJECT_LINES):
             self._banner(screen, "REJECTED", ["THE WOMB IS CLOSED FOR BUSINESS", "PRESS BUTTON TO PICK SOMEONE ELSE"])
