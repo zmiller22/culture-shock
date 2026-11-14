@@ -357,7 +357,7 @@ def door(open_: float) -> Canvas:
 
 
 def gallery() -> Canvas:
-    """The room: a dark gallery wall, spotlights, the sculpture and its plaque."""
+    """The room: a dark gallery wall, spotlights, the sculpture and a velvet rope."""
     c = Canvas(W, H)
     c.rect(0, 0, W, FLOOR_Y, LAB_BG)
     for y in range(0, FLOOR_Y, 6):                            # faint wall paneling
@@ -381,13 +381,6 @@ def gallery() -> Canvas:
     plinth.outline(OUTLINE)
     c.paste(plinth)
 
-    # the plaque
-    px, py = 262, 104
-    c.rect(px, py, 50, 22, "#e8e4d0")
-    c.hline(px, px + 49, py + 21, "#a8a490")
-    for i, line in enumerate(("UNTITLED", "'HOME'", "MIXED MEDIA")):
-        draw_text(c, px + 25 - text_width(line) // 2, py + 2 + i * 6, line, INK)
-    c.vline(px + 25, py + 22, FLOOR_Y - 1, LAB_GRID)
     # velvet rope and stanchions, on the far side from where you walk in
     for x in (252, 300):
         c.rect(x, FLOOR_Y - 18, 2, 18, "#d8b040")
