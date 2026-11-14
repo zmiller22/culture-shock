@@ -40,6 +40,10 @@ SLAB_X, SLAB_FRONT = 160, 124   # the slab's center column and the floor row of 
 SLAB_W, SLAB_DEPTH, SLAB_FACE = 92, 30, 10
 COILS = [(100, 96), (220, 96)]   # feet of the two Tesla coils behind the slab's corners
 TORCHES = [(80, 18), (172, 18), (246, 18)]         # wall sconces (the game flickers them)
+TRACK = (160, 112, 94, 42)       # the toy train's loop round the slab: center x, y and radii, on the floor
+TRACK_W = 3                      # half-width of the track bed
+# toy clutter on the floor: (x, bottom row, width, depth, kind). Each blocks x..x+w, bottom-depth..bottom
+CLUTTER = [(16, 134, 34, 14, "chest"), (268, 124, 26, 12, "blocks"), (132, 174, 34, 9, "blocks")]
 STONE, STONE_HI, STONE_DK = "#3a3550", "#4a4466", "#24203a"
 
 
@@ -178,6 +182,18 @@ def lab(w: int, h: int, seed: int = 7) -> Canvas:
     c.oval(214, WALL_FACE + 3, 6, 3, "#39ff14")
     c.rect(234, WALL_FACE + 1, 14, 6, "#8a3a2a")                     # a book: HOW TO
     draw_text(c, 236, WALL_FACE + 1, "HUG", "#f0d27a")
+
+    # the toy train's track: a sleeper every few degrees, then two rails
+    tx, ty, rx, ry = TRACK
+    for k in range(64):
+        a = k * math.tau / 64
+        ca, sa = math.cos(a), math.sin(a)
+        c.line(round(tx + ca * (rx - TRACK_W - 1)), round(ty + sa * (ry - TRACK_W)),
+               round(tx + ca * (rx + TRACK_W + 1)), round(ty + sa * (ry + TRACK_W)), "#6a4228")
+    for r in (-TRACK_W + 1, TRACK_W - 1):
+        for k in range(720):
+            a = k * math.tau / 720
+            c.set(round(tx + math.cos(a) * (rx + r)), round(ty + math.sin(a) * (ry + r * 0.6)), "#b8b4cc")
 
     # cables from the wall down to the coils
     for (x0, y0), x1 in ((COILS[0], WALL_L + 4), (COILS[1], WALL_R - 4)):
@@ -613,3 +629,90 @@ def star() -> Canvas:
     c = Canvas(5, 5)
     c.stamp(0, 0, ["..#..", ".###.", "#####", ".###.", "..#.."], {"#": "#ffd93a"})
     return c
+
+
+# -- obstacles -----------------------------------------------------------------------
+
+def train_car(kind: str) -> Canvas:
+    """A tin toy train, side on, facing right: the engine, or a wagon. 18x14, wheels on row 13."""
+    def draw(c: Canvas) -> None:
+        if kind == "engine":
+            c.rect(1, 5, 12, 6, "#e83b3b")                           # boiler
+            c.hline(1, 12, 5, "#ff7a6a")
+            c.rect(11, 2, 6, 9, "#2a6ac8")                           # cab
+            c.rect(12, 3, 4, 3, "#bfefff")
+            c.rect(3, 1, 3, 4, "#1e1828")                            # funnel
+            c.hline(2, 6, 1, "#3a3f4e")
+            c.rect(0, 8, 2, 3, "#ffd93a")                            # cowcatcher
+            c.set(7, 4, "#ffd93a")                                   # bell
+        else:
+            body, hi = ("#3aa04a", "#7fd13b") if kind == "wagon0" else ("#a24bff", "#c88aff")
+            c.rect(1, 4, 16, 7, body)
+            c.hline(1, 16, 4, hi)
+            c.rect(3, 1, 4, 4, "#ffd93a")                            # cargo: toy blocks
+            c.rect(8, 2, 4, 3, "#5ff3ff")
+            c.rect(12, 1, 3, 4, "#ff9ab8")
+        for wx in (3, 12):
+            c.oval(wx - 2, 10, 5, 4, "#1e1828")
+            c.set(wx, 11, "#d0d4e0")
+    return layered(18, 15, [draw])
+
+
+def chomper(frame: int) -> Canvas:
+    """Wind-up chattering teeth on little orange feet, a key turning on top.
+    frame: 0/1 mouth open/shut, +2 for the key's other half-turn. 16x15, feet on row 13."""
+    def draw(c: Canvas) -> None:
+        top = 3 if frame % 2 else 1                                  # the top jaw snaps down
+        c.rect(2, top, 12, 4, "#ff7a9a")
+        c.hline(3, 12, top, "#ffb0c4")
+        for x in range(3, 13, 2):
+            c.rect(x, top + 4, 2, 2, "#f4f4f4")
+        if top == 1:
+            c.rect(3, 7, 10, 2, "#6a1a2a")                           # the mouth, open
+        for x in range(3, 13, 2):
+            c.rect(x, 9, 2, 2, "#f4f4f4")
+        c.rect(2, 11, 12, 2, "#ff7a9a")
+        c.rect(4, 13, 3, 1, "#ff9a3a")                               # feet
+        c.rect(9, 13, 3, 1, "#ff9a3a")
+        if frame // 2:                                               # the wind-up key, turning
+            c.rect(7, top - 1, 3, 1, "#ffd93a")
+        else:
+            c.hline(5, 11, top - 1, "#ffd93a")
+    return layered(16, 15, [draw])
+
+
+def chest(w: int, depth: int) -> Canvas:
+    """A wooden toy chest from above: lid on top, front face, a teddy ear poking out."""
+    face = 12
+    def draw(c: Canvas) -> None:
+        c.rect(0, 6, w, depth, "#8e5c38")                            # lid
+        c.hline(0, w - 1, 6, "#b07a48")
+        for x in range(5, w - 2, 8):
+            c.vline(x, 7, 6 + depth - 1, "#7a4a28")
+        c.rect(0, 6 + depth, w, face, "#6a4228")                     # front
+        c.hline(0, w - 1, 6 + depth, "#4a2c17")
+        c.rect(w // 2 - 2, 6 + depth + 3, 5, 4, "#ffd93a")           # latch
+        draw_text(c, 3, 6 + depth + 4, "TOYS", "#f0d27a")
+        c.oval(w - 11, 1, 7, 7, "#b07a40")                           # an ear sticking out of the lid
+        c.oval(w - 9, 3, 3, 3, "#ecd0a0")
+    return layered(w, depth + face + 7, [draw])
+
+
+def blocks(w: int, seed: int) -> Canvas:
+    """A heap of alphabet blocks: a row along the floor and a few stacked on top."""
+    rng = random.Random(seed)
+    cols = ["#e83b3b", "#2a6ac8", "#3aa04a", "#ffd93a", "#ff9ab8"]
+    s = 8
+    h = 2 * s + 1
+
+    def draw(c: Canvas) -> None:
+        for row in range(2):
+            for i in range(w // s - row):
+                if row and rng.random() < 0.35:
+                    continue
+                x, y = i * s + row * (s // 2), h - s - row * (s - 1)
+                col = rng.choice(cols)
+                c.rect(x, y, s - 1, s - 1, col)
+                c.hline(x, x + s - 2, y, mix(col, "#ffffff", 0.4))
+                draw_text(c, x + 2, y + 1, rng.choice("ABCXYZ"), "#ffffff")
+    return layered(w, h + 1, [draw])

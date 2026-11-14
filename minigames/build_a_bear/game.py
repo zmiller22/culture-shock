@@ -11,11 +11,17 @@ Toy parts lie all over the castle lab: teddy bears, porcelain dolls, bunnies,
 sock monkeys, a plush octopus. Pick one up, carry it to the slab and press the
 button: the sewing screen shows the body from the front, and the stick moves the
 part round it to the slot you want. Anything goes anywhere (a tentacle can be a
-head, if you like), and sewing a part where one already is rips the old one off. Once every slot is filled (a head, two arms, two legs), walk over to the big
+head, if you like), and sewing a part where one already is rips the old one off.
+Once every slot is filled (a head, two arms, two legs), walk over to the big
 knife switch on the wall and throw it. Lightning, smoke, and it's alive.
 
-There's no way to lose yet: this is the building half. What winning and losing
-mean is still to be decided.
+In the way: a toy train loops round the slab, and two sets of wind-up chattering
+teeth wander about and come for you. Either one knocks you flat and sends the part
+you're carrying flying. Toy chests and block piles clutter the floor.
+
+The storm only lasts a minute (the clock runs while you're out on the
+floor, not on the sewing screen). Let it pass and there's no lightning left: the
+switch goes bzzt, the toy stays a toy, and you lose.
 """
 
 from __future__ import annotations
@@ -62,6 +68,27 @@ FIZZLE_T = 0.9                  # s the switch stays down when the body isn't fi
 # it's alive: seconds into the "zap" phase
 SLAM, CHARGE, TWITCH, SIT, HOP, ROAR, BANNER = 0.25, 2.6, 3.7, 4.3, 4.9, 5.0, 6.2
 HOP_DOWN = 18                   # px in front of the slab it lands
+# the storm passed: seconds into the "calm" phase
+CALM_GROAN, CALM_CLUNK, CALM_BANNER = 0.6, 1.5, 3.4
+
+STORM_TIME = 60.0               # s of lightning left; counts down only while you're walking the lab
+KNOCK_T = 0.9                   # s knocked silly
+SAFE_T = 1.6                    # s of blinking after, when nothing can knock you again
+KNOCK_SPEED = 130               # px/s you get shoved
+FLING = 34                      # px a dropped part flies
+
+TRACK_X, TRACK_Y, TRACK_RX, TRACK_RY = art.TRACK
+TRAIN_SPEED = 64                # px/s round the loop
+TRAIN = ("engine", "wagon0", "wagon1")
+CAR_GAP = 17                    # px between cars, along the track
+CAR_HIT = (10, 6)               # how close (across, in depth) a car hits you
+TOOT_EVERY = (5.0, 9.0)
+
+CHOMPERS = 2
+CHOMP_ROAM, CHOMP_CHASE = 22, 40     # px/s
+CHOMP_SEE = 62                  # px: closer than this and they come for you
+CHOMP_HIT = 9
+CHOMP_REST = 2.2                # s they sit winding down after a bite
 
 GRAB_LINES = ["GOT IT!", "SO SOFT!", "OOH, FLUFFY.", "STILL SQUEAKS!"]
 PLACE_LINES = ["PERFECT!", "STITCH STITCH!", "ADORABLE!", "SNUGGLY!"]
@@ -73,6 +100,11 @@ ZAP_LINES = ["ZZZAP!", "BZZZT!", "KRZZZK!"]
 ALIVE_LINES = ["IT'S ALIVE!", "IT'S ALIIIVE!"]
 ROAR_LINES = ["HUG ME!", "MAMA?", "PLAY WITH ME!", "I LOVE YOU. FOREVER."]
 NUDGE_LINES = ["BRING ME PARTS!", "IT NEEDS LIMBS!"]
+TRAIN_HIT_LINES = ["CHOO CHOO!", "ALL ABOARD!", "TOOT TOOT!"]
+CHOMP_LINES = ["CHOMP!", "CHATTER CHATTER!", "NOM!"]
+OUCH_LINES = ["OOF!", "MY SPINE!", "OW!"]
+TOOT_LINES = ["TOOT TOOT!", "CHUGGA CHUGGA", "WOO WOO!"]
+CALM_LINES = ["NO! THE STORM!", "COME BACK, LIGHTNING!", "NOOO!"]
 
 
 @dataclass
@@ -99,10 +131,23 @@ class Part:
     x1: float = 0.0
     y1: float = 0.0
     twitch: float = 3.0         # s to the next twitch, lying on the floor
+    fly_t: float = 0.6          # s a flight takes
 
     @property
     def name(self) -> str:
         return art.PART_NAMES[(self.kind, self.fam)]
+
+
+@dataclass
+class Chomper:
+    """Wind-up chattering teeth. They wander, and come for you if you get close."""
+    x: float
+    y: float
+    goal: tuple[float, float] = (0.0, 0.0)
+    state: str = "roam"         # roam | chase | rest
+    t: float = 0.0
+    rest: float = 0.0
+    facing: int = 1
 
 
 NEVER = "NEVER MIND"
@@ -123,6 +168,19 @@ class Menu:
     sel: str = "HEAD"
     prev: tuple[int, int] = (0, 0)
     t: float = 0.0
+
+
+def blocked_at(x: float, y: float, r: float = FEET_R) -> bool:
+    """Off the floor, or into the slab, a coil or the clutter. Feet radius r."""
+    if not (X_MIN <= x <= X_MAX and Y_MIN <= y <= Y_MAX):
+        return True
+    for cx, cy, rx, ry in COIL_FOOT:
+        if ((x - cx) / (rx + r)) ** 2 + ((y - cy) / (ry + 3)) ** 2 <= 1:
+            return True
+    for bx, bottom, bw, depth, _ in art.CLUTTER:
+        if bx - r <= x <= bx + bw + r and bottom - depth - 2 <= y <= bottom + 2:
+            return True
+    return SLAB_L - r <= x <= SLAB_R + r and SLAB_BACK - 2 <= y <= art.SLAB_FRONT + 2
 
 
 def big_text(text: str, color: str, scale: int = 2) -> pygame.Surface:
@@ -161,6 +219,10 @@ class Art:
         self.spark = to_surface(art.spark())
         self.smoke = [to_surface(art.smoke(f)) for f in range(4)]
         self.star = to_surface(art.star())
+        self.cars = {kind: both(art.train_car(kind)) for kind in TRAIN}
+        self.chomper = [both(art.chomper(f)) for f in range(4)]
+        self.clutter = [to_surface(art.chest(w, d)) if kind == "chest" else to_surface(art.blocks(w, i))
+                        for i, (_, _, w, d, kind) in enumerate(art.CLUTTER)]
         self._creature: dict[tuple, tuple[pygame.Surface, pygame.Surface, int]] = {}
         self._scaled: dict[tuple, pygame.Surface] = {}
         self._placed: dict[tuple, list[tuple[int, int]]] = {}
@@ -230,6 +292,9 @@ class BuildABear:
         self.lever_to = 0.0
         self.fizzle = 0.0
         self.nagged = False
+        self.clock = STORM_TIME
+        self.stun = 0.0
+        self.safe = 0.0
 
         self.parts: list[Part] = []
         for kind, n in FLOOR_PARTS.items():
@@ -239,6 +304,13 @@ class BuildABear:
                 x, y = self._free_spot(14)
                 self.parts.append(Part(kind, fams[i % len(fams)], x, y, flip=self.rng.randrange(2),
                                        twitch=self.rng.uniform(1, 6)))
+
+        self.train = self.rng.uniform(0, math.tau)    # the engine's angle round the track
+        self.toot_in = self.rng.uniform(*TOOT_EVERY)
+        self.chompers: list[Chomper] = []
+        for _ in range(CHOMPERS):
+            x, y = self._free_spot(10)
+            self.chompers.append(Chomper(x, y, goal=self._free_spot(10), t=self.rng.uniform(0, 1)))
 
         self.popups: list[Popup] = []
         self.bolts: list[list] = []                   # [points, t]
@@ -252,17 +324,18 @@ class BuildABear:
 
     # -- helpers ----------------------------------------------------------------------
     def _blocked(self, x: float, y: float, r: float = FEET_R) -> bool:
-        if not (X_MIN <= x <= X_MAX and Y_MIN <= y <= Y_MAX):
-            return True
-        for cx, cy, rx, ry in COIL_FOOT:
-            if ((x - cx) / (rx + r)) ** 2 + ((y - cy) / (ry + 3)) ** 2 <= 1:
-                return True
-        return SLAB_L - r <= x <= SLAB_R + r and SLAB_BACK - 2 <= y <= art.SLAB_FRONT + 2
+        return blocked_at(x, y, r)
+
+    @staticmethod
+    def on_track(x: float, y: float, pad: float = 0.0) -> bool:
+        """Within the track bed (plus pad px), where the train runs."""
+        d = math.hypot((x - TRACK_X) / TRACK_RX, (y - TRACK_Y) / TRACK_RY)
+        return abs(d - 1) * min(TRACK_RX, TRACK_RY) <= art.TRACK_W + pad
 
     def _free_spot(self, margin: float = 8) -> tuple[float, float]:
         for _ in range(300):
             x, y = self.rng.uniform(X_MIN + 8, X_MAX - 8), self.rng.uniform(Y_MIN + 6, Y_MAX - 4)
-            if self._blocked(x, y, margin) or math.hypot(x - self.x, y - self.y) < 30:
+            if self._blocked(x, y, margin) or math.hypot(x - self.x, y - self.y) < 30 or self.on_track(x, y, 10):
                 continue
             if any(math.hypot(x - p.x, y - p.y) < 20 for p in getattr(self, "parts", [])):
                 continue
@@ -329,19 +402,36 @@ class BuildABear:
             if self.menu:
                 self._update_menu(dt, inp)
             else:
+                self.clock = max(0.0, self.clock - dt)     # the storm only blows while you're out on the floor
                 self._update_doc(dt, inp)
             self._update_lever(dt)
+            if self.clock <= 0 and self.phase == "play" and self.pull <= 0:
+                self._start_calm()
         elif self.phase == "zap":
             self._update_doc(dt, Input())
             self._update_zap(dt)
-        elif self.phase == "won":
+        elif self.phase == "calm":
             self._update_doc(dt, Input())
+            self._update_calm(dt)
+        elif self.phase in ("won", "lost"):
+            self._update_doc(dt, Input())
+            self._update_lever(dt)
             if inp.action and self.phase_t > 1.2:
                 self.done = True
+        if self.phase != "title":
+            self._update_train(dt)
+            self._update_chompers(dt)
         self._update_parts(dt)
         self._update_fx(dt)
 
     def _update_doc(self, dt: float, inp: Input) -> None:
+        self.safe = max(0.0, self.safe - dt)
+        if self.stun > 0:                                          # knocked flat: skid to a stop
+            self.stun -= dt
+            self.vx -= self.vx * 5 * dt
+            self.vy -= self.vy * 5 * dt
+            self.x, self.y, _, _ = self._move(self.x, self.y, self.vx * dt, self.vy * dt)
+            return
         if self.pull > 0:
             before = self.pull
             self.pull = max(0.0, self.pull - dt)
@@ -439,13 +529,13 @@ class BuildABear:
         self.built[slot] = p
         cx, cy = self.body_center
         if old:                                                    # knocked off onto the floor
-            old.state, old.t = "air", 0.0
+            old.state, old.t, old.fly_t = "air", 0.0, 0.6
             old.x0, old.y0 = cx, art.SLAB_FRONT + 1
             side = -1 if self.rng.random() < 0.5 else 1
             for _ in range(40):
                 tx = cx + side * self.rng.uniform(30, 70)
                 ty = art.SLAB_FRONT + self.rng.uniform(10, 40)
-                if not self._blocked(tx, ty, 4):
+                if not self._blocked(tx, ty, 4) and not self.on_track(tx, ty, 6):
                     break
             else:
                 tx, ty = cx, art.SLAB_FRONT + 20
@@ -532,11 +622,122 @@ class BuildABear:
         pts.append(b)
         self.bolts.append([pts, 0.0])
 
+    def _knock(self, fx: float, fy: float, lines: list[str], color: str) -> None:
+        """Something hit him from (fx, fy): down he goes, and whatever he's carrying flies off."""
+        if self.phase != "play" or self.menu or self.stun > 0 or self.safe > 0:
+            return
+        dx, dy = self.x - fx, (self.y - fy) * 1.5
+        n = math.hypot(dx, dy) or 1
+        dx, dy = dx / n, dy / n
+        self.stun, self.safe, self.pull = KNOCK_T, KNOCK_T + SAFE_T, 0.0
+        self.vx, self.vy = dx * KNOCK_SPEED, dy * KNOCK_SPEED * 0.6
+        self.shake = max(self.shake, 0.15)
+        self._popup(self.rng.choice(lines), fx, fy - 30, color)
+        self._popup(self.rng.choice(OUCH_LINES), self.x, self.y - 56, LAB_DIM, life=0.9)
+        if self.held:
+            p, self.held = self.held, None
+            p.state, p.t, p.fly_t = "air", 0.0, 0.5
+            p.x0, p.y0 = self.hands
+            for _ in range(40):
+                a = math.atan2(dy, dx) + self.rng.uniform(-1.2, 1.2)
+                tx, ty = self.x + math.cos(a) * FLING, self.y + math.sin(a) * FLING * 0.6
+                if not self._blocked(tx, ty, 4) and not self.on_track(tx, ty, 6):
+                    break
+            else:
+                tx, ty = self.x, self.y + 2
+            p.x1, p.y1 = tx, ty
+
+    def train_cars(self) -> list[tuple[str, float, float, int]]:
+        """(kind, x, y, facing) for each car, engine first. Counterclockwise on screen."""
+        out, a = [], self.train
+        for kind in TRAIN:
+            x, y = TRACK_X + math.cos(a) * TRACK_RX, TRACK_Y + math.sin(a) * TRACK_RY
+            facing = -1 if math.sin(a) < 0 else 1                   # right along the bottom, left along the top
+            out.append((kind, x, y, facing))
+            a += CAR_GAP / math.hypot(TRACK_RX * math.sin(a), TRACK_RY * math.cos(a))
+        return out
+
+    def _update_train(self, dt: float) -> None:
+        a = self.train
+        self.train = (a - TRAIN_SPEED * dt / math.hypot(TRACK_RX * math.sin(a), TRACK_RY * math.cos(a))) % math.tau
+        self.toot_in -= dt
+        cars = self.train_cars()
+        if self.toot_in <= 0:
+            self.toot_in = self.rng.uniform(*TOOT_EVERY)
+            _, x, y, _ = cars[0]
+            self._popup(self.rng.choice(TOOT_LINES), x, y - 26, "#ff9a3a", life=1.0)
+            self.puffs.append([x, y - 12, 0.0])
+        for _, x, y, _ in cars:
+            if abs(x - self.x) < CAR_HIT[0] and abs(y - self.y) < CAR_HIT[1]:
+                self._knock(x, y, TRAIN_HIT_LINES, "#ff9a3a")
+                break
+
+    def _update_chompers(self, dt: float) -> None:
+        for c in self.chompers:
+            c.t += dt
+            if c.state == "rest":
+                c.rest -= dt
+                if c.rest <= 0:
+                    c.state, c.goal = "roam", self._free_spot(10)
+                continue
+            near = math.hypot(self.x - c.x, (self.y - c.y) * 1.4) < CHOMP_SEE and self.phase == "play" \
+                and self.stun <= 0 and self.safe <= 0
+            c.state = "chase" if near else "roam"
+            gx, gy = (self.x, self.y) if near else c.goal
+            dx, dy = gx - c.x, gy - c.y
+            n = math.hypot(dx, dy)
+            if n < 4 and not near:
+                c.goal = self._free_spot(10)
+                continue
+            speed = (CHOMP_CHASE if near else CHOMP_ROAM) * (0.4 + 0.6 * (int(c.t * 6) % 2))   # little hops
+            mx, my = dx / n * speed * dt, dy / n * speed * dt * DEPTH
+            nx, ny = c.x + mx, c.y + my
+            if not self._blocked(nx, c.y, 5):
+                c.x = nx
+            if not self._blocked(c.x, ny, 5):
+                c.y = ny
+            if abs(mx) > 0.01:
+                c.facing = 1 if mx > 0 else -1
+            if self.rng.random() < dt * 0.3 and not near:              # wander somewhere else
+                c.goal = self._free_spot(10)
+            if math.hypot(self.x - c.x, (self.y - c.y) * 1.5) < CHOMP_HIT and self.stun <= 0 and self.safe <= 0 \
+                    and self.phase == "play" and not self.menu:
+                self._knock(c.x, c.y, CHOMP_LINES, "#ff7a9a")
+                c.state, c.rest = "rest", CHOMP_REST
+
+    def _start_calm(self) -> None:
+        """Out of time: the storm moves on, and there's nothing left to zap it with."""
+        self.phase, self.phase_t = "calm", 0.0
+        self.cutscene = True
+        self.menu = None
+        self.storm = 0.0
+        if self.held:
+            self._drop()
+
+    def _update_calm(self, dt: float) -> None:
+        e = self.phase_t
+        if e >= CALM_GROAN and e - dt < CALM_GROAN:
+            self._popup(self.rng.choice(CALM_LINES), self.x, self.y - 56, "#ff9ab8", life=2.2)
+        if e >= CALM_CLUNK and e - dt < CALM_CLUNK:                # the switch, thrown in desperation
+            self.lever_to = 1.0
+            px, py = art.LEVER_PIVOT
+            self._popup("...BZT.", px, py - 28, LAB_DIM, life=1.4)
+            for _ in range(2):
+                self.sparks.append([px + self.rng.uniform(-4, 4), py - 18, 0.0])
+        self.lever += max(-dt * 4, min(dt * 8, self.lever_to - self.lever))
+        if e >= CALM_CLUNK + 1.0 and e - dt < CALM_CLUNK + 1.0:
+            cx, cy = self.body_center
+            self._popup("...SQUEAK.", cx, cy - 30, LAB_DIM, life=1.6)
+        if e >= CALM_BANNER:
+            self.phase, self.phase_t = "lost", 0.0
+            self.result = "lose"
+            self.cutscene = False
+
     def _update_parts(self, dt: float) -> None:
         for p in self.parts:
             p.t += dt
             if p.state == "air":
-                k = min(1.0, p.t / 0.6)
+                k = min(1.0, p.t / p.fly_t)
                 p.x = p.x0 + (p.x1 - p.x0) * k
                 p.y = p.y0 + (p.y1 - p.y0) * k
                 p.z = 34 * math.sin(k * math.pi) + 10 * (1 - k)
@@ -549,6 +750,8 @@ class BuildABear:
 
     def _update_storm(self, dt: float) -> None:
         self.storm = max(0.0, self.storm - dt)
+        if self.phase in ("calm", "lost"):
+            return
         self.storm_in -= dt
         if self.storm_in <= 0:
             self.storm = 0.18
@@ -584,6 +787,12 @@ class BuildABear:
         for p in self.parts:
             if p.state in ("floor", "air"):
                 items.append((p.y, 2, "part", p))
+        for i, (_, bottom, _, _, _) in enumerate(art.CLUTTER):
+            items.append((bottom, 0, "clutter", i))
+        for car in self.train_cars():
+            items.append((car[2], 2, "car", car))
+        for c in self.chompers:
+            items.append((c.y, 2, "chomper", c))
         items.append((self.y, 3, "doc", None))
         if self.phase == "won" or (self.phase == "zap" and self.phase_t >= HOP):
             items.append((art.SLAB_FRONT + HOP_DOWN * self.rise + 0.5, 3, "risen", None))
@@ -618,6 +827,15 @@ class BuildABear:
         for wx, wy, ww, wh in art.WINDOWS:                                 # rain, and the odd fork of lightning
             clip = screen.get_clip()
             screen.set_clip(pygame.Rect(wx, wy - 1, ww, wh + 1))
+            if self.phase in ("calm", "lost"):                             # clear skies. a lovely night. damn it
+                screen.fill((40, 52, 110), pygame.Rect(wx, wy - 1, ww, wh + 1))
+                pygame.draw.circle(screen, (244, 240, 210), (wx + ww - 9, wy + 7), 5)
+                for k in range(5):
+                    screen.set_at((wx + (k * 11 + 3) % ww, wy + (k * 7 + 5) % wh), (220, 220, 255))
+                screen.set_clip(clip)
+                pygame.draw.line(screen, (30, 24, 40), (wx + ww // 2, wy), (wx + ww // 2, wy + wh - 1))
+                pygame.draw.line(screen, (30, 24, 40), (wx, wy + wh // 2), (wx + ww - 1, wy + wh // 2))
+                continue
             if self.storm > 0:
                 screen.fill((150, 160, 220), pygame.Rect(wx, wy - 1, ww, wh + 1))
                 lx = wx + 6 + (int(self.time * 7) % (ww - 12))
@@ -649,7 +867,7 @@ class BuildABear:
         screen.blit(a.slab, (sx, sy))
         cx, cy = self.body_center
         e = self.phase_t
-        if self.phase in ("title", "play") or (self.phase == "zap" and e < SIT):    # lying there, waiting
+        if self.phase not in ("zap", "won") or (self.phase == "zap" and e < SIT):    # lying there, waiting
             _, lying, _ = a.creature(self.body())
             jx = jy = 0
             if self.phase == "zap" and SLAM < e < CHARGE:
@@ -694,6 +912,30 @@ class BuildABear:
     def _shadow(self, screen: pygame.Surface, x: float, y: float, w: int) -> None:
         pygame.draw.ellipse(screen, (16, 10, 30), (round(x) - w // 2, round(y) - 1, w, 3))
 
+    def _draw_clutter(self, screen: pygame.Surface, i: int) -> None:
+        x, bottom = art.CLUTTER[i][:2]
+        img = self.art.clutter[i]
+        screen.blit(img, (x, bottom - img.get_height() + 1))
+
+    def _draw_car(self, screen: pygame.Surface, car: tuple) -> None:
+        kind, x, y, facing = car
+        img = self.art.cars[kind][facing]
+        self._shadow(screen, x, y + 1, 16)
+        bump = int(self.time * 10 + x) % 2 if kind == "engine" else 0
+        screen.blit(img, (round(x) - img.get_width() // 2, round(y) - img.get_height() + 2 - bump))
+
+    def _draw_chomper(self, screen: pygame.Surface, c: Chomper) -> None:
+        if c.state == "rest":                                              # winding down, slowly
+            f = int(c.t * 3) % 2 + 2 * (int(c.t * 2) % 2)
+        else:
+            f = int(c.t * (14 if c.state == "chase" else 8)) % 2 + 2 * (int(c.t * 5) % 2)
+        img = self.art.chomper[f][c.facing]
+        hop = 1 if c.state != "rest" and int(c.t * 6) % 2 else 0
+        self._shadow(screen, c.x, c.y + 1, 12)
+        screen.blit(img, (round(c.x) - 8, round(c.y) - 14 - hop))
+        if c.state == "chase" and int(self.time * 6) % 2:
+            screen.blit(text_surface("!", "#ff7a9a"), (round(c.x) - 1, round(c.y) - 24))
+
     def _draw_part(self, screen: pygame.Surface, p: Part) -> None:
         img = self.art.parts[(p.kind, p.fam)][p.flip]
         self._shadow(screen, p.x, p.y + 1, img.get_width() - 2)
@@ -704,6 +946,8 @@ class BuildABear:
             pygame.draw.polygon(screen, hex_to_rgba("#ffd93a"), [(ax - 3, ay), (ax + 3, ay), (ax, ay + 3)])
 
     def _doc_frame(self) -> tuple[str, int]:
+        if self.stun > 0 or (self.phase == "calm" and self.phase_t > CALM_GROAN) or self.phase == "lost":
+            return "hurt", int(self.time * 10) % 2 if self.stun > 0 else 0
         if self.pull > 0:
             return "interact", min(3, int((PULL_T - self.pull) / PULL_T * 4))
         if self.phase == "won" or (self.phase == "zap" and self.phase_t >= ROAR):
@@ -718,6 +962,12 @@ class BuildABear:
     def _draw_doc(self, screen: pygame.Surface, _: object) -> None:
         name, f = self._doc_frame()
         self._shadow(screen, self.x, self.y + 1, 16)
+        if self.stun > 0:
+            a = self.time * 7
+            for k in (0, 2.1, 4.2):
+                screen.blit(self.art.star, (round(self.x + 9 * math.cos(a + k)) - 2, round(self.y - 48 + 2 * math.sin(a + k))))
+        elif self.safe > 0 and int(self.time * 14) % 2:                    # blinking: nothing can hit him
+            return
         img = self.art.doc[name][f][self.facing]
         screen.blit(img, (round(self.x) - SIZE // 2, round(self.y) - GROUND))
         if self.held:
@@ -733,20 +983,26 @@ class BuildABear:
         if self.phase == "title":
             self.howto.draw(screen)
             return
-        panel = pygame.Surface((62, 9), pygame.SRCALPHA)
+        panel = pygame.Surface((108, 9), pygame.SRCALPHA)
         panel.fill((20, 15, 38, 220))
         screen.blit(panel, (2, H - 10))
         n = len(self.built)
         screen.blit(text_surface(f"PARTS {n}/{NEED}", "#d4ff7a" if n == NEED else LAB_TEXT), (5, H - 8))
+        secs = math.ceil(self.clock)
+        col = "#ff5f5f" if secs <= 10 and int(self.time * 4) % 2 else "#5ff3ff"
+        screen.blit(text_surface(f"STORM {secs:02d}", col), (58, H - 8))
         if self.phase == "play" and self.held and not self.menu:
             label = text_surface(self.held.name, LAB_DIM)
-            screen.blit(label, (68, H - 8))
+            screen.blit(label, (114, H - 8))
         if self.phase == "play" and self.complete and not self.menu and int(self.time * 3) % 2:
             px = art.LEVER_PIVOT[0]
             hint = text_surface("THROW IT!", "#ffd93a")
             screen.blit(hint, (px - hint.get_width() // 2, art.SWITCH[1] + art.SWITCH[3] + 18))
         if self.menu:
             self._draw_menu(screen)
+        if self.phase == "lost":
+            self._banner(screen, "THE STORM PASSED", ["NO LIGHTNING, NO LIFE.", f"IT HAD {n} OF {NEED} PARTS.", "",
+                                                       "PRESS BUTTON"])
         if self.phase == "won":
             names = [self.built[s].name for s in SLOTS]
             self._banner(screen, "IT'S ALIVE!", [f"{names[0]}, {names[1]},", f"{names[2]}, {names[3]},",
@@ -895,7 +1151,7 @@ def autopilot(game: BuildABear) -> Input:
     game.__dict__["_pilot_tick"] = game.__dict__.get("_pilot_tick", 0) + 1
     tick = game.__dict__["_pilot_tick"]
     if game.phase != "play":
-        inp.action = game.phase in ("title", "won") and game.phase_t > 1.5 and tick % 30 == 0
+        inp.action = game.phase in ("title", "won", "lost") and game.phase_t > 1.5 and tick % 30 == 0
         return inp
     if game.menu:
         want = next((s for s in SLOTS if s not in game.built and art.SLOT_KIND[s] == game.held.kind),
@@ -941,6 +1197,9 @@ def autopilot(game: BuildABear) -> Input:
             inp.action = tick % 8 == 0
             return inp
     tx, ty = _route(game, tx, ty)
+    if not game.on_track(game.x, game.y, 4) and game.on_track(tx, ty, 10) and \
+            any(math.hypot(cx - tx, cy - ty) < 40 for _, cx, cy, _ in game.train_cars()):
+        return inp                                                          # let the train go by
     dx, dy = tx - game.x, ty - game.y
     inp.x = (dx > 2) - (dx < -2)
     inp.y = (dy > 2) - (dy < -2)
