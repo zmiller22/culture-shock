@@ -32,7 +32,7 @@ from ..shell import Input, run
 from . import art, hairy_man, tutorial
 
 BABIES, NEED = 5, 3            # babies per round, deliveries needed to win
-POINTS_DELIVERY, POINTS_WIN = 300, 500   # for the lab's high scores (see the score property)
+POINTS_DELIVERY, POINTS_WIN, POINTS_SPARE = 300, 500, 200   # for the lab's high scores (see the score property)
 FLOOR_Y = 168
 
 STORK_ACCEL = 520              # px/s^2 while the stick is held
@@ -276,8 +276,9 @@ class StorkBomber:
     # -- update ---------------------------------------------------------------------
     @property
     def score(self) -> int:
-        """Points for the lab's high scores: every delivery, plus a bonus for winning."""
-        return self.delivered * POINTS_DELIVERY + (POINTS_WIN if self.result == "win" else 0)
+        """Points for the lab's high scores: every delivery, plus on a win a bonus and more for each baby to spare."""
+        win = POINTS_WIN + self.babies_in_play * POINTS_SPARE if self.result == "win" else 0
+        return self.delivered * POINTS_DELIVERY + win
 
     def update(self, dt: float, inp: Input) -> None:
         self.time += dt

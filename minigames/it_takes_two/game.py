@@ -8,7 +8,8 @@ stop face to face. Then the organs pull out and... OH NO! CONTRACEPTIVES! The
 pair get shoved to the edges and each contraceptive gets a ring-announcer
 entrance in the spotlight before joining a line at the bottom. The camera pulls
 back, everyone flies to their places, and the maze assembles around them. Then
-the how-to-play pages, then the round. Press start to skip the intro.
+the how-to-play pages, then the round. The button skips what's left of the intro once the
+contraceptives have all made their entrances.
 
     python -m minigames.it_takes_two [--fullscreen] [--scale 4] [--demo] [--seed N]
 
@@ -104,6 +105,7 @@ DRIFT = (CARDS + 4 * CARD + 0.2, CARDS + 4 * CARD + 1.6)   # everyone off to the
 MAZE_IN = (DRIFT[0], DRIFT[0] + 1.6)                       # the walls fly in and lock together
 DOTS_IN = (DRIFT[1], DRIFT[1] + 0.6)
 INTRO = DOTS_IN[1] + 0.6
+INTRO_SKIP = DRIFT[0]            # the button can't skip the intro until every contraceptive has made its entrance
 PRELUDE_TEXT = "WE KNOW THAT IT TAKES 2..."
 PRELUDE_ASK = ("FIND ANOTHER PLAYER,", "THEN HOLD ANY BUTTON TO CONTINUE")
 PRELUDE_TYPE = 1.6               # s to type the line out, before PRELUDE_ASK comes up under it
@@ -558,8 +560,8 @@ class ItTakesTwo:
         return False
 
     def _update_intro(self, dt: float, inp: Input) -> None:
-        if self.phase_t > 0.4 and (inp.action or any(p.action for p in inp.players)):
-            self._end_intro()                         # skip it
+        if self.phase_t > INTRO_SKIP and (inp.action or any(p.action for p in inp.players)):
+            self._end_intro()                         # skip the rest (only once the contraceptives are all out)
             return
         if self._cue("ovulate", OVULATE[0]):
             self._popup("OVULATION!", OVARY[0] + 10, OVARY[1] - 22, "#ff9ac8", big=True)

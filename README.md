@@ -136,8 +136,10 @@ how-to) or EXPLORE OTHER THEORIES (back to the map). Every theory you've played
 is stamped CONFIRMED or REFUTED on its tile, so a returning visitor can see what
 they've done.
 
-Each simulation scores points, and your total is your best score on each theory,
-added up. When a visit ends the HIGH SCORES rank everyone by theories explored
+Each simulation scores points on the lab's common scale: a strong run on any
+theory is worth about 1000, whatever the mini-game's own score looks like (each
+theory's `par` in `theories()` in `lifesim/game.py` sets the exchange rate). Your
+total is your best score on each theory, added up. When a visit ends the HIGH SCORES rank everyone by theories explored
 (played, won or lost), then by total points. They're kept in
 `~/.life_lab/scores.txt` (set `LIFE_LAB_SCORES` to move it). Confirm them all and the machine is not sure
 what to make of it.

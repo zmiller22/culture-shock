@@ -71,6 +71,8 @@ from . import worldmap
 from .worldmap import COLS, EXIT, EXIT_RECT, FILES, TILE_H, TILE_W, VOID, WorldMap, tile_at, tile_rect
 
 # -- tuning ------------------------------------------------------------------------
+# (each theory's par, the mini-game score that's worth PAR_POINTS lab points, is in theories():
+#  roughly what its autopilot scores, so a great human run lands near 1000)
 TYPE_RATE = 70.0           # characters/s the terminal types at
 LINE_PAUSE = 0.12          # s between lines
 VISITOR_LOG = Path(os.environ.get("LIFE_LAB_VISITORS", Path.home() / ".life_lab" / "visitors.txt"))
@@ -289,6 +291,14 @@ class Theory:
     make: Callable[..., MiniGame]   # make(prev): prev is the round just played, for PLAY AGAIN (no how-to)
     autopilot: Callable[[MiniGame], Input]
     quips: dict[str, str]
+    par: int = 0                # the mini-game's own score for a strong run, which the lab counts as PAR_POINTS
+
+    def lab_points(self, score: int) -> int:
+        """The mini-game's own score on the lab's common scale, so every theory is worth about the same."""
+        return round(max(0, score) * PAR_POINTS / self.par) if self.par else 0
+
+
+PAR_POINTS = 1000           # lab points for a strong run on any theory
 
 
 def theories(mute: bool = False) -> list[Theory]:
@@ -329,22 +339,22 @@ def theories(mute: bool = False) -> list[Theory]:
     return [
         Theory("01", "THE STORK HYPOTHESIS", "STORK BOMBER", ("BABIES ARE DELIVERED BY AIR", "BY A LARGE BIRD. TEST DELIVERY."),
                "1P", stork, pilot("minigames.stork_bomber.game"),
-               {"win": "BIRD CONFIRMED. NOTIFY THE PRESS.", "lose": "NO BIRD. WHERE DO BABIES COME FROM?"}),
+               {"win": "BIRD CONFIRMED. NOTIFY THE PRESS.", "lose": "NO BIRD. WHERE DO BABIES COME FROM?"}, par=1800),
         Theory("02", "PRIMORDIAL SOUP", "PRIMORDIAL SOUP", ("LIFE BEGAN IN A WARM BROTH", "OF CHEMICALS. COOK SOME UP."),
                "1P", soup, pilot("minigames.primordial_soup.game"),
-               {"win": "THE SOUP IS ALIVE. IT ATE THE CHEF.", "lose": "SOUP COLD. DINERS ANGRY."}),
+               {"win": "THE SOUP IS ALIVE. IT ATE THE CHEF.", "lose": "SOUP COLD. DINERS ANGRY."}, par=1900),
         Theory("03", "IT TAKES TWO", "IT TAKES TWO", ("LIFE STARTS WHEN TWO CELLS", "FALL IN LOVE. 2 SPIRITS NEEDED."),
                "2P", meet, pilot("minigames.it_takes_two.game"),
-               {"win": "THEY MET. IT WAS ADORABLE.", "lose": "THEY NEVER MET. TRY AGAIN NEXT MONTH."}),
+               {"win": "THEY MET. IT WAS ADORABLE.", "lose": "THEY NEVER MET. TRY AGAIN NEXT MONTH."}, par=4700),
         Theory("04", "THE WOMB RAVE", "WOMB RAVE", ("LIFE IS A NINE MONTH PARTY", "IN A VERY SMALL CLUB."),
                "1P", womb, pilot("minigames.womb_rave.game"),
-               {"win": "BIRTH ACHIEVED. VIBES IMMACULATE.", "lose": "EVICTED. THE BOUNCER WAS THE CERVIX."}),
+               {"win": "BIRTH ACHIEVED. VIBES IMMACULATE.", "lose": "EVICTED. THE BOUNCER WAS THE CERVIX."}, par=20100),
         Theory("05", "THE GENETIC CODE", "SPIT KIT", ("LIFE IS A RECIPE IN YOUR SPIT.", "THE JAR WILL READ YOURS."),
                "1P", spit, pilot("minigames.spit_kit.game"),
                {"win": "YOU ARE MOSTLY SOMEONE ELSE.", "lose": "NO SPIT. NO SCIENCE."}),
         Theory("06", "SPARK OF LIFE", "BUILD-A-BEAR", ("A BOLT OF LIGHTNING BRINGS DEAD", "MATTER TO LIFE. SEW, THEN ZAP."),
                "1P", bear, pilot("minigames.build_a_bear.game"),
-               {"win": "IT'S ALIVE! IT WANTS A HUG.", "lose": "NO LIGHTNING. JUST A SAD TOY."}),
+               {"win": "IT'S ALIVE! IT WANTS A HUG.", "lose": "NO LIGHTNING. JUST A SAD TOY."}, par=1950),
     ]
 
 
@@ -872,7 +882,7 @@ class LifeSim:
                 res = self.sim.result or "?"
                 code = self.sim_theory.code
                 self.results[code].append(res)
-                self.last_points = max(0, int(getattr(self.sim, "score", 0) or 0))
+                self.last_points = self.sim_theory.lab_points(int(getattr(self.sim, "score", 0) or 0))
                 self.best[code] = max(self.best.get(code, 0), self.last_points)
                 self.activity("theory_end", theory=code, result=res, secs=self._sim_secs(), points=self.last_points)
                 self.last = (self.sim_theory, res)
