@@ -104,6 +104,8 @@ DRIFT = (CARDS + 4 * CARD + 0.2, CARDS + 4 * CARD + 1.6)   # everyone off to the
 MAZE_IN = (DRIFT[0], DRIFT[0] + 1.6)                       # the walls fly in and lock together
 DOTS_IN = (DRIFT[1], DRIFT[1] + 0.6)
 INTRO = DOTS_IN[1] + 0.6
+PRELUDE_TEXT = "WE KNOW THAT IT TAKES 2..."
+PRELUDE = (1.6, 3.4, 4.0)        # typed out by, held until, faded out by
 NAMES = {"condom": "CONDOM", "pill": "THE PILL", "spermicide": "SPERMICIDE", "iud": "COPPER IUD"}
 # the ring announcer: lead-in, nickname, and the spotlight colour
 HYPE = {
@@ -352,7 +354,8 @@ class ItTakesTwo:
         self.popups: list[Popup] = []
         self.bits: list[Bit] = []
         self.pops: list[tuple[float, float, str, float]] = []
-        self.phase = "intro"                          # the delivery and the ring entrances, then the how-to
+        self.phase = "prelude"                        # WE KNOW THAT IT TAKES 2..., the delivery and the
+                                                      # ring entrances, then the how-to
         self.phase_t = 0.0
         self.show_title = show_title
         self.howto = tutorial.make(self.art)
@@ -500,6 +503,11 @@ class ItTakesTwo:
             self.howto.update(dt, inp)
             if self.howto.done:
                 self._enter("ready")
+        elif self.phase == "prelude":
+            if self.phase_t > 0.4 and (inp.action or any(p.action for p in inp.players)):
+                self._end_intro()                     # skip the whole intro
+            elif self.phase_t >= PRELUDE[2]:
+                self._enter("intro")
         elif self.phase == "intro":
             self._update_intro(dt, inp)
         elif self.phase == "ready":
@@ -698,6 +706,9 @@ class ItTakesTwo:
     # -- draw ----------------------------------------------------------------------
     def draw(self, screen: pygame.Surface) -> None:
         t = pygame.time.get_ticks() / 1000
+        if self.phase == "prelude":
+            self._draw_prelude(screen, t)
+            return
         if self.phase == "intro":
             self._draw_intro(screen, t)
             self._draw_fx(screen)
@@ -879,6 +890,30 @@ class ItTakesTwo:
                 self._label(screen, text, col, x, y + 18)
         elif k >= DRIFT[1]:
             self._draw_labels(screen, t)
+
+    def _draw_prelude(self, screen: pygame.Surface, t: float) -> None:
+        """WE KNOW THAT IT TAKES 2..., typed out on a dark screen, then faded."""
+        screen.fill(rgb(F["void"]))
+        k = self.phase_t
+        n = int(len(PRELUDE_TEXT) * min(1.0, k / PRELUDE[0]))
+        full = big_text(PRELUDE_TEXT, LAB_TEXT)
+        x0, y0 = W / 2 - full.get_width() / 2, H / 2 - full.get_height() / 2
+        shown = PRELUDE_TEXT[:n]
+        for i, ch in enumerate(shown):                     # the 2 in pink, the rest in white
+            if ch == " ":
+                continue
+            col = "#ff6a9a" if ch == "2" else LAB_TEXT
+            g = big_text(ch, col)
+            pre = big_text(PRELUDE_TEXT[:i], LAB_TEXT).get_width() if i else 0
+            screen.blit(g, (x0 + pre + (2 if i else 0), y0))
+        if n < len(PRELUDE_TEXT) or int(t * 3) % 2:        # a blinking cursor
+            pre = big_text(shown, LAB_TEXT).get_width() if shown else 0
+            screen.fill(rgb("#ff6a9a"), (round(x0 + pre + 3), round(y0), 3, full.get_height()))
+        if k > PRELUDE[1]:
+            fade = min(1.0, (k - PRELUDE[1]) / (PRELUDE[2] - PRELUDE[1]))
+            fx = self.art.overlay
+            fx.fill((*rgb(F["void"]), int(255 * fade)))
+            screen.blit(fx, (0, 0))
 
     def _label(self, screen: pygame.Surface, text: str, col: str, x: float, y: float) -> None:
         s = text_surface(text, col)

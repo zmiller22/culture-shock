@@ -595,8 +595,9 @@ at opposite corners of a maze of fleshy tubes and have to find each other.
 Every round is a new maze: mirrored left to right, with no dead ends, a pen in
 the middle, and a wrap-around tunnel on each side.
 
-Each round opens with a twenty-second intro on an empty screen, before the
-how-to-play pages. A fallopian tube and ovary slide in on the left and a penis
+Each round opens with a twenty-four-second intro, before the how-to-play
+pages. First *WE KNOW THAT IT TAKES 2...* types out on a dark screen (the 2 in
+pink) and fades. Then, on an empty screen, a fallopian tube and ovary slide in on the left and a penis
 on the right. The ovary releases the egg (*OVULATION!*), and she rolls up the
 tube and out into the open. The penis throbs and shoots the sperm (*SPLOOSH!*)
 along with a spray of others who fade away (*1 IN 200 MILLION*). The two stop
