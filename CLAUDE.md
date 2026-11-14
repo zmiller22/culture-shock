@@ -35,6 +35,12 @@ up to date:
 
 ## Running things
 
+**Never launch the game or any mini-game yourself without asking first.** That
+includes demo, autopilot and `--ticks` smoke runs, because they open a window on
+the user's screen. Print the terminal command for the user to run instead.
+Headless checks that open no window (`SDL_VIDEODRIVER=dummy`, plain imports,
+unit-style scripts) are fine.
+
 Which Python to use depends on the machine (see above). `command -v conda`
 also tells you: the Mac has conda and the Pi doesn't.
 
