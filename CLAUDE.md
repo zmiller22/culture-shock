@@ -5,6 +5,22 @@
 "Main game" means the sequence that runs from the mainframe start, through the
 galaxy sequence, to the terminal screen.
 
+## Which machine you're on
+
+The repo lives at a different path on each machine:
+
+| Machine | OS | Repo path | Python |
+|---|---|---|---|
+| Mac | macOS (`uname -s` is `Darwin`) | `~/dev/8-bit-art` | `8-bit` conda env |
+| Cabinet Pi | Raspberry Pi OS (`uname -s` is `Linux`) | `~/dev/culture-shock` | system `python3` |
+
+Before you give the user any file path or terminal command, check which
+machine you're on. Run `uname -s` and `git rev-parse --show-toplevel`, or look
+at the working directory in your environment info. Then use that machine's
+repo path and Python. Don't copy a path from these notes or an earlier command
+without checking that it fits this machine. If the user asks for a command to
+run on the other machine, say which machine it's for.
+
 ## Keeping machines in sync
 
 Development moves often between the Mac and the cabinet Pi, so keep GitHub
@@ -19,7 +35,8 @@ up to date:
 
 ## Running things
 
-Which Python to use depends on the machine. Check with `command -v conda`.
+Which Python to use depends on the machine (see above). `command -v conda`
+also tells you: the Mac has conda and the Pi doesn't.
 
 **Cabinet Pi (no conda):** there's no conda and no active virtualenv. The game
 runs on the system `python3` (Debian/Raspberry Pi OS, Python 3.13), with its
@@ -49,12 +66,12 @@ cd ~/dev/culture-shock && ./play.sh --scale 3 --skip-boot
 
 For anything else, use `python3` directly (`python3 -m lifesim ...`).
 
-**Machines with conda:** the project runs in the `8-bit` conda environment (see
+**Mac (conda):** the project runs in the `8-bit` conda environment (see
 `environment.yml`), and the system `python` there doesn't have pygame. Use the
 env's interpreter without activating it first:
 
 ```bash
-cd ~/dev/culture-shock && conda run --no-capture-output -n 8-bit python -m lifesim --skip-boot
+cd ~/dev/8-bit-art && conda run --no-capture-output -n 8-bit python -m lifesim --skip-boot
 ```
 
 `--no-capture-output` makes the game's output show up live in the terminal.
