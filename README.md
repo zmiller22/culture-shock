@@ -534,7 +534,7 @@ from 120 to 128, 136, 144 and finally 152 BPM. Each time, a shout slams onto the
 screen (FASTER! HARDER! DEEPER! DON'T STOP!) and the notes start arriving
 quicker.
 
-Hits are judged PERFECT, GREAT or OK. Each one fills your vitals and builds the
+Hits are judged PERFECT, GREAT or OK. Each one fills your life bar and builds the
 combo; each miss drains them.
 
 Every 8 hits in a row, someone moans (little synthesized 8-bit moans, more worked
@@ -547,7 +547,7 @@ and you get a sad *aww* and *IT HAPPENS TO EVERYONE*.
 sculpture shoots you back into the gallery in a shower of pink and blue
 confetti: *IT'S A ZOMBIE!* You get a grade (S to D) from how in sync you were.
 
-**Lose:** your vitals run out. The record scratches, the lights go red, and the
+**Lose:** your life runs out. The record scratches, the lights go red, and the
 womb evicts you. You land on the gallery floor with a thud.
 
 The select starts on someone random, or on `--character` if you pass one.

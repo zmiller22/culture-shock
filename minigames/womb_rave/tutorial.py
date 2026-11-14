@@ -10,11 +10,10 @@ import pygame
 from sprites.canvas import mix
 from sprites.rig import GROUND, SIZE
 
-from ..tutorial import DEMO_H, DEMO_W, Page, Tutorial, blit_c, caption, loop
+from ..tutorial import DEMO_H, DEMO_W, Page, Tutorial, blit_c, caption
 from .art import F, MEM_RX, MEM_RY, SAC_RX, SAC_RY
 
 CX, CY = DEMO_W // 2, 50           # the sac's middle, in the demo
-TRAVEL = 0.9                       # s a thing takes to reach the membrane
 HOP = 9
 STICK = {"L": (-1, 0), "R": (1, 0), "U": (0, -1), "D": (0, 1)}
 RECEPTOR = {"L": (CX - MEM_RX, CY), "R": (CX + MEM_RX, CY), "U": (CX, CY - MEM_RY), "D": (CX, CY + MEM_RY)}
@@ -30,25 +29,16 @@ TRY_GRADES = (("perfect", 0.08), ("great", 0.16), ("ok", TRY_WINDOW))
 TRY_ORDER = "LURDRDLU"             # the lanes in turn; a missed one comes round again next
 TRY_HITS = 4
 
-# the vitals page: three misses in a row drain them, and out you go
-VIT_MISSES = ((0.9, "L"), (1.9, "U"), (2.9, "R"))
-VIT_START = 45                     # out of 100; each miss takes a third of it (far more than in the song,
-                                   # so it reads at a glance)
-VIT_GHOST = 0.5                    # s the lost chunk lingers in white before it's gone
-VIT_LOW = 25                       # below this the bar flashes, as in the song
-VIT_LOOP = 5.6
-SINK = 0.5                         # s after the last miss that the dancer starts to get flushed
-
+# the life page: just the bar, still, a little under full
+LIFE_SHOWN = 70                    # out of 100
 
 def rgb(c: str) -> tuple[int, int, int]:
     return tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
 
 
-def make(a, frame: Callable[[str, int, int], pygame.Surface],
-         heckle: Callable[[], None] | None = None) -> Tutorial:
-    """`a` is the game's Art; `frame(anim, i, facing)` gets the picked dancer's frames;
-    `heckle()` plays a doing-badly voice line (the vitals page plays one, once)."""
-    from .game import JUDGE, outlined
+def make(a, frame: Callable[[str, int, int], pygame.Surface]) -> Tutorial:
+    """`a` is the game's Art; `frame(anim, i, facing)` gets the picked dancer's frames."""
+    from .game import JUDGE
 
     def stage(s: pygame.Surface, t: float) -> None:
         s.fill(rgb(F["deep"]))
@@ -95,90 +85,24 @@ def make(a, frame: Callable[[str, int, int], pygame.Surface],
         s.blit(img, (round(CX + nudge) - SIZE // 2, round(y) - GROUND - 1))
         s.blit(a.rim, (CX - SAC_RX - 1, CY - SAC_RY - 1))
 
-    def receptors(s: pygame.Surface, lit: set[str]) -> None:
-        for lane, (rx, ry) in RECEPTOR.items():
-            s.blit(a.receptor[(lane, "flash" if lane in lit else "idle")], (rx - 5, ry - 5))
-
-    def run_notes(s: pygame.Surface, t: float, notes: list[tuple[float, str, bool]]):
-        """notes: (time it reaches the membrane, lane, hit?). Draws them and returns
-        (lit receptors, the dancer's latest move, stick x, stick y, judge text, judge time)."""
-        lit, move, sx, sy, judge = set(), None, 0, 0, None
-        for at, lane, hit in notes:
-            k = (t - (at - TRAVEL)) / TRAVEL
-            if 0 <= k < 1:
-                (x0, y0), (x1, y1) = START[lane], RECEPTOR[lane]
-                blit_c(s, note_img(lane, t), x0 + (x1 - x0) * k, y0 + (y1 - y0) * k)
-            elif 1 <= k and not hit and t - at < 0.4:          # sails on through
-                (x0, y0), (x1, y1) = START[lane], RECEPTOR[lane]
-                img = note_img(lane, t).copy()
-                img.set_alpha(120)
-                blit_c(s, img, x0 + (x1 - x0) * k, y0 + (y1 - y0) * k)
-            dt = t - at
-            if 0 <= dt:
-                if hit:
-                    if dt < 0.15:
-                        lit.add(lane)
-                    if dt < 0.25:
-                        sx, sy = sx + STICK[lane][0], sy + STICK[lane][1]
-                    if dt < 0.4:
-                        rx, ry = RECEPTOR[lane]
-                        s.blit(a.burst[lane][min(3, int(dt / 0.1))], (rx - 10, ry - 10))
-                    move = (lane, dt)
-                    judge = ("PERFECT!", "#ffe14d", dt)
-                else:
-                    move = ("miss", dt) if dt < 0.3 else move
-                    judge = ("MISS", "#ff4a6a", dt)
-        return lit, move, sx, sy, judge
-
     def show_judge(s: pygame.Surface, judge) -> None:
         if judge and judge[2] < 0.6:
             caption(s, judge[0], CX, 4 - judge[2] * 4 + 4, judge[1])
 
-    # the vitals: three misses in a row drain them to nothing, and the womb evicts you
-    vit = [(at, lane, False) for at, lane in VIT_MISSES]
-    step = VIT_START / len(VIT_MISSES)
-    heckled = {"done": False}
-    evicted = outlined("EVICTED!", "#ff4a6a", 2)
-
-    def vitals(s: pygame.Surface, t: float):
-        first = t < VIT_LOOP
-        t = loop(t, VIT_LOOP) * VIT_LOOP
-        last = VIT_MISSES[-1][0]
-        if first and not heckled["done"] and t >= last and heckle:   # the voice lets you know, the first time round
-            heckled["done"] = True
-            heckle()
-        stage(s, t)
-        lit, move, _, _, judge = run_notes(s, t, vit)
-        receptors(s, lit)
-        sink = max(0.0, min(1.0, (t - last - SINK) / 1.2))
-        dancer(s, t, move if not sink else ("miss", 0.1), sink)
-        show_judge(s, judge)
-
-        # the bar, where it sits in the song, with a pulsing box and an arrow pointing it out
-        n = sum(t >= at for at, _ in VIT_MISSES)
-        life = VIT_START - step * n
-        since = t - VIT_MISSES[n - 1][0] if n else 9.0
-        ghost = life + step * max(0.0, 1 - since / VIT_GHOST) if n else life
-        s.blit(a.heart, (4, 4))
-        pygame.draw.rect(s, (40, 30, 60), (15, 5, 62, 6))
-        if ghost > life:                                 # the chunk you just lost, shrinking away
-            x0 = 16 + round(60 * life / 100)
-            pygame.draw.rect(s, (255, 255, 255), (x0, 6, round(60 * ghost / 100) - x0 + 16, 4))
-        col = "#ffffff" if life < VIT_LOW and int(t * 6) % 2 else "#ff4a6a"
-        if life > 0:
-            pygame.draw.rect(s, rgb(col), (16, 6, round(60 * life / 100), 4))
-        caption(s, "VITALS", 30, 13)
-        if n and since < 0.6:                            # and a little minus pops off the end of it
-            caption(s, "-", 16 + 60 * (life + step) / 100, 2 - since * 10, "#ff4a6a")
-        glow = 0.5 + 0.5 * math.sin(t * 8)
-        box = rgb(mix(F["deep"], F["hi"], 0.35 + 0.65 * glow))
-        pygame.draw.rect(s, box, (1, 1, 80, 21), 1)
-        ax = 86 + round(2 * math.sin(t * 8))             # the arrow, nudging at it
-        pygame.draw.polygon(s, box, ((ax, 8), (ax + 5, 4), (ax + 5, 12)))
-
-        if n == len(VIT_MISSES) and t - last > 0.3 and int(t * 6) % 4:   # out you go
-            blit_c(s, evicted, CX, CY - 8)
-        return 0, 0, False                               # hands off: nobody's pushing anything
+    # the life bar, big and still in the middle: no dancing, nothing to follow
+    def life(s: pygame.Surface, t: float):
+        s.fill(rgb(F["deep"]))
+        heart = pygame.transform.scale_by(a.heart, 2)
+        bw, bh = 120, 10
+        x0 = (DEMO_W - (heart.get_width() + 6 + bw)) // 2
+        y0 = CY - bh // 2
+        s.blit(heart, (x0, CY - heart.get_height() // 2))
+        bx = x0 + heart.get_width() + 6
+        pygame.draw.rect(s, (40, 30, 60), (bx, y0, bw, bh))
+        pygame.draw.rect(s, rgb("#ff4a6a"), (bx + 1, y0 + 1, round((bw - 2) * LIFE_SHOWN / 100), bh - 2))
+        pygame.draw.rect(s, rgb(F["hi"]), (bx - 1, y0 - 1, bw + 2, bh + 2), 1)
+        caption(s, "LIFE", bx + bw // 2, y0 + bh + 5)
+        return 0, 0, False
 
     # -- try it --------------------------------------------------------------------------
     class Beats:
@@ -274,7 +198,7 @@ def make(a, frame: Callable[[str, int, int], pygame.Surface],
         "WOMB RAVE", "",
         [
             Page(("PUSH THE STICK THAT WAY JUST AS", "EACH THING TOUCHES YOUR BUBBLE"), trial=Beats),
-            Page(("MISSES DRAIN YOUR VITALS. RUN OUT", "AND THE WOMB EVICTS YOU!"), vitals, lock=VIT_LOOP),
+            Page(("MISSING BEATS DRAINS YOUR LIFE.",), life, controls=("button",)),
         ],
         accent=F["hi"],
     )

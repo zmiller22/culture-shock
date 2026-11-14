@@ -16,7 +16,7 @@ come at the membrane around the sac along four lanes, each a part of the womb:
 Every hit makes the dancer move.
 
 Make it to the end of the song (all the way from foreplay to the PUSH) and you're born.
-Miss too many and your vitals run out: the womb evicts you.
+Miss too many and your life runs out: the womb evicts you.
 """
 
 from __future__ import annotations
@@ -529,7 +529,7 @@ class WombRave:
         elif self.phase_t >= PICK_TIME:
             self.popups.clear()
             if self.howto is None:
-                self.howto = tutorial.make(self.art, self._frame, heckle=self._heckle)
+                self.howto = tutorial.make(self.art, self._frame)
                 self._enter_phase("howto")
             else:
                 self._enter_phase("walk")
@@ -1094,7 +1094,7 @@ class WombRave:
             low = self.life < 25
             col = "#ff4a6a" if not low or int(self.time * 6) % 2 else "#ffffff"
             pygame.draw.rect(screen, rgb(col), (16, 6, round(60 * self.life / LIFE_MAX), 4))
-            screen.blit(text_surface("VITALS", LAB_DIM), (16, 13))
+            screen.blit(text_surface("LIFE", LAB_DIM), (16, 13))
             s = text_surface(self.stage, LAB_TEXT)
             screen.blit(s, (W - s.get_width() - 5, 5))
             s = text_surface(f"SCORE {self.score}", LAB_DIM)
