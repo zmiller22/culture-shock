@@ -17,8 +17,8 @@ simulation.
 
 Controls (keyboard, or an arcade stick / gamepad):
     STICK / ARROWS            move along the map's paths; on the name entry, down goes A -> B, up goes back,
-                              left goes back a letter, right goes on to the next
-    SPACE / Z / ENTER / btn 0 boot, skip the intro, select, next letter, continue
+                              left and right move the cursor
+    SPACE / Z / ENTER / any button  boot, select, continue (hold: sign in, the exit menu)
     ESC / Q                   quit
 
 Leave it alone for IDLE_PROMPT s (outside the boot sequence and cut-scenes), or
@@ -56,7 +56,7 @@ from typing import Callable
 
 import pygame
 
-from minigames.shell import PROMPT, PROMPT_FLASH, READ_GRACE, SKIP_GRACE, Input, MiniGame, prompt_color, run
+from minigames.shell import PROMPT, PROMPT_FLASH, READ_GRACE, Input, MiniGame, prompt_color, run
 from sprites.canvas import Canvas, hex_to_rgba
 from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.viewer import text_surface, to_surface
@@ -115,13 +115,9 @@ FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF 
                   "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
 # the tour of the map, the first time on it: what to light up, and what to say
 RETURN_OPTIONS = ["PLAY AGAIN", "EXPLORE OTHER THEORIES"]   # after a simulation's verdict
-TOUR_HOLD = 1.0             # s of holding the button that turns a page of the map's instructions
-TUTORIAL = [                # the first time on the map: (what to light up, the instruction)
-    ("move", "USE THE STICK TO MOVE AROUND."),
-    ("select", "TAP THE BUTTON TO SELECT A TILE."),
-    ("files", "THIS LOOKS INTERESTING..."),
-    ("exit", "DONE PLAYING? HOLD ANY BUTTON TO EXIT."),
-]
+# the first time on the map: one INSTRUCTIONS screen, arrows pointing down at the controls line
+TOUR_SHOW = 2.0             # s before HOLD BUTTON TO CONTINUE comes up (and a hold works)
+TOUR_HOLD = 1.0             # s of holding the button that goes on to the map
 
 
 def next_visitor() -> int:
@@ -929,9 +925,7 @@ class LifeSim:
         elif self.phase == "cosmos":
             if self.phase_t < RAIN_FADE:
                 self.rain.update(dt)
-            self.cosmos.update(dt)
-            if inp.action and self.phase_t > SKIP_GRACE:
-                self.cosmos.skip()
+            self.cosmos.update(dt)                      # (it plays through: no skipping the genesis program)
             if self.cosmos.done:
                 self._go("spirit")
         elif self.phase == "summon":
@@ -1439,63 +1433,56 @@ class LifeSim:
         screen.blit(img, (px, py))
 
     def _tutorial(self, dt: float, inp: Input) -> None:
-        """Static pages: once one's been up READ_GRACE, holding the button for TOUR_HOLD turns it.
-        A tap does nothing, and the button has to come up between pages."""
+        """The INSTRUCTIONS screen: once it's been up TOUR_SHOW, holding the button for
+        TOUR_HOLD goes on to the map. A tap does nothing; a button already down when it
+        came up has to be let go first."""
         self.tour_t += dt
         if not self.tour_armed:
             self.tour_armed = not inp.held
             return
-        if not inp.held or self.tour_t < READ_GRACE:
+        if not inp.held or self.tour_t < TOUR_SHOW:
             self.tour_press = None
             return
         self.tour_press = (self.tour_press or 0.0) + dt
         if self.tour_press >= TOUR_HOLD:
-            self.tutorial += 1
-            self.tour_t, self.tour_press, self.tour_armed = 0.0, None, False
-            self.phase_t = MAP_FADE                        # (no fade between pages)
-            if self.tutorial == len(TUTORIAL):
-                self.tutorial = None
-                self.swallow = True                        # (that hold isn't for the map)
-                self.activity("tutorial_done")
-
-    def _tour_rects(self, what: str) -> list[pygame.Rect]:
-        n = len(self.theories)
-        grid = tile_rect(0).unionall([tile_rect(i) for i in range(n)])
-        if what == "move":
-            return [grid.union(tile_rect(FILES)).union(EXIT_RECT).inflate(6, 6)]
-        if what == "select":
-            return [grid.inflate(6, 6)]
-        if what == "exit":
-            return [EXIT_RECT.inflate(6, 6)]
-        return [tile_rect(FILES).inflate(6, 6)]
+            self.tutorial = None
+            self.tour_press = None
+            self.swallow = True                            # (that hold isn't for the map)
+            self.activity("tutorial_done")
 
     def _draw_tutorial(self, screen: pygame.Surface) -> None:
-        """Dim everything but what this page is about, and say what it is."""
-        what, line = TUTORIAL[self.tutorial]
-        lit = screen.copy()
-        screen.fill((70, 70, 70), special_flags=pygame.BLEND_MULT)
-        for r in self._tour_rects(what):
-            screen.blit(lit, r, r)
-            pygame.draw.rect(screen, rgb(PROMPT), r, 1)
-        # INSTRUCTIONS, big across the top, in place of the header
+        """INSTRUCTIONS across the top, the map dimmed, the controls line along the bottom
+        left lit with an arrow pointing down at each control, and once a hold would work,
+        HOLD BUTTON TO CONTINUE in the middle."""
+        foot = pygame.Rect(0, 164, art.W, art.H - 164)
+        lit = screen.subsurface(foot).copy()
+        screen.fill((60, 60, 60), special_flags=pygame.BLEND_MULT)
+        screen.blit(lit, foot)
         screen.fill(VOID, (0, 0, art.W, 17))
         title = self.text.get("INSTRUCTIONS", PROMPT, 2, big=True)
         screen.blit(title, (art.W // 2 - title.get_width() // 2, 2))
-        box = pygame.Rect(4, 137, art.W - 8, 42)              # over the controls line, which the tour explains
-        screen.fill(rgb(CRT_BG), box)
-        pygame.draw.rect(screen, rgb(PROMPT), box, 1)
-        s = self.text.get(line, PROMPT, big=True)
-        screen.blit(s, (box.centerx - s.get_width() // 2, box.y + 6))
-        page = self.text.get(f"{self.tutorial + 1}/{len(TUTORIAL)}", PHOSPHOR_DIM)
-        screen.blit(page, (box.right - 5 - page.get_width(), box.y + 4))
-        if self.tour_t >= READ_GRACE:                      # once a hold would work: big, flashing colour
+        # an arrow over each control on the line below
+        col = rgb(PROMPT)
+        targets = [6 + big_width("STICK: MOVE") // 2,
+                   6 + big_width("STICK: MOVE    ") + big_width("TAP BUTTON: ENTER") // 2]
+        if self.idle_exit:
+            targets.append(art.W - 6 - big_width("HOLD BUTTON: EXIT") // 2)
+        bob = round(2 * math.sin(self.time * 6))
+        for x in targets:
+            tip = 163 + bob
+            screen.fill(col, (x - 1, tip - 30, 3, 24))                     # the shaft
+            for k in range(7):                                             # the head
+                screen.fill(col, (x - k, tip - k, 2 * k + 1, 1))
+        if self.tour_t >= TOUR_SHOW:                       # once a hold would work: big, flashing colour
             s = self.text.get("HOLD BUTTON TO CONTINUE", PROMPT, 2, big=True)
-            x = box.centerx - s.get_width() // 2
-            screen.blit(s, (x, box.bottom - 21))
-            if self.tour_press:                            # holding: a bar fills up to the next page
+            box = s.get_rect(center=(art.W // 2, 80)).inflate(16, 18)
+            screen.fill(rgb(CRT_BG), box)
+            pygame.draw.rect(screen, col, box, 1)
+            screen.blit(s, (box.x + 8, box.y + 6))
+            if self.tour_press:                            # holding: a bar fills up to the map
                 k = min(1.0, self.tour_press / TOUR_HOLD)
-                screen.fill(rgb(PHOSPHOR_FAINT), (x, box.bottom - 5, s.get_width(), 2))
-                screen.fill(rgb("#eaffea"), (x, box.bottom - 5, int(s.get_width() * k), 2))
+                screen.fill(rgb(PHOSPHOR_FAINT), (box.x + 8, box.bottom - 6, s.get_width(), 2))
+                screen.fill(rgb("#eaffea"), (box.x + 8, box.bottom - 6, int(s.get_width() * k), 2))
 
     def _draw_load(self, screen: pygame.Surface) -> None:
         """The body dives into the tile, the tile grows to fill the screen, then it switches off."""
@@ -1720,7 +1707,7 @@ def autopilot(game: LifeSim) -> Input:
         return game.sim_theory.autopilot(game.sim)
     inp = Input()
     if game.phase == "hub" and game.tutorial is not None:
-        inp.held = game.tour_t > READ_GRACE                  # hold each page over, letting go in between
+        inp.held = game.tour_t > TOUR_SHOW                   # hold, once it says to
         return inp
     if game.phase == "hub":
         untested = [i for i, t in enumerate(game.theories) if not game.results[t.code]]

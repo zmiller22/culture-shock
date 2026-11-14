@@ -191,15 +191,14 @@ button is drawn big in violet, flashing to pink-white and back (never off), and
 says TAP BUTTON (a quick press) or HOLD BUTTON DOWN (keep it held while a bar
 fills). The how-to pages in each mini-game are tagged WATCH (a demo) or TRY IT!
 (your turn), and in the main game the last one adds DONE PLAYING? HOLD ANY BUTTON
-TO EXIT. The first time on the theory map, four static INSTRUCTIONS come up one
-at a time, each over HOLD BUTTON TO CONTINUE (holding fills a bar; taps do
-nothing): use the stick to move around, tap the button to select a tile, THIS
-LOOKS INTERESTING... (over the file drawer), and DONE PLAYING? HOLD ANY BUTTON TO
-EXIT (over the exit). In Spit Kit, a big banner
+TO EXIT. The first time on the theory map, one INSTRUCTIONS screen dims the map
+and points arrows down at the controls line (STICK: MOVE, TAP BUTTON: ENTER, HOLD
+BUTTON: EXIT); after 2 seconds HOLD BUTTON TO CONTINUE comes up in the middle
+(holding fills a bar; taps do nothing). The genesis program (the code rain and
+the zoom out) plays through: the button doesn't skip it. In Spit Kit, a big banner
 says CALIBRATING... PLEASE DON'T TOUCH THE JAR! (or PUT THE JAR BACK ON THE
 SCALE) whenever the jar needs leaving alone. In the main game Spit Kit has no how-to pages and no walk out
-the door: once you're spliced you go straight to the map. Videos and visual sequences (the rick rolls, OOH, the trip, the
-zoom out) ignore the button for their first 3 seconds (`SKIP_GRACE` in
+the door: once you're spliced you go straight to the map. Videos and visual sequences (the rick rolls, OOH, the trip) ignore the button for their first 3 seconds (`SKIP_GRACE` in
 `minigames/shell.py`), so the taps that picked them don't skip them. New text
 (a how-to page, a text file, a verdict, a result banner, the map's instructions)
 stays up for 1.5 seconds (`READ_GRACE`) before a press goes on.
@@ -216,7 +215,7 @@ python -m lifesim --demo          # the computer boots it and plays every simula
 | Name entry: roll the letter (down = A -> B) / move the cursor / sign in | Down, Up / Left, Right / hold Space | stick / stick / hold any button |
 | Files: browse / back out (or `..` at the top) | Up, Down / Left | stick |
 | Files: type a code (roll / undo / lock) | Up, Down / Left / Right or Space | stick, any button |
-| Boot / skip the zoom / select / continue | Space, Z or Enter | any button |
+| Boot / select / continue | Space, Z or Enter | any button |
 | Exit countdown (on a menu) / back to the start screen (on the countdown) | hold Space, Z or Enter | hold any button |
 | Quit | Esc or Q | |
 
