@@ -50,7 +50,7 @@ from sprites.canvas import hex_to_rgba
 from sprites.palette import LAB_DIM, LAB_TEXT
 from sprites.viewer import H, W, text_surface, to_surface
 
-from ..shell import Input, line_surface, prompt_color, prompt_text, run
+from ..shell import READ_GRACE, Input, line_surface, prompt_color, prompt_text, run
 from . import art, tutorial
 from .art import F, TILE
 
@@ -549,7 +549,7 @@ class ItTakesTwo:
             if self.phase_t >= 3.0:
                 self._enter("end")
         elif self.phase == "end":
-            if self.phase_t > 0.6 and (inp.action or any(p.action for p in inp.players)):
+            if self.phase_t > READ_GRACE and (inp.action or any(p.action for p in inp.players)):
                 self.done = True
 
     def _cue(self, name: str, at: float) -> bool:

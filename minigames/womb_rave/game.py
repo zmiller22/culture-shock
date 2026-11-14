@@ -36,7 +36,7 @@ from sprites.palette import LAB_DIM, LAB_GRID, LAB_TEXT
 from sprites.rig import GROUND, SIZE
 from sprites.viewer import H, W, Loaded, text_surface, to_surface
 
-from ..shell import Input, line_surface, prompt_text, run
+from ..shell import READ_GRACE, Input, line_surface, prompt_text, run
 from ..tutorial import Intro
 from . import art, music, tutorial
 from .art import CX, CY, MEM_RX, MEM_RY, RECEPTOR, SAC_RX, SAC_RY
@@ -509,7 +509,7 @@ class WombRave:
             if self.phase == "out" and self.landed and self.phase_t >= OUT_LINGER:
                 self.phase = "won" if self.result == "win" else "lost"
                 self.phase_t = 0.0
-            if self.phase in ("won", "lost") and inp.action and self.phase_t > 1.0:
+            if self.phase in ("won", "lost") and inp.action and self.phase_t > READ_GRACE:
                 self.done = True
 
     def _update_select(self, dt: float, inp: Input) -> None:

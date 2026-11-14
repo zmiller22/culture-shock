@@ -28,7 +28,7 @@ from sprites.palette import LAB_DIM, LAB_GRID, LAB_TEXT
 from sprites.rig import GROUND, SIZE
 from sprites.viewer import H, W, text_surface, to_surface
 
-from ..shell import Input, line_surface, prompt_text, run
+from ..shell import READ_GRACE, Input, line_surface, prompt_text, run
 from . import art, hairy_man, tutorial
 
 BABIES, NEED = 5, 3            # babies per round, deliveries needed to win
@@ -296,7 +296,7 @@ class StorkBomber:
         if self.phase in ("won", "lost"):
             self.flap += FLAP_FPS * dt
             self._update_fx(dt)
-            if inp.action and self.phase_t > 1.0:
+            if inp.action and self.phase_t > READ_GRACE:
                 self.done = True
             return
 

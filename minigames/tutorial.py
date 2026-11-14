@@ -39,7 +39,7 @@ from sprites.font import BIG_H
 from sprites.palette import LAB_DIM, LAB_TEXT
 from sprites.viewer import H, W, text_surface
 
-from .shell import PROMPT, Input, prompt_text
+from .shell import PROMPT, READ_GRACE, Input, prompt_text
 
 DEMO_X, DEMO_Y, DEMO_W, DEMO_H = 74, 32, 238, 104
 PAGE_TIME = 4.5                  # s a page shows before turning on its own
@@ -208,7 +208,7 @@ class Tutorial:
             elif self.t >= TRY_TIME:
                 self._turn()
             return
-        if pressed and self.time > MIN_SHOW and self.t > max(MIN_SHOW, self.pages[self.page].lock):
+        if pressed and self.time > MIN_SHOW and self.t > max(READ_GRACE, self.pages[self.page].lock):
             if self.last:
                 self.done = True
             else:
@@ -306,7 +306,8 @@ class Tutorial:
         if self.trial:
             prompt = prompt_text("YOUR TURN: TRY IT!") if self.cheer_t is None else None
         else:
-            prompt = prompt_text("TAP BUTTON TO START" if self.last else "TAP BUTTON: NEXT") if self.t >= p.lock else None
+            prompt = prompt_text("TAP BUTTON TO START" if self.last else "TAP BUTTON: NEXT") \
+                if self.t >= max(READ_GRACE, p.lock) else None       # (up once a press would work)
         if prompt:                                           # (it flashes colour, see prompt_color)
             screen.blit(prompt, (W - prompt.get_width() - 6, H - BIG_H - 2))
         if self.trial and self.cheer_t is None and self.t > TRY_TIME - 5:       # running out: a bar shrinks

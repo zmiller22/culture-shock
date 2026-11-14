@@ -31,7 +31,7 @@ from sprites.palette import LAB_BG, LAB_DIM, LAB_TEXT
 from sprites.rig import ANIMATIONS, GROUND, SIZE, Pose
 from sprites.viewer import H, W, text_surface, to_surface
 
-from ..shell import Input, line_surface, prompt_text, run
+from ..shell import READ_GRACE, Input, line_surface, prompt_text, run
 from ..stork_bomber import art as stork_art
 from . import art, people, tutorial
 
@@ -485,7 +485,7 @@ class PrimordialSoup:
                 self._update_slime(dt)
             if self.diners:
                 self._update_diners(dt)
-            if inp.action and self.phase_t > 1.2:
+            if inp.action and self.phase_t > READ_GRACE:
                 self.done = True
         self._update_critters(dt)
         self._update_fx(dt)

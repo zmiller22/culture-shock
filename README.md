@@ -87,7 +87,7 @@ two reel-to-reel tape drives, a wall of blinking lamps and a green-phosphor CRT.
 
 ![the Life Lab Mainframe, waiting to boot](assets/previews/lifesim_title.png)
 
-The CRT says LIFE LAB MAINFRAME over a big **PUSH TO BOOT UP** button. Push it
+The CRT says LIFE LAB MAINFRAME over a big **PUSH ANY BUTTON TO BOOT UP** button. Push it
 and the lamps go wild, the reels spin up, green code rains down the screen and
 the camera dives into the glass. The program opens on a Powers-of-Ten zoom out,
 from the Earth to the beginning of everything. It stops four times, long enough
@@ -104,9 +104,11 @@ to get each joke (the labels just name things; the pictures do the joking), and 
 
 Past the big bang is the dark, where the program finds you: a **spirit** with no
 body yet. You're the lab's next **visitor** (VISITOR NO. 0042, say), and you sign
-in with a 1-4 letter name the way old arcades take high-score initials: the
-stick rolls the letter (down goes A -> B, up goes back), the button locks it
-in, left backs up, and END (one step up from A) finishes a short name. Every visitor is logged to
+in with a 1-4 letter name the way old arcades take high-score initials, all on
+the stick: up and down roll the letter under the cursor (down goes A -> B, and one
+step up from A is a blank, for a shorter name), left and right move the cursor,
+and holding the button down signs you in. A tap of the button does nothing here,
+and the survey in Spit Kit works the same way. Every visitor is logged to
 `~/.life_lab/visitors.txt` (set `LIFE_LAB_VISITORS` to move it; `--demo` doesn't
 log).
 
@@ -189,15 +191,18 @@ button is drawn big in violet, flashing to pink-white and back (never off), and
 says TAP BUTTON (a quick press) or HOLD BUTTON DOWN (keep it held while a bar
 fills). The how-to pages in each mini-game are tagged WATCH (a demo) or TRY IT!
 (your turn), and in the main game the last one adds DONE PLAYING? HOLD ANY BUTTON
-TO EXIT. The first time on the theory map, four INSTRUCTIONS come up one at a
-time, each over TAP BUTTON TO CONTINUE: use the stick to move around, tap the
-button to select a tile, THIS LOOKS INTERESTING... (over the file drawer), and
-DONE PLAYING? HOLD ANY BUTTON TO EXIT (over the exit). In Spit Kit, a big banner
+TO EXIT. The first time on the theory map, four static INSTRUCTIONS come up one
+at a time, each over HOLD BUTTON TO CONTINUE (holding fills a bar; taps do
+nothing): use the stick to move around, tap the button to select a tile, THIS
+LOOKS INTERESTING... (over the file drawer), and DONE PLAYING? HOLD ANY BUTTON TO
+EXIT (over the exit). In Spit Kit, a big banner
 says CALIBRATING... PLEASE DON'T TOUCH THE JAR! (or PUT THE JAR BACK ON THE
 SCALE) whenever the jar needs leaving alone. In the main game Spit Kit has no how-to pages and no walk out
 the door: once you're spliced you go straight to the map. Videos and visual sequences (the rick rolls, OOH, the trip, the
 zoom out) ignore the button for their first 3 seconds (`SKIP_GRACE` in
-`minigames/shell.py`), so the taps that picked them don't skip them.
+`minigames/shell.py`), so the taps that picked them don't skip them. New text
+(a how-to page, a text file, a verdict, a result banner, the map's instructions)
+stays up for 1.5 seconds (`READ_GRACE`) before a press goes on.
 
 ```bash
 python -m lifesim                 # windowed; add --fullscreen on the cabinet (./play.sh does this)
@@ -208,7 +213,7 @@ python -m lifesim --demo          # the computer boots it and plays every simula
 | Action | Keyboard | Arcade stick |
 |---|---|---|
 | Pick a theory | Up / Down | stick |
-| Name entry: roll the letter (down = A -> B) / back / next | Down, Up / Left / Right | stick |
+| Name entry: roll the letter (down = A -> B) / move the cursor / sign in | Down, Up / Left, Right / hold Space | stick / stick / hold any button |
 | Files: browse / back out (or `..` at the top) | Up, Down / Left | stick |
 | Files: type a code (roll / undo / lock) | Up, Down / Left / Right or Space | stick, any button |
 | Boot / skip the zoom / select / continue | Space, Z or Enter | any button |

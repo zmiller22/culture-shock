@@ -44,7 +44,7 @@ import pygame
 
 from sprites.font import BIG_ADV, BIG_H, big_width
 
-from minigames.shell import PROMPT as VIOLET, SKIP_GRACE, ink   # (PROMPT here is the DOS prompt)
+from minigames.shell import PROMPT as VIOLET, READ_GRACE, SKIP_GRACE, ink   # (PROMPT here is the DOS prompt)
 
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
 from .ooh import Ooh
@@ -151,6 +151,7 @@ FILES = [
     )),
 ]
 TXT_Y = 24                                   # the first line of an open text file
+TEXT_MODES = ("txt", "img", "msg", "granted")   # new text on screen: READ_GRACE before the button leaves it
 TXT_ROWS = (FOOT_Y - 2 - TXT_Y) // LINE      # lines of it that fit (13); longer ones scroll
 
 # what the terminal says after a roll. Always the same for a file: watching one never changes the other.
@@ -437,6 +438,7 @@ class FileTerminal:
 
     # -- state ---------------------------------------------------------------------------
     def open(self) -> None:
+        self.shown, self.mode_t = "", 0.0       # the mode on screen last tick, and s it's been up
         self.mode = "boot"              # boot (the DIR typing out), list, code, granted, ooh, trip, txt, img, roll, msg
         self.ooh: Ooh | None = None
         self.trip: Trip | None = None
@@ -497,10 +499,21 @@ class FileTerminal:
     def _say(self, s: str) -> None:
         self.flash = (s, FLASH_TIME)
 
+    @property
+    def reading(self) -> bool:
+        """New text just came up: the button (and the stick's BACK) don't do anything yet."""
+        return self.mode in TEXT_MODES and self.mode_t < READ_GRACE
+
     def update(self, dt: float, inp) -> None:
         sx, sy = self.stick.step(dt, inp.x, inp.y)
         self.flash = (self.flash[0], self.flash[1] - dt)
-        getattr(self, f"_update_{self.mode}")(dt, sx, sy, inp.action)
+        if self.mode != self.shown:                   # a new screen: start its clock
+            self.shown, self.mode_t = self.mode, 0.0
+        self.mode_t += dt
+        act = inp.action
+        if self.reading:
+            act, sx = False, 0
+        getattr(self, f"_update_{self.mode}")(dt, sx, sy, act)
 
     def _update_boot(self, dt: float, sx: int, sy: int, act: bool) -> None:
         self.boot_t += dt
@@ -718,7 +731,8 @@ class FileTerminal:
 
     def _footer(self, screen, hint: str, hold: bool = False) -> None:
         screen.fill(rgb(PHOSPHOR_DIM), (X0, FOOT_Y, SW - 2 * X0, 1))
-        self._put(screen, hint, X0, HINT_Y, ink(hint, PHOSPHOR))
+        if not self.reading:                                      # (the hint comes up once it works)
+            self._put(screen, hint, X0, HINT_Y, ink(hint, PHOSPHOR))
         if hold:
             self._draw_hold_hint(screen)
 

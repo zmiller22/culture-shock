@@ -39,7 +39,7 @@ from sprites.rig import ANIMATIONS, GROUND, SIZE, Pose
 from sprites.viewer import H, W, text_surface, to_surface
 
 from ..primordial_soup import art as soup_art
-from ..shell import Input, line_surface, prompt_text, run
+from ..shell import READ_GRACE, Input, line_surface, prompt_text, run
 from . import art, tutorial
 
 SLOTS = art.SLOTS
@@ -420,7 +420,7 @@ class BuildABear:
         elif self.phase in ("won", "lost"):
             self._update_doc(dt, Input())
             self._update_lever(dt)
-            if inp.action and self.phase_t > 1.2:
+            if inp.action and self.phase_t > READ_GRACE:
                 self.done = True
         if self.phase != "title":
             self._update_train(dt)

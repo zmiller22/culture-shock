@@ -56,7 +56,7 @@ from typing import Callable
 
 import pygame
 
-from minigames.shell import PROMPT, PROMPT_FLASH, SKIP_GRACE, Input, MiniGame, prompt_color, run
+from minigames.shell import PROMPT, PROMPT_FLASH, READ_GRACE, SKIP_GRACE, Input, MiniGame, prompt_color, run
 from sprites.canvas import Canvas, hex_to_rgba
 from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.viewer import text_surface, to_surface
@@ -82,7 +82,7 @@ NAME_REPEAT = (0.4, 0.09)  # s before a held stick starts repeating, then s per 
 NAME_TIMEOUT = 40.0        # s of nobody touching anything before it signs them in as is
 NAME_TAKEN_TIME = 2.5      # s NAME TAKEN stays up when they say a taken name isn't theirs
 SCORES_TIME = 8.0          # s of HIGH SCORES when a visit ends, before the next visitor's start screen
-ATTRACT = (8.0, 6.0)       # s of PUSH TO BOOT UP, then s of HIGH SCORES, round and round on the start screen
+ATTRACT = (8.0, 6.0)       # s of PUSH ANY BUTTON TO BOOT UP, then s of HIGH SCORES, round and round on the start screen
 SCORE_ROWS = 10            # rows on the high score table
 BUTTON_PRESS = 0.35        # s the boot button stays down before the code rain starts
 ENTER_TIME = 1.1           # s to dive into the CRT after the boot button
@@ -115,6 +115,7 @@ FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF 
                   "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
 # the tour of the map, the first time on it: what to light up, and what to say
 RETURN_OPTIONS = ["PLAY AGAIN", "EXPLORE OTHER THEORIES"]   # after a simulation's verdict
+TOUR_HOLD = 1.0             # s of holding the button that turns a page of the map's instructions
 TUTORIAL = [                # the first time on the map: (what to light up, the instruction)
     ("move", "USE THE STICK TO MOVE AROUND."),
     ("select", "TAP THE BUTTON TO SELECT A TILE."),
@@ -153,45 +154,77 @@ def sign_in(num: int, name: str) -> None:
 
 
 class NameEntry:
-    """Old-school arcade initials: down rolls on through the alphabet (A -> B),
-    up rolls back, and a tap of the button locks the letter in and moves on.
-    Holding the button down signs off with the letters so far, so names can be
-    1-4 letters. The button acts when it's let go, so a hold never adds a letter.
+    """Old-school arcade initials, all on the stick: up and down roll the letter
+    under the cursor (down goes A -> B; one step up from A is a blank, for names
+    shorter than NAME_LEN), left and right move the cursor, and holding the
+    button down signs off. Nothing else does anything: a tap of the button is
+    ignored, so nobody types a letter by accident.
 
-    A name someone already has asks HAVE YOU PLAYED HERE BEFORE? YES signs them
-    in as that name (`returning`, so the game can pick up their saved game); NO
-    says the name's taken and takes the last letter back off."""
+    A name someone already has asks HAVE YOU PLAYED HERE BEFORE? The stick picks
+    YES or NO and holding the button answers. YES signs them in as that name
+    (`returning`, so the game can pick up their saved game); NO says the name's
+    taken, and they change it."""
 
     LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
+    ROLL = LETTERS + [" "]                            # the blank sits one step up from A
 
     def __init__(self, taken: set[str] | None = None) -> None:
-        self.taken = taken or set()                   # names already signed in: these get NAME TAKEN
+        self.taken = taken or set()                   # names already signed in: these ask PLAYED HERE BEFORE?
         self.taken_t = 0.0                            # s left on NAME TAKEN
-        self.name = ""
-        self.cur = 0                                  # index into LETTERS
+        self.slots = ["A"] + [" "] * (NAME_LEN - 1)
+        self.pos = 0                                  # the slot the cursor's on
         self.done = False
         self.held = (0, 0)
         self.hold_t = 0.0
-        self.press: float | None = None               # s the button's been down, while it is
+        self.press: float | None = None               # s the button's been held down, while it is
+        self.armed = False                            # a button already down when this opened doesn't count
         self.idle = 0.0
         self.ask: str | None = None                   # the taken name, while PLAYED HERE BEFORE? is up
         self.ask_sel = 0                              # 0 = YES, 1 = NO
-        self.ask_armed = False                        # the button has to come up before it answers
         self.returning = False                        # they said YES: it's their name from before
 
     @property
+    def name(self) -> str:
+        return "".join(self.slots).replace(" ", "")
+
+    @name.setter
+    def name(self, value: str) -> None:
+        self.slots = list(value[:NAME_LEN].ljust(NAME_LEN))
+
+    @property
     def letter(self) -> str:
-        return self.LETTERS[self.cur]
+        return self.slots[self.pos]
 
     @property
     def hold_k(self) -> float:
-        """0..1, how far a held button is to signing off (0 for a tap, or with no letters yet)."""
-        if self.press is None or not self.name or self.press < 0.15:
+        """0..1, how far a held button is to signing off (or to answering PLAYED HERE BEFORE?)."""
+        if self.press is None or (not self.name and self.ask is None):
             return 0.0
-        return min(1.0, (self.press - 0.15) / (NAME_HOLD - 0.15))
+        return min(1.0, self.press / NAME_HOLD)
 
     def _roll(self, step: int) -> None:
-        self.cur = (self.cur + step) % len(self.LETTERS)
+        k = self.ROLL.index(self.slots[self.pos])
+        self.slots[self.pos] = self.ROLL[(k + step) % len(self.ROLL)]
+
+    def _move(self, step: int) -> None:
+        pos = max(0, min(NAME_LEN - 1, self.pos + step))
+        if pos > self.pos and self.slots[pos] == " ":   # a new slot starts on the letter before it
+            self.slots[pos] = self.slots[self.pos] if self.slots[self.pos] != " " else "A"
+        self.pos = pos
+
+    def _held_long(self, dt: float, inp: Input) -> bool:
+        """True the tick a hold reaches NAME_HOLD. A tap does nothing at all."""
+        if not self.armed:
+            self.armed = not inp.held
+            return False
+        if not inp.held:
+            self.press = None
+            return False
+        self.press = (self.press or 0.0) + dt
+        if self.press >= NAME_HOLD:
+            self.press, self.armed = None, False      # (let go before the next hold counts)
+            return True
+        return False
 
     def update(self, dt: float, inp: Input) -> None:
         if self.done:
@@ -202,7 +235,7 @@ class NameEntry:
         if dirs != (0, 0) or inp.action or inp.held:
             self.idle = 0.0
         if self.ask is not None:
-            self._update_ask(inp, dirs)
+            self._update_ask(dt, inp, dirs)
             return
         if inp.y:
             if dirs != self.held:
@@ -214,28 +247,13 @@ class NameEntry:
                     self._roll(inp.y)
                     self.hold_t -= NAME_REPEAT[1]
         elif inp.x and dirs != self.held:
-            if inp.x > 0:
-                self.lock()
-            elif self.name:                           # back up a letter
-                prev = self.name[-1]
-                self.name = self.name[:-1]
-                self.cur = self.LETTERS.index(prev)
+            self._move(inp.x)
         self.held = dirs
-        if inp.action:
-            self.press = 0.0
-        elif self.press is not None:
-            if inp.held:
-                self.press += dt
-                if self.press >= NAME_HOLD and self.name:
-                    self.press = None
-                    if self.name in self.taken:       # someone has it: is it them?
-                        self._ask(self.name)
-                        return
-                    self.done = True                  # held down: that's the name
-            else:                                     # let go quickly: a tap, lock the letter
-                if self.press < NAME_HOLD:
-                    self.lock()
-                self.press = None
+        if self._held_long(dt, inp) and self.name:
+            if self.name in self.taken:               # someone has it: is it them?
+                self._ask(self.name)
+                return
+            self.done = True                          # held down: that's the name
         if self.idle > NAME_TIMEOUT:
             self.name = self.name or "GHST"
             rng = random.Random()
@@ -243,41 +261,31 @@ class NameEntry:
                 self.name = "".join(rng.choice(self.LETTERS) for _ in range(NAME_LEN))
             self.done = True
 
-    def lock(self) -> None:
-        self.name += self.letter
-        if len(self.name) == NAME_LEN and self.name in self.taken:
-            self._ask(self.name)                      # someone has it: is it them?
-            return
-        self.done = len(self.name) == NAME_LEN        # otherwise the next slot starts on the same letter
-
     def _ask(self, name: str) -> None:
-        self.ask, self.ask_sel, self.ask_armed = name, 0, False
+        self.ask, self.ask_sel = name, 0
         self.name = name
+        self.press, self.armed = None, False          # the hold that finished the name isn't an answer
         self.held = (1, 1)                            # a stick already pushed doesn't move it straight away
 
-    def _update_ask(self, inp: Input, dirs: tuple[int, int]) -> None:
-        """PLAYED HERE BEFORE? The stick picks YES or NO, a press of the button answers."""
+    def _update_ask(self, dt: float, inp: Input, dirs: tuple[int, int]) -> None:
+        """PLAYED HERE BEFORE? The stick picks YES or NO, holding the button answers."""
         move = inp.x or inp.y
         if move and dirs != self.held:
             self.ask_sel = 0 if move < 0 else 1
         self.held = dirs
-        if not self.ask_armed:                        # the press that finished the name isn't an answer
-            self.ask_armed = not inp.held
-        elif inp.action:
+        if self._held_long(dt, inp):
             self.answer(self.ask_sel == 0)
-        if self.idle > NAME_TIMEOUT:                  # nobody's answering: not them, then
+        elif self.idle > NAME_TIMEOUT:                # nobody's answering: not them, then
             self.answer(False)
-            self.idle = NAME_TIMEOUT + 1              # and the timeout below makes a name up
+            self.idle = NAME_TIMEOUT + 1              # and the timeout makes a name up
 
     def answer(self, yes: bool) -> None:
         name, self.ask = self.ask, None
         if yes:
             self.name, self.returning, self.done = name, True, True
             return
-        self.name = name[:-1]                         # that last letter comes back off
-        self.cur = self.LETTERS.index(name[-1])
-        self.taken_t = NAME_TAKEN_TIME
-        self.press = None
+        self.taken_t = NAME_TAKEN_TIME                # NAME TAKEN: they change it with the stick
+        self.press, self.armed = None, False
 
 
 @dataclass
@@ -522,6 +530,9 @@ class LifeSim:
         self.scores = scores.ranked(scores.load())
         self.entry: NameEntry | None = None
         self.tutorial: int | None = None        # the page of the map tour showing, if it's on
+        self.tour_t = 0.0                       # s the tour page has been up
+        self.tour_press: float | None = None    # s the button's been held on it
+        self.tour_armed = False                 # the button has to come up before a hold turns a page
         # what each visitor does (games played, files opened, codes): play_log/<machine>.csv.
         # On unless turned off, never in demos/tests
         self.activity = ActivityLog(enabled=record and log_activity and not disabled_by_env(),
@@ -699,7 +710,7 @@ class LifeSim:
         """On the menus (the theories and the file listing) the button acts when
         it's let go, so holding it can bring up the exit countdown instead.
         None means the countdown just came up."""
-        menu = self.phase == "hub" or self.phase == "files" and self.term.mode == "list"
+        menu = self.phase == "hub" and self.tutorial is None or self.phase == "files" and self.term.mode == "list"
         if not menu:
             self.press = None
             return inp
@@ -728,7 +739,8 @@ class LifeSim:
         """Off the menus, once they've reached the map, holding the button down for
         HOLD_ANYWHERE brings the countdown up, whatever's going on: a cut-scene, a mini-game.
         True means it just came up. The game still sees the button as usual."""
-        if not self.hold_exit or self.press is not None or self.countdown is not None:
+        if not self.hold_exit or self.press is not None or self.countdown is not None or \
+                self.phase == "hub" and self.tutorial is not None:     # (the tour's holds turn its pages)
             self.long_press = None
             return False
         if inp.action:
@@ -823,7 +835,7 @@ class LifeSim:
             self.scores = scores.ranked([s for s in self.scores if s.visitor != self.visitor] + [self.my_score()])
 
     def _back_to_start(self, why: str) -> None:
-        """Back to the PUSH TO BOOT UP screen for the next visitor, by way of the
+        """Back to the PUSH ANY BUTTON TO BOOT UP screen for the next visitor, by way of the
         high scores if they signed in: the shell starts a fresh LifeSim when this
         one says it's done."""
         self.activity("idle_exit", why=why, phase=self.phase)
@@ -936,23 +948,24 @@ class LifeSim:
                             sign_in(self.visitor, self.name)
                         self.activity("sign_in", returning=self.entry.returning)
                         self._go("journey")
-            elif inp.action and not self.typer.done:
+            elif inp.action and not self.typer.done and self.phase_t > READ_GRACE:
                 self.typer.finish()
             if not self.entry and self.typer.done and self.typer.t > self.typer.end + 0.3:
                 self.entry = NameEntry(taken_names())
         elif self.phase == "journey":
-            if self.phase_t > JOURNEY_TIME or inp.action and self.phase_t > 0.5:
+            if self.phase_t > JOURNEY_TIME or inp.action and self.phase_t > READ_GRACE:
                 self._go("rain")                    # the genesis program runs
         elif self.phase == "spirit":
-            if inp.action and self.phase_t > SUMMON_FORM:
+            if inp.action and self.phase_t > max(SUMMON_FORM, READ_GRACE):
                 if not self.typer.done:
                     self.typer.finish()
                 else:
                     self._go("dnafact")
         elif self.phase == "dnafact":                   # WE KNOW LIFE STARTS WITH DNA.
-            if inp.action and not self.typer.done:
+            act = inp.action and self.phase_t > READ_GRACE
+            if act and not self.typer.done:
                 self.typer.finish()
-            elif self.typer.done and (inp.action or self.typer.t > self.typer.end + DNA_HOLD):
+            elif self.typer.done and (act or self.typer.t > self.typer.end + DNA_HOLD):
                 self._start_splicer()
         elif self.phase == "hub" and self.tutorial is not None:
             self._tutorial(dt, inp)
@@ -986,13 +999,13 @@ class LifeSim:
             if self.typer.done and y and not self.return_y:   # the stick: PLAY AGAIN or EXPLORE OTHER THEORIES
                 self.return_sel = max(0, min(len(RETURN_OPTIONS) - 1, self.return_sel + y))
             self.return_y = y
-            if inp.action and self.phase_t > CRT_ON_TIME + 0.5:
+            if inp.action and self.phase_t > READ_GRACE:
                 if not self.typer.done:
                     self.typer.finish()
                 else:
                     self._after_return(RETURN_OPTIONS[self.return_sel])
         elif self.phase == "frontier":                  # CONGRATULATIONS! ... XXX IS THE ANSWER.
-            if inp.action and self.phase_t > 0.5:
+            if inp.action and self.phase_t > READ_GRACE:
                 if not self.typer.done:
                     self.typer.finish()
                 else:
@@ -1165,8 +1178,8 @@ class LifeSim:
         screen.blit(self.art.scanlines, (0, 0))
 
     def _draw_name_entry(self, screen: pygame.Surface, cx: float, top: int) -> None:
-        """Four big letter slots, the current one rolling, with arrows on it and
-        the controls spelled out underneath."""
+        """Four big letter slots with the cursor on one (arrows above and below: up and
+        down roll it; either side: left and right move it), the controls underneath."""
         e = self.entry
         slot_w, gap = 18, 8
         x0 = int(cx - (NAME_LEN * slot_w + (NAME_LEN - 1) * gap) / 2)
@@ -1174,21 +1187,27 @@ class LifeSim:
         hi = rgb(PHOSPHOR)
         for i in range(NAME_LEN):
             x = x0 + i * (slot_w + gap)
-            here = i == len(e.name)
-            if i < len(e.name):
-                img = self.text.get(e.name[i], PHOSPHOR, 2, big=True)
-            elif here:
-                img = self.text.get(e.letter, PHOSPHOR, 2, big=True)
-            else:
-                img = None
-            if img:
+            here = i == e.pos and e.ask is None
+            ch = e.slots[i]
+            if ch != " ":
+                img = self.text.get(ch, PHOSPHOR, 2, big=True)
                 screen.blit(img, (x + (slot_w - img.get_width()) // 2, top + (14 - img.get_height()) // 2))
             screen.fill(rgb(PHOSPHOR if here else PHOSPHOR_DIM), (x, top + 17, slot_w, 1 + here))
-            if here:                                       # arrows above and below: up and down roll it
-                mx = x + slot_w // 2
+            if here:
+                mx, my = x + slot_w // 2, top + 7
                 for k in range(4):
-                    screen.fill(hi, (mx - k, top - 7 - bob + k, 2 * k + 1, 1))
+                    screen.fill(hi, (mx - k, top - 7 - bob + k, 2 * k + 1, 1))      # up / down: the letter
                     screen.fill(hi, (mx - k, top + 25 + bob - k, 2 * k + 1, 1))
+                    if i > 0:                                                    # left / right: the cursor
+                        screen.fill(hi, (x - 7 - bob + k, my - k, 1, 2 * k + 1))
+                    if i < NAME_LEN - 1:
+                        screen.fill(hi, (x + slot_w + 6 + bob - k, my - k, 1, 2 * k + 1))
+
+        def hold_bar(s: pygame.Surface, x: float, y: int) -> None:
+            if e.hold_k > 0:                               # holding: a bar fills up to done
+                screen.fill(rgb(PHOSPHOR_FAINT), (x, y + 9, s.get_width(), 2))
+                screen.fill(rgb("#eaffea"), (x, y + 9, int(s.get_width() * e.hold_k), 2))
+
         if e.ask is not None:                              # a taken name: is it theirs?
             q = self.text.get(f"{e.ask} IS TAKEN. HAVE YOU PLAYED HERE BEFORE?", PHOSPHOR, big=True)
             screen.blit(q, (cx - q.get_width() // 2, top + 34))
@@ -1201,22 +1220,21 @@ class LifeSim:
                     pygame.draw.rect(screen, rgb(PHOSPHOR_DIM), row, 1)
                     s = self.text.get(opt, PHOSPHOR, big=True)
                 screen.blit(s, (row.centerx - s.get_width() // 2, row.y + 3))
-            h = self.text.get("STICK: CHOOSE    TAP BUTTON: SELECT", PROMPT, big=True)
-            screen.blit(h, (cx - h.get_width() // 2, top + 64))
+            h = self.text.get("STICK: CHOOSE    HOLD BUTTON DOWN: SELECT", PROMPT, big=True)
+            hx = cx - h.get_width() // 2
+            screen.blit(h, (hx, top + 64))
+            hold_bar(h, hx, top + 64)
             return
-        lines = ["STICK UP / DOWN: CHANGE THE LETTER", "TAP BUTTON: NEXT LETTER",
+        lines = ["STICK UP / DOWN: CHANGE THE LETTER", "STICK LEFT / RIGHT: MOVE",
                  "HOLD BUTTON DOWN: DONE"]
         if e.taken_t > 0:                                  # that name's someone else's
-            lines[0] = "NAME TAKEN! CHOOSE A UNIQUE NAME" if int(self.time * 6) % 2 == 0 else ""
+            lines[0] = "NAME TAKEN! CHOOSE A UNIQUE NAME"
         for i, line in enumerate(lines):
-            if not line:
-                continue
             s = self.text.get(line, PHOSPHOR if i == 0 and e.taken_t > 0 else PROMPT, big=True)
             x, y = cx - s.get_width() // 2, top + 38 + i * 10
             screen.blit(s, (x, y))
-            if i == 2 and e.hold_k > 0:                    # holding: a bar fills up to done
-                screen.fill(rgb(PHOSPHOR_FAINT), (x, y + 9, s.get_width(), 2))
-                screen.fill(rgb("#eaffea"), (x, y + 9, int(s.get_width() * e.hold_k), 2))
+            if i == 2:
+                hold_bar(s, x, y)
 
     def _draw_journey(self, screen: pygame.Surface) -> None:
         """OUR JOURNEY STARTS AT THE VERY BEGINNING..., big, then a fade to the genesis program."""
@@ -1386,6 +1404,7 @@ class LifeSim:
         self.has_save = True                    # from here on there's a game to come back to
         self._save_game(canvases["final"] if canvases else None)
         self.tutorial = 0                       # first time on the map: show them round it
+        self.tour_t, self.tour_press, self.tour_armed = 0.0, None, False
         self.hold_exit = True                   # from here on, holding the button anywhere exits
         self._go("hub")
 
@@ -1420,13 +1439,23 @@ class LifeSim:
         screen.blit(img, (px, py))
 
     def _tutorial(self, dt: float, inp: Input) -> None:
-        if TUTORIAL[self.tutorial][0] == "move":           # the stick works while it says so
-            self._walk(dt, inp)
-        if inp.action and self.phase_t > 0.4 and not self.map.moving:
+        """Static pages: once one's been up READ_GRACE, holding the button for TOUR_HOLD turns it.
+        A tap does nothing, and the button has to come up between pages."""
+        self.tour_t += dt
+        if not self.tour_armed:
+            self.tour_armed = not inp.held
+            return
+        if not inp.held or self.tour_t < READ_GRACE:
+            self.tour_press = None
+            return
+        self.tour_press = (self.tour_press or 0.0) + dt
+        if self.tour_press >= TOUR_HOLD:
             self.tutorial += 1
+            self.tour_t, self.tour_press, self.tour_armed = 0.0, None, False
             self.phase_t = MAP_FADE                        # (no fade between pages)
             if self.tutorial == len(TUTORIAL):
                 self.tutorial = None
+                self.swallow = True                        # (that hold isn't for the map)
                 self.activity("tutorial_done")
 
     def _tour_rects(self, what: str) -> list[pygame.Rect]:
@@ -1445,11 +1474,9 @@ class LifeSim:
         what, line = TUTORIAL[self.tutorial]
         lit = screen.copy()
         screen.fill((70, 70, 70), special_flags=pygame.BLEND_MULT)
-        on = int(self.time * 3) % 3 != 0
         for r in self._tour_rects(what):
             screen.blit(lit, r, r)
-            if on:
-                pygame.draw.rect(screen, rgb(PROMPT), r, 1)
+            pygame.draw.rect(screen, rgb(PROMPT), r, 1)
         # INSTRUCTIONS, big across the top, in place of the header
         screen.fill(VOID, (0, 0, art.W, 17))
         title = self.text.get("INSTRUCTIONS", PROMPT, 2, big=True)
@@ -1461,8 +1488,14 @@ class LifeSim:
         screen.blit(s, (box.centerx - s.get_width() // 2, box.y + 6))
         page = self.text.get(f"{self.tutorial + 1}/{len(TUTORIAL)}", PHOSPHOR_DIM)
         screen.blit(page, (box.right - 5 - page.get_width(), box.y + 4))
-        s = self.text.get("TAP BUTTON TO CONTINUE", PROMPT, 2, big=True)   # big, flashing colour, never off
-        screen.blit(s, (box.centerx - s.get_width() // 2, box.bottom - 19))
+        if self.tour_t >= READ_GRACE:                      # once a hold would work: big, flashing colour
+            s = self.text.get("HOLD BUTTON TO CONTINUE", PROMPT, 2, big=True)
+            x = box.centerx - s.get_width() // 2
+            screen.blit(s, (x, box.bottom - 21))
+            if self.tour_press:                            # holding: a bar fills up to the next page
+                k = min(1.0, self.tour_press / TOUR_HOLD)
+                screen.fill(rgb(PHOSPHOR_FAINT), (x, box.bottom - 5, s.get_width(), 2))
+                screen.fill(rgb("#eaffea"), (x, box.bottom - 5, int(s.get_width() * k), 2))
 
     def _draw_load(self, screen: pygame.Surface) -> None:
         """The body dives into the tile, the tile grows to fill the screen, then it switches off."""
@@ -1613,14 +1646,14 @@ class LifeSim:
         crt.fill(rgb(PHOSPHOR_DIM), (24, 50, sw - 48, 1))
         # the button: a chunky key with a lip, which sinks when pushed
         down = self.pushed is not None
-        bw, bh = 104, 18
+        bw, bh = 124, 18
         bx, by = sw // 2 - bw // 2, 60 + (2 if down else 0)
         if not down:
             crt.fill(rgb(PHOSPHOR_DIM), (bx, by + 2, bw, bh))           # the lip under it
         pulse = int(self.time * 2) % 2 == 0
         crt.fill(rgb(PHOSPHOR if down or pulse else PHOSPHOR_DIM), (bx, by, bw, bh))
         crt.fill(rgb(PHOSPHOR_DIM if down else PHOSPHOR_FAINT), (bx + 1, by + 1, bw - 2, bh - 2))
-        label = self.text.get("PUSH TO BOOT UP", "#eaffea" if down else PHOSPHOR)
+        label = self.text.get("PUSH ANY BUTTON TO BOOT UP", "#eaffea" if down else PHOSPHOR)
         crt.blit(label, (sw // 2 - label.get_width() // 2, by + bh // 2 - 2))
         s = self.text.get("WELCOME TO THE LIFE LAB!", PHOSPHOR_DIM)
         crt.blit(s, (sw // 2 - s.get_width() // 2, 92))
@@ -1640,7 +1673,7 @@ class LifeSim:
             t = self.text.get(f"{sc.points} PTS", PHOSPHOR_DIM)
             crt.blit(t, (sw - 18 - t.get_width(), y))
         if int(self.time * 2) % 2 == 0:
-            s = self.text.get("PUSH TO BOOT UP", PHOSPHOR)
+            s = self.text.get("PUSH ANY BUTTON TO BOOT UP", PHOSPHOR)
             crt.blit(s, (sw // 2 - s.get_width() // 2, 95))
 
     def _draw_scores(self, screen: pygame.Surface) -> None:
@@ -1687,7 +1720,7 @@ def autopilot(game: LifeSim) -> Input:
         return game.sim_theory.autopilot(game.sim)
     inp = Input()
     if game.phase == "hub" and game.tutorial is not None:
-        inp.action = game.phase_t > 1.5
+        inp.held = game.tour_t > READ_GRACE                  # hold each page over, letting go in between
         return inp
     if game.phase == "hub":
         untested = [i for i, t in enumerate(game.theories) if not game.results[t.code]]
@@ -1700,12 +1733,15 @@ def autopilot(game: LifeSim) -> Input:
         game.entry.answer(False)                            # a demo never played before
         return inp
     if game.phase == "summon" and game.entry:
-        # sign in as DEMO: roll to each letter, then press
-        want = "DEMO"[len(game.entry.name)] if len(game.entry.name) < 4 else None
-        if want and game.entry.letter != want:
-            inp.y = 1 if int(game.time * 30) % 2 else 0           # tap down, one letter at a time
-        elif int(game.time * 4) != int((game.time - 1 / 60) * 4):
-            inp.action = True
+        # sign in as DEMO: roll each slot to its letter, move right, then hold the button
+        e, want = game.entry, "DEMO"
+        tick = int(game.time * 30) % 2                          # (the stick acts on each push)
+        if e.slots[e.pos] != want[e.pos]:
+            inp.y = tick
+        elif e.pos < len(want) - 1:
+            inp.x = tick
+        else:
+            inp.held = True
         return inp
     if game.phase == "return" and game.typer.done and RETURN_OPTIONS[game.return_sel] != "EXPLORE OTHER THEORIES":
         inp.y = 1 if int(game.time * 30) % 2 else 0           # tap down to EXPLORE OTHER THEORIES

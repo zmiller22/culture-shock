@@ -24,8 +24,8 @@ The round (no how-to pages: the spit screen says what to do):
               straight to the theory map once the splice is done
 
 Controls (keyboard, or an arcade stick / gamepad):
-    SPACE / Z / ENTER / button 0    next / hurry / attack (and the spit, with no sensor); on the
-                                    survey, a tap is the next question and a hold hands it in
+    SPACE / Z / ENTER / any button  next / hurry / attack (and the spit, with no sensor); on the
+                                    survey, a hold hands it in (a tap does nothing there)
     STICK / ARROWS                  survey: sideways changes the answer, up / down the question;
                                     walk your new body, up jumps
     ESC / Q                         quit
@@ -47,7 +47,7 @@ from sprites.palette import LAB_BG, LAB_DIM, LAB_FLOOR, LAB_GRID, LAB_TEXT
 from sprites.rig import SIZE, poses
 from sprites.viewer import H, W, Actor, text_surface, to_surface
 
-from ..shell import Input, prompt_color, prompt_text, run
+from ..shell import READ_GRACE, Input, prompt_color, prompt_text, run
 from . import dna
 from .jar import get_jar
 
@@ -128,33 +128,32 @@ def wrap(text: str, width: int) -> list[str]:
 
 
 class Survey:
-    """Three questions, every one with an answer already picked. Up and down move
-    between the questions, left and right slide through the answers, a tap of the
-    button goes on to the next question, and holding it hands the survey in."""
+    """Three questions, every one with an answer already picked. All on the stick: up
+    and down move between the questions, left and right slide through the answers.
+    Holding the button down hands the survey in; a tap does nothing."""
 
     def __init__(self) -> None:
         self.q = 0
         self.picks = [0] * len(dna.SURVEY)
         self.held = (0, 0)
         self.hold_t = 0.0
-        self.press: float | None = None               # s the button's been down, while it is
+        self.press: float | None = None               # s the button's been held down, while it is
+        self.armed = False                            # a button already down when it opened doesn't count
         self.slide = 0                                # which way the answer just slid, for the animation
         self.slide_t = 9.0
         self.done = False
 
     @property
     def hold_k(self) -> float:
-        """0..1, how far a held button is to handing it in (0 for a tap)."""
-        if self.press is None or self.press < 0.15:
-            return 0.0
-        return min(1.0, (self.press - 0.15) / (SUBMIT_HOLD - 0.15))
+        """0..1, how far a held button is to handing it in."""
+        return 0.0 if self.press is None else min(1.0, self.press / SUBMIT_HOLD)
 
     def _roll(self, step: int) -> None:
         n = len(dna.SURVEY[self.q][1])
         self.picks[self.q] = (self.picks[self.q] + step) % n
         self.slide, self.slide_t = step, 0.0
 
-    def update(self, dt: float, inp: Input, pressed: bool) -> None:
+    def update(self, dt: float, inp: Input) -> None:
         self.slide_t += dt
         dirs = (inp.x, inp.y)
         if inp.y and dirs != self.held:               # up and down: another question
@@ -169,16 +168,14 @@ class Survey:
                     self._roll(inp.x)
                     self.hold_t -= SURVEY_REPEAT[1]
         self.held = dirs
-        if pressed:
-            self.press = 0.0
-        elif self.press is not None:
-            if inp.held:
-                self.press += dt
-                self.done = self.press >= SUBMIT_HOLD
-            else:                                     # a tap: on to the next question
-                if self.press < SUBMIT_HOLD:
-                    self.q = min(len(dna.SURVEY) - 1, self.q + 1)
-                self.press = None
+        held = inp.held or any(p.held for p in inp.players)
+        if not self.armed:                            # (the taps that hurried the lab along aren't a hold)
+            self.armed = not held
+        elif held:
+            self.press = (self.press or 0.0) + dt
+            self.done = self.press >= SUBMIT_HOLD
+        else:
+            self.press = None
 
 
 def volume_word(delta: float, hair: bool = False) -> str:
@@ -414,13 +411,13 @@ class SpitKit:
                 self._surfaces()
                 self._go("report")
         elif self.phase == "survey":
-            self.survey.update(dt, inp, pressed and self.phase_t > 0.4)
+            self.survey.update(dt, inp)
             if self.survey.done:
                 self._roll(self.survey.picks)
                 self.phase, self.phase_t = "analyze", self.survey_at
         elif self.phase == "report":
             done_at = self.report_time + 1.5
-            if pressed and self.phase_t > 0.4:
+            if pressed and self.phase_t > READ_GRACE:
                 # first press finishes the report, the next one moves on
                 self.phase_t = done_at if self.phase_t < done_at else done_at + REPORT_HOLD
             if self.phase_t > done_at + REPORT_HOLD:
@@ -431,7 +428,7 @@ class SpitKit:
         elif self.phase == "reveal":
             self._update_drive(dt, inp, pressed)
         elif self.phase == "nospit":
-            if pressed and self.phase_t > 1.0:
+            if pressed and self.phase_t > READ_GRACE:
                 self.done = True
 
     @property
@@ -682,7 +679,7 @@ class SpitKit:
             screen.set_clip(clip)
         # the instructions, big
         blit_c(screen, prompt_text("STICK LEFT / RIGHT: CHANGE ANSWER"), W / 2, H - 42)
-        blit_c(screen, prompt_text("STICK UP / DOWN OR TAP BUTTON: NEXT QUESTION"), W / 2, H - 32)
+        blit_c(screen, prompt_text("STICK UP / DOWN: CHANGE QUESTION"), W / 2, H - 32)
         submit = prompt_text("HOLD BUTTON DOWN TO SUBMIT YOUR ANSWERS")
         blit_c(screen, submit, W / 2, H - 21)
         if sv.hold_k > 0:                                 # holding: a bar fills up to handing it in
@@ -873,7 +870,7 @@ def autopilot(game: SpitKit) -> Input:
     if game.phase == "survey":                    # slide an answer or two along, then hold the button
         roll = tick % 20 == 10 and game.phase_t < 1.5
         hold = game.phase_t > 2.0
-        return Input(x=1 if roll else 0, action=hold and game.survey.press is None, held=hold)
+        return Input(x=1 if roll else 0, held=hold)
     return Input(action=press, players=(Input(action=press),))
 
 

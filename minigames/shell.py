@@ -38,6 +38,8 @@ ACTION_KEYS = (pygame.K_SPACE, pygame.K_z, pygame.K_RETURN)
 PROMPT = "#c79bff"         # violet: every on-screen instruction for the stick or the button...
 PROMPT_FLASH = "#ffd9ff"   # ...which flashes to this and back, to catch the eye
 PROMPT_RATE = 0.3          # s on each colour
+READ_GRACE = 1.5           # s new text (a page, a file, a verdict, a banner) stays up before a press goes on,
+                           # so the rapid taps that got them here don't click straight through it
 SKIP_GRACE = 3.0           # s a video or visual sequence plays before the button can skip it (people tap fast
                            # to pick things, and the extra taps shouldn't skip what they just picked)
 
