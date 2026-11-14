@@ -9,6 +9,9 @@ A mini-game is any object with:
     done: bool                         True once the player has dismissed the end screen
     cutscene: bool                     optional: True while nobody's expected to touch anything,
                                        so the main game holds off its "still there?" countdown
+    hold_in_use: bool                  optional: True while the game itself wants the button held
+                                       (HOLD TO CONTINUE), so the main game's hold-for-the-exit-menu
+                                       leaves that hold alone
 
 The main game can drive the same object: call update/draw each tick and read
 `result` once `done` goes True.

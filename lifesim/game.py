@@ -736,7 +736,9 @@ class LifeSim:
         HOLD_ANYWHERE brings the countdown up, whatever's going on: a cut-scene, a mini-game.
         True means it just came up. The game still sees the button as usual."""
         if not self.hold_exit or self.press is not None or self.countdown is not None or \
-                self.phase == "hub" and self.tutorial is not None:     # (the tour's holds turn its pages)
+                self.phase == "hub" and self.tutorial is not None or \
+                self.phase == "sim" and getattr(self.sim, "hold_in_use", False):
+            # (the tour's holds turn its pages, and a mini-game asking for a hold gets it)
             self.long_press = None
             return False
         if inp.action:

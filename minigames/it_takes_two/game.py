@@ -379,6 +379,12 @@ class ItTakesTwo:
 
     # -- helpers -------------------------------------------------------------------
     @property
+    def hold_in_use(self) -> bool:
+        """The prelude's HOLD A BUTTON DOWN TO CONTINUE: the main game mustn't take that hold
+        for its exit menu (see minigames/shell.py)."""
+        return self.phase == "prelude"
+
+    @property
     def ripe(self) -> bool:
         return self.eaten >= self.need
 
