@@ -150,15 +150,13 @@ class Chomper:
     facing: int = 1
 
 
-NEVER = "NEVER MIND"
 # The sewing screen: the stick moves the part round the body the way the slots sit on it.
 NAV = {
     "HEAD": {(0, 1): "LEFT ARM", (-1, 0): "LEFT ARM", (1, 0): "RIGHT ARM"},
     "LEFT ARM": {(1, 0): "RIGHT ARM", (0, -1): "HEAD", (0, 1): "LEFT LEG"},
-    "RIGHT ARM": {(-1, 0): "LEFT ARM", (0, -1): "HEAD", (0, 1): "RIGHT LEG", (1, 0): NEVER},
-    "LEFT LEG": {(1, 0): "RIGHT LEG", (0, -1): "LEFT ARM", (0, 1): NEVER},
-    "RIGHT LEG": {(-1, 0): "LEFT LEG", (0, -1): "RIGHT ARM", (0, 1): NEVER, (1, 0): NEVER},
-    NEVER: {(0, -1): "RIGHT LEG", (-1, 0): "RIGHT LEG"},
+    "RIGHT ARM": {(-1, 0): "LEFT ARM", (0, -1): "HEAD", (0, 1): "RIGHT LEG"},
+    "LEFT LEG": {(1, 0): "RIGHT LEG", (0, -1): "LEFT ARM"},
+    "RIGHT LEG": {(-1, 0): "LEFT LEG", (0, -1): "RIGHT ARM"},
 }
 
 
@@ -518,8 +516,7 @@ class BuildABear:
         m.prev = stick
         if inp.action and m.t > 0.15:
             self.menu = None
-            if m.sel != NEVER:
-                self._place(m.sel)
+            self._place(m.sel)
 
     def _place(self, slot: str) -> None:
         p = self.held
@@ -1033,19 +1030,16 @@ class BuildABear:
         img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
         screen.blit(img, (box.centerx - img.get_width() // 2, box.centery - img.get_height() // 2))
         screen.blit(text_surface(self.held.name, LAB_TEXT), (cx + 50, 26))
-        if m.sel == NEVER:
-            screen.blit(text_surface("PUT IT BACK DOWN", LAB_DIM), (cx + 50, 38))
+        screen.blit(text_surface("GOES ON THE", LAB_DIM), (cx + 50, 38))
+        screen.blit(big_text(m.sel, "#d4ff7a"), (cx + 50, 46))
+        there = self.built.get(m.sel)
+        if there:
+            screen.blit(text_surface("RIPS OFF THE", "#ff9ab8"), (cx + 50, 62))
+            screen.blit(text_surface(there.name, "#ff9ab8"), (cx + 50, 69))
         else:
-            screen.blit(text_surface("GOES ON THE", LAB_DIM), (cx + 50, 38))
-            screen.blit(big_text(m.sel, "#d4ff7a"), (cx + 50, 46))
-            there = self.built.get(m.sel)
-            if there:
-                screen.blit(text_surface("RIPS OFF THE", "#ff9ab8"), (cx + 50, 62))
-                screen.blit(text_surface(there.name, "#ff9ab8"), (cx + 50, 69))
-            else:
-                screen.blit(text_surface("EMPTY SLOT", LAB_DIM), (cx + 50, 62))
-            if art.SLOT_KIND[m.sel] != self.held.kind:
-                screen.blit(text_surface("(BOLD CHOICE)", "#f0d27a"), (cx, 84))
+            screen.blit(text_surface("EMPTY SLOT", LAB_DIM), (cx + 50, 62))
+        if art.SLOT_KIND[m.sel] != self.held.kind:
+            screen.blit(text_surface("(BOLD CHOICE)", "#f0d27a"), (cx, 84))
         n = len(self.built)
         screen.blit(text_surface(f"SEWN ON {n}/{NEED}", "#d4ff7a" if n == NEED else LAB_DIM), (cx, 100))
         for i, slot in enumerate(SLOTS):                                           # a little checklist
@@ -1054,12 +1048,6 @@ class BuildABear:
             y = 110 + i * 7
             pygame.draw.rect(screen, hex_to_rgba(col), (cx + 4, y, 5, 5), 0 if done else 1)
             screen.blit(text_surface(slot, col), (cx + 12, y))
-        nb = pygame.Rect(cx + 96, 132, 58, 14)                                    # NEVER MIND
-        sel = m.sel == NEVER
-        pygame.draw.rect(screen, (90, 70, 150) if sel else (40, 32, 70), nb)
-        pygame.draw.rect(screen, hex_to_rgba("#ffd93a") if sel and int(self.time * 4) % 2 else (90, 78, 130), nb, 1)
-        label = text_surface(NEVER, LAB_TEXT if sel else LAB_DIM)
-        screen.blit(label, (nb.centerx - label.get_width() // 2, nb.y + 5))
         screen.blit(text_surface("STICK: MOVE IT  BUTTON: SEW", LAB_DIM), (cx, 160))
 
     def _banner(self, screen: pygame.Surface, title: str, lines: list[str]) -> None:
@@ -1155,7 +1143,7 @@ def autopilot(game: BuildABear) -> Input:
         return inp
     if game.menu:
         want = next((s for s in SLOTS if s not in game.built and art.SLOT_KIND[s] == game.held.kind),
-                    next((s for s in SLOTS if s not in game.built), NEVER))
+                    next((s for s in SLOTS if s not in game.built), SLOTS[0]))
         if game.menu.sel != want and tick % 4 == 0:                        # one push toward it, along the NAV graph
             seen, frontier = {game.menu.sel: None}, [game.menu.sel]
             while frontier and want not in seen:

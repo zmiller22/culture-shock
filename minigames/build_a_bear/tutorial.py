@@ -33,7 +33,7 @@ SWITCH_VIEW = (82, 0)            # ...and for the switch page
 
 def make(a) -> Tutorial:
     """`a` is the game's Art (pre-rendered surfaces)."""
-    from .game import (CARRY_MAX, DEPTH, DOC_MAX, GRAB_R, GRIP, LEVER_REACH, LEVER_SPOT, NAV, NEVER, PULL_T,
+    from .game import (CARRY_MAX, DEPTH, DOC_MAX, GRAB_R, GRIP, LEVER_REACH, LEVER_SPOT, NAV, PULL_T,
                        SLAB_BACK, SLAB_L, SLAB_R, SLAB_REACH, SLOTS, STORM_TIME, blocked_at, draw_body)
 
     # -- drawing helpers ------------------------------------------------------------------
@@ -238,7 +238,7 @@ def make(a) -> Tutorial:
                 moves += [(0, inp.y)] if inp.y else []
                 moves += [(inp.x, 0)] if inp.x and not moves else []
                 for move in moves:
-                    if move in NAV[self.sel] and NAV[self.sel][move] != NEVER:
+                    if move in NAV[self.sel]:
                         self.sel = NAV[self.sel][move]
                         self.moved = True
                         break
@@ -410,14 +410,14 @@ def make(a) -> Tutorial:
         return [(0, 0, False)]
 
     return Tutorial(
-        "BUILD-A-BEAR", "LIFE IS STUFFING, STITCHES AND A LOT OF VOLTS.",
+        "BUILD-A-BEAR", "",
         [
-            Page(("GRAB A TOY PART!",), controls=("stick", "button"), trial=Grab),
-            Page(("CARRY IT TO THE SLAB",), controls=("stick", "button"), trial=Carry),
-            Page(("MOVE IT ROUND THE BODY. BUTTON SEWS!",), controls=("stick", "button"), trial=Sew),
-            Page(("WATCH OUT FOR THE TOYS",), toys, ("stick", "button"), time=SPAN),
-            Page(("BEAT THE STORM!",), storm, ("button",), time=STORM_SPAN),
-            Page(("ALL 5 ON? THROW THE SWITCH!",), controls=("stick", "button"), trial=Switch),
+            Page(("STICK TO MOVE. BUTTON TO GRAB A PART.",), controls=("stick", "button"), trial=Grab),
+            Page(("WALK TO THE SLAB. BUTTON TO SEW.",), controls=("stick", "button"), trial=Carry),
+            Page(("STICK PICKS THE SPOT. BUTTON SEWS IT ON.",), controls=("stick", "button"), trial=Sew),
+            Page(("DODGE THE TRAIN AND THE TEETH.",), toys, ("stick", "button"), time=SPAN),
+            Page(("FINISH BEFORE THE STORM ENDS.",), storm, ("button",), time=STORM_SPAN),
+            Page(("ALL 5 ON? BUTTON AT THE SWITCH.",), controls=("stick", "button"), trial=Switch),
         ],
         accent=GREEN,
     )
