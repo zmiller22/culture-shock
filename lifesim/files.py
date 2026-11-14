@@ -44,6 +44,8 @@ import pygame
 
 from sprites.font import BIG_ADV, BIG_H, big_width
 
+from minigames.shell import PROMPT, SKIP_GRACE, ink
+
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
 from .ooh import Ooh
 from .trip import Trip
@@ -626,7 +628,7 @@ class FileTerminal:
             over = self.media.ended or self.roll_t > self.media.length + 0.5
         else:
             over = self.roll_t > SILENT_ROLL
-        if act or sx < 0 or over:            # you can bail out of a rick roll. it still counts
+        if self.roll_t > SKIP_GRACE and (act or sx < 0) or over:   # you can bail out (after a moment). it still counts
             if music:
                 pygame.mixer.music.fadeout(400)
             self.media.stop()
@@ -653,7 +655,7 @@ class FileTerminal:
             for i, line in enumerate(("ACCESS", "GRANTED")):
                 img = self.text.get(line, PHOSPHOR, 3, big=True)
                 screen.blit(img, (SW // 2 - img.get_width() // 2, 50 + i * 30))
-            self._footer(screen, "BUTTON: OK")
+            self._footer(screen, "TAP BUTTON: OK")
         elif self.mode == "ooh":
             self.ooh.draw(screen)
         elif self.mode == "trip":
@@ -668,7 +670,7 @@ class FileTerminal:
                 self._put(screen, "^", SW - X0 - 5, TXT_Y)
             if s + TXT_ROWS < len(lines):               # more below
                 self._put(screen, "+", SW - X0 - 5, TXT_Y + (TXT_ROWS - 1) * LINE)
-            self._footer(screen, "STICK: SCROLL   BUTTON: BACK" if long else "BUTTON: BACK")
+            self._footer(screen, "STICK: SCROLL   TAP BUTTON: BACK" if long else "TAP BUTTON: BACK")
         elif self.mode == "img":
             self._header(screen, self.viewing.name)
             photo = self._photo(self.viewing.sprite)
@@ -692,7 +694,7 @@ class FileTerminal:
                     self._put(screen, label, X0 + 3, y, CRT_BG if lit else PHOSPHOR)
                 else:
                     self._put(screen, line, X0, y)
-            self._footer(screen, "BUTTON: OPEN IT   LEFT: BACK" if nxt else "BUTTON: OK")
+            self._footer(screen, "TAP BUTTON: OPEN IT   STICK LEFT: BACK" if nxt else "TAP BUTTON: OK")
         elif self.mode == "roll":                       # what's under the full-window video
             label = "NOW ROLLING"
             self._put(screen, label, SW // 2 - big_width(label) // 2, SH // 2 - BIG_H // 2)
@@ -716,7 +718,7 @@ class FileTerminal:
 
     def _footer(self, screen, hint: str, hold: bool = False) -> None:
         screen.fill(rgb(PHOSPHOR_DIM), (X0, FOOT_Y, SW - 2 * X0, 1))
-        self._put(screen, hint, X0, HINT_Y)
+        self._put(screen, hint, X0, HINT_Y, ink(hint, PHOSPHOR))
         if hold:
             self._draw_hold_hint(screen)
 
@@ -772,8 +774,8 @@ class FileTerminal:
         if left > 0:
             self._put(screen, msg, X0, y)
         else:
-            self._put(screen, "BUTTON: BACK TO THEORIES" if row == "UP" else
-                      "BUTTON: TYPE A CODE" if row == "CODE" else "BUTTON: OPEN", X0, y)
+            self._put(screen, "TAP BUTTON: BACK TO THEORIES" if row == "UP" else
+                      "TAP BUTTON: TYPE A CODE" if row == "CODE" else "TAP BUTTON: OPEN", X0, y, PROMPT)
         self._draw_hold_hint(screen)
 
     def _draw_code(self, screen, time: float) -> None:
@@ -804,15 +806,15 @@ class FileTerminal:
                 for k in range(4):
                     screen.fill(hi, (mx - k, top - 8 - bob + k, 2 * k + 1, 1))
                     screen.fill(hi, (mx - k, top + 26 + bob - k, 2 * k + 1, 1))
-        for i, line in enumerate(("STICK UP / DOWN: CHANGE THE LETTER", "BUTTON: SELECT LETTER")):
-            self._put(screen, line, SW // 2 - big_width(line) // 2, 116 + i * LINE)
-        self._footer(screen, "LEFT: BACK")
+        for i, line in enumerate(("STICK UP / DOWN: CHANGE THE LETTER", "TAP BUTTON: SELECT LETTER")):
+            self._put(screen, line, SW // 2 - big_width(line) // 2, 116 + i * LINE, PROMPT)
+        self._footer(screen, "STICK LEFT: BACK")
 
     def _draw_hold_hint(self, screen) -> None:
-        """HOLD: EXIT at the right of the footer, with a bar filling up while the button's held."""
-        label = "HOLD: EXIT"
+        """HOLD BUTTON: EXIT at the right of the footer, with a bar filling up while the button's held."""
+        label = "HOLD BUTTON: EXIT"
         x = SW - X0 - big_width(label)
-        self._put(screen, label, x, HINT_Y)
+        self._put(screen, label, x, HINT_Y, PROMPT)
         if self.hold_k > 0:
             screen.fill(rgb(PHOSPHOR), (x, HINT_Y + BIG_H + 2, int(big_width(label) * self.hold_k), 2))
 

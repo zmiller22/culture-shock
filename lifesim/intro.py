@@ -26,6 +26,9 @@ from sprites.viewer import H, W, text_surface, to_surface
 
 from . import space_art as sa
 from .art import PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
+from minigames.shell import PROMPT, SKIP_GRACE
+from sprites.font import BIG_H, big_width, draw_big_text
+from sprites.canvas import Canvas
 
 # -- tuning ------------------------------------------------------------------------
 RAIN_COL, RAIN_ROW = 4, 6                  # px per character cell
@@ -250,6 +253,14 @@ class Cosmos:
             self.text[(s, col)] = text_surface(s, col)
         return self.text[(s, col)]
 
+    def _big(self, s: str, col: str) -> pygame.Surface:
+        """The 5x7 font, for the instruction."""
+        if (s, col, "big") not in self.text:
+            c = Canvas(max(1, big_width(s)), BIG_H)
+            draw_big_text(c, 0, 0, s, col)
+            self.text[(s, col, "big")] = to_surface(c)
+        return self.text[(s, col, "big")]
+
     def z_at(self, t: float) -> float:
         """How far out the camera is: 0 is the Earth, 1 the solar system, and so on.
         Hold on a level, glide out to the next (easing in and out), hold, ..."""
@@ -440,5 +451,6 @@ class Cosmos:
         screen.blit(s, (W - 4 - s.get_width(), 3))
         i = min(len(self.levels) - 1, int(self.z + 0.5))
         screen.blit(self._label(f"SCALE: {self.levels[i].scale}", PHOSPHOR), (4, H - 9))
-        s = self._label("BUTTON: SKIP", PHOSPHOR_DIM)          # the same shade as the top corners
-        screen.blit(s, (W - 4 - s.get_width(), H - 9))
+        if self.t > SKIP_GRACE:                                 # (the button can't skip it before then)
+            s = self._big("TAP BUTTON: SKIP", PROMPT)
+            screen.blit(s, (W - 4 - s.get_width(), H - 10))

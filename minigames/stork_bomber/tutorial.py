@@ -11,6 +11,9 @@ from . import art
 
 FLOOR = DEMO_H - 6                 # the ground line inside the demo
 FALL_G = 200                       # px/s^2 for the demo's baby (gentler than the real thing, so you can follow it)
+FLY_FROM = (44.0, 24.0)            # the flying page: the stork starts top left...
+GOAL = (DEMO_W - 36, 50)           # ...and flies down and right to here to move on
+GOAL_R = 12                        # px from the goal's middle that counts as there
 
 
 def make(a, need: int, babies: int) -> Tutorial:
@@ -29,9 +32,6 @@ def make(a, need: int, babies: int) -> Tutorial:
 
     def target(s: pygame.Surface, x: float, pose: str, facing: int = 1) -> None:
         s.blit(a.target[pose][facing], (round(x) - art.TARGET_W // 2, FLOOR - art.TARGET_FEET))
-
-    # the lap the stick icon acts out on the flying page
-    loop_pts = [(50, 52), (190, 52), (190, 30), (50, 30)]
 
     # 3. outfly the Flying Spaghetti Monster
     chase_pts = [(30, 30), (110, 60), (200, 26), (130, 20)]
@@ -56,7 +56,8 @@ def make(a, need: int, babies: int) -> Tutorial:
         cheer = "NICE FLYING!"
 
         def __init__(self) -> None:
-            self.x, self.y, self.vx, self.vy = 60.0, 40.0, 0.0, 0.0
+            self.x, self.y = FLY_FROM
+            self.vx = self.vy = 0.0
             self.flown = 0.0
             self.done = False
             self.t = 0.0
@@ -83,14 +84,24 @@ def make(a, need: int, babies: int) -> Tutorial:
 
         def update(self, dt: float, inp) -> None:
             self.fly(dt, inp)
-            self.done = self.flown > 180
+            self.done = math.dist((self.x, self.y), GOAL) <= GOAL_R
 
         def draw(self, s: pygame.Surface, t: float):
             sky(s, t)
-            target(s, 170, "walk0" if int(t * 4) % 2 else "walk1")
+            # the goal: a pulsing ring with FLY HERE over it, and a dotted trail pointing the way
+            gx, gy = GOAL
+            pulse = 0.5 + 0.5 * math.sin(t * 6)
+            for k in range(1, 6):
+                px = self.x + (gx - self.x) * k / 6
+                py = self.y + (gy - self.y) * k / 6
+                if (int(t * 4) + k) % 2:
+                    pygame.draw.rect(s, (255, 225, 120), (round(px), round(py), 2, 2))
+            pygame.draw.circle(s, (255, 225, 77), (gx, gy), GOAL_R + round(2 * pulse), 2)
+            pygame.draw.circle(s, (255, 248, 190), (gx, gy), 3)
+            caption(s, "FLY HERE", gx, gy - GOAL_R - 10, "#ffe14d")
             stork(s, self.x, self.y, self.facing, True, t)
-            _, _, dx, dy = along(t, loop_pts, 70)            # the icons show a lap until they have a go
-            return dx, dy, False
+            dx, dy = gx - self.x, gy - self.y                  # the icons point the way until they have a go
+            return (dx > 4) - (dx < -4), (dy > 4) - (dy < -4), False
 
     class Delivery(Flight):
         """Fly about with the stick; the button drops the baby, which keeps the stork's speed.
@@ -151,8 +162,8 @@ def make(a, need: int, babies: int) -> Tutorial:
     return Tutorial(
         "STORK BOMBER", "",
         [
-            Page(("MOVE THE STICK TO FLY THE STORK",), trial=Flight),
-            Page(("PRESS THE BUTTON TO DROP THE BABY. IT KEEPS", "YOUR SPEED, SO LET GO EARLY. HIT THE TARGET!"),
+            Page(("PUSH THE STICK TO FLY THE STORK", "DOWN AND RIGHT TO THE GLOWING RING"), trial=Flight),
+            Page(("TAP THE BUTTON TO DROP THE BABY. IT KEEPS", "YOUR SPEED, SO LET GO EARLY. HIT THE TARGET!"),
                  controls=("stick", "button"), trial=Delivery),
             Page((f"DELIVER {need} OF {babies} TO WIN. OUTFLY THE", "SPAGHETTI MONSTER OR IT STEALS THE BABY"),
                  chase),

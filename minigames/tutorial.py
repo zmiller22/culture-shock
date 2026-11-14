@@ -14,6 +14,10 @@ There are two kinds of page:
   The button turns it, and it turns on its own after `Page.time` seconds,
   except the last page, where the button starts the round.
 
+Every page wears a badge saying which kind it is, WATCH or TRY IT!, and the
+captions, control labels and prompts are drawn big in PROMPT (violet), saying
+TAP or HOLD, so the instructions are the first thing anyone reads.
+
 A game builds a Tutorial with its pages, calls update/draw while its title
 phase runs, and starts the round once `done` goes True.
 
@@ -31,10 +35,11 @@ from typing import Callable, Protocol
 
 import pygame
 
+from sprites.font import BIG_H
 from sprites.palette import LAB_DIM, LAB_TEXT
 from sprites.viewer import H, W, text_surface
 
-from .shell import Input
+from .shell import PROMPT, Input, prompt_text
 
 DEMO_X, DEMO_Y, DEMO_W, DEMO_H = 74, 32, 238, 104
 PAGE_TIME = 4.5                  # s a page shows before turning on its own
@@ -159,6 +164,7 @@ class Tutorial:
     cheer_t: float | None = None                   # s since they managed it
     touched: float = -99.0                         # self.time they last touched a control
     hands: tuple[Input, ...] = ()                  # this tick's input, per player, for the icons
+    merged: Input = field(default_factory=Input)   # this tick's input from every stick and button
 
     def __post_init__(self) -> None:
         self.canvas = pygame.Surface((DEMO_W, DEMO_H))
@@ -166,11 +172,12 @@ class Tutorial:
         self.shade.fill((*INK, 232))
         self._title = big(self.title, self.accent)
         self._premise = text_surface(self.premise, LAB_DIM)
-        self._captions = [[text_surface(line, LAB_TEXT) for line in p.caption] for p in self.pages]
-        self._labels = {k: text_surface(v, LAB_DIM) for k, v in self.labels.items()}
-        self._next = text_surface("BUTTON: NEXT", LAB_DIM)
-        self._start = text_surface("PRESS BUTTON TO START", self.accent)
-        self._try = text_surface("YOUR TURN: TRY IT!", self.accent)
+        self._captions = [[prompt_text(line) for line in p.caption] for p in self.pages]
+        self._labels = {k: prompt_text(v) for k, v in self.labels.items()}
+        self._next = prompt_text("TAP BUTTON: NEXT")
+        self._start = prompt_text("TAP BUTTON TO START")
+        self._try = prompt_text("YOUR TURN: TRY IT!")
+        self._badges = {kind: badge(kind) for kind in ("WATCH", "TRY IT!")}
         self._intro = Intro(self.intro, self.accent) if self.intro else None
         self._open()
 
@@ -188,6 +195,7 @@ class Tutorial:
         self.t += dt
         pressed = inp.action or any(p.action for p in inp.players)
         self.hands = inp.players or (inp,)
+        self.merged = inp
         if inp.x or inp.y or inp.held or pressed or any(p.x or p.y or p.action for p in inp.players):
             self.touched = self.time
         if self.trial:
@@ -231,7 +239,10 @@ class Tutorial:
             return hints
         out = []
         for i, kind in enumerate(kinds):
-            p = self.hands[min(1 if kind == "stick2" else 0, len(self.hands) - 1)] if self.hands else Input()
+            if "stick2" in kinds:                    # two players: each icon is one player's hands
+                p = self.hands[min(1 if kind == "stick2" else 0, len(self.hands) - 1)] if self.hands else Input()
+            else:                                    # one player: either stick, any button
+                p = self.merged
             out.append((0, 0, bool(p.held or p.action)) if kind in ("button", "jar") else (p.x, p.y, False))
         return out
 
@@ -276,12 +287,16 @@ class Tutorial:
             else:
                 draw_stick(screen, 37, cy, sx, sy)
             label = self._labels[kind]
-            screen.blit(label, (37 - label.get_width() // 2, cy + 16))
+            screen.blit(label, (37 - label.get_width() // 2, cy + 15))
 
         y = DEMO_Y + DEMO_H + 6
-        for s in self._captions[self.page]:
-            screen.blit(s, (DEMO_X + DEMO_W // 2 - s.get_width() // 2, y))
-            y += 8
+        for s in self._captions[self.page]:                  # big, so centred on the whole screen to fit
+            screen.blit(s, (W // 2 - s.get_width() // 2, y))
+            y += BIG_H + 3
+
+        # WATCH or TRY IT!, top left over the controls column
+        b = self._badges["TRY IT!" if self.trial else "WATCH"]
+        screen.blit(b, (37 - b.get_width() // 2, DEMO_Y))
 
         # page dots and the prompt
         for i in range(len(self.pages)):
@@ -294,10 +309,19 @@ class Tutorial:
             prompt = (self._start if self.last else self._next) if self.t >= p.lock else None
             blink = self.last
         if prompt and (not blink or int(self.time * 2.5) % 2 == 0):
-            screen.blit(prompt, (W - prompt.get_width() - 6, H - 9))
+            screen.blit(prompt, (W - prompt.get_width() - 6, H - BIG_H - 2))
         if self.trial and self.cheer_t is None and self.t > TRY_TIME - 5:       # running out: a bar shrinks
             k = (TRY_TIME - self.t) / 5
             pygame.draw.rect(screen, "#5a4e7a", (DEMO_X, DEMO_Y + DEMO_H + 2, round(DEMO_W * k), 1))
+
+
+def badge(text: str) -> pygame.Surface:
+    """WATCH / TRY IT!: dark letters on a violet tag."""
+    t = prompt_text(text, "#140c1c")
+    out = pygame.Surface((t.get_width() + 8, BIG_H + 6))
+    out.fill(PROMPT)
+    out.blit(t, (4, 3))
+    return out
 
 
 def big(text: str, color: str, scale: int = 2) -> pygame.Surface:

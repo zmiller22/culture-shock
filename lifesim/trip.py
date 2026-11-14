@@ -25,13 +25,13 @@ import pygame
 from sprites.canvas import Canvas
 from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.viewer import to_surface
+from minigames.shell import PROMPT, SKIP_GRACE
 
 W, H = 320, 180
 LW, LH = 160, 90            # the light show's own resolution, doubled up to the screen
 LINES = (("THANK YOU FOR", 2), ("TRIPPING WITH", 2), ("THE LIFE LAB!", 2), ("YOU ARE", 3), ("AMAZING!", 3))
 HUES = 24                   # rainbow steps the letters cycle through
-MIN_TIME = 1.5              # s before the button takes you back, so the press that opened it doesn't
-HINT = "#5dff7a"
+MIN_TIME = SKIP_GRACE              # s before the button takes you back, so the press that opened it doesn't
 
 
 def _palette(shift: float, sat: float = 1.0) -> list[tuple[int, int, int]]:
@@ -74,7 +74,7 @@ class Trip:
         self.plasma = _indexed(_plasma)
         self.tunnel = _indexed(_tunnel)
         self.glyphs: dict[tuple[str, int, int], pygame.Surface] = {}
-        self.hint = self._render("BUTTON: BACK", HINT, 1)
+        self.hint = self._render("TAP BUTTON: BACK", PROMPT, 1)
 
     def update(self, dt: float, sx: int, act: bool) -> None:
         self.t += dt

@@ -50,7 +50,7 @@ from sprites.canvas import hex_to_rgba
 from sprites.palette import LAB_DIM, LAB_TEXT
 from sprites.viewer import H, W, text_surface, to_surface
 
-from ..shell import Input, run
+from ..shell import Input, line_surface, prompt_text, run
 from . import art, tutorial
 from .art import F, TILE
 
@@ -107,7 +107,7 @@ DOTS_IN = (DRIFT[1], DRIFT[1] + 0.6)
 INTRO = DOTS_IN[1] + 0.6
 INTRO_SKIP = DRIFT[0]            # the button can't skip the intro until every contraceptive has made its entrance
 PRELUDE_TEXT = "WE KNOW THAT IT TAKES 2..."
-PRELUDE_ASK = ("FIND ANOTHER PLAYER,", "THEN HOLD ANY BUTTON TO CONTINUE")
+PRELUDE_ASK = ("FIND ANOTHER PLAYER,", "THEN HOLD A BUTTON DOWN TO CONTINUE")
 PRELUDE_TYPE = 1.6               # s to type the line out, before PRELUDE_ASK comes up under it
 PRELUDE_HOLD = 1.0               # s of holding a button that carries on (under the main game's HOLD_ANYWHERE)
 PRELUDE_FADE = 0.6               # s it fades out over, once they've held
@@ -768,13 +768,13 @@ class ItTakesTwo:
         elif self.phase == "end":
             if self.result == "win":
                 self._banner(screen, "IT'S CONCEPTION!", [f"MET WITH {int(TIME_LIMIT - self.clock)}S TO SPARE",
-                                                         f"SCORE {self.score}", "", "PRESS START" if blink else ""])
+                                                         f"SCORE {self.score}", "", "TAP BUTTON" if blink else ""])
             elif self.lose_reason == "time":
                 self._banner(screen, "TIME'S UP. PERIOD.", ["THE EGG WAITED. NOBODY CAME.",
-                                                           f"SCORE {self.score}", "", "PRESS START" if blink else ""])
+                                                           f"SCORE {self.score}", "", "TAP BUTTON" if blink else ""])
             else:
                 self._banner(screen, "MISSED CONNECTION", ["PROTECTION WORKED. THIS TIME.",
-                                                          f"SCORE {self.score}", "", "PRESS START" if blink else ""])
+                                                          f"SCORE {self.score}", "", "TAP BUTTON" if blink else ""])
 
     def _draw_fx(self, screen: pygame.Surface) -> None:
         for x, y, c, pt in self.pops:
@@ -1148,7 +1148,7 @@ class ItTakesTwo:
         screen.blit(tt, (W // 2 - tt.get_width() // 2, top + 5))
         for i, line in enumerate(lines):
             if line:
-                s = text_surface(line, LAB_TEXT if i == len(lines) - 1 else LAB_DIM)
+                s = line_surface(line, LAB_TEXT if i == len(lines) - 1 else LAB_DIM)
                 screen.blit(s, (W // 2 - s.get_width() // 2, top + 21 + i * 9))
 
 

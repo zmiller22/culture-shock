@@ -16,7 +16,12 @@ The main game can drive the same object: call update/draw each tick and read
 Two-player games read `inp.players` instead: one Input per player. Player 1 is
 WASD plus the left stick (by USB port), player 2 is the arrows plus the right
 stick. The top-level x / y / action stay merged across everything, so one-player
-games work as before.
+games work from either stick, and every button on the cabinet counts as THE
+button (a tap is `action`, a hold is `held`). In a two-player game each player's
+own buttons count for them.
+
+On screen, instructions for the stick and the button are drawn in PROMPT
+(violet) and say TAP or HOLD, so it's always clear which one a screen wants.
 """
 
 from __future__ import annotations
@@ -26,9 +31,38 @@ from typing import Callable, Protocol
 
 import pygame
 
-from sprites.viewer import H, JOY_JUMP, W, open_pad, players, stick
+from sprites.viewer import H, W, open_pad, players, stick
 
 ACTION_KEYS = (pygame.K_SPACE, pygame.K_z, pygame.K_RETURN)
+PROMPT = "#c79bff"         # violet: every on-screen instruction for the stick or the button
+SKIP_GRACE = 3.0           # s a video or visual sequence plays before the button can skip it (people tap fast
+                           # to pick things, and the extra taps shouldn't skip what they just picked)
+
+
+def ink(line: str, default):
+    """PROMPT for a line that tells you what to do with the stick or the button, else `default`."""
+    return PROMPT if is_prompt(line) else default
+
+
+def is_prompt(line: str) -> bool:
+    return "BUTTON" in line or "STICK" in line
+
+
+def prompt_text(text: str, color: str = PROMPT) -> pygame.Surface:
+    """An instruction, in the big 5x7 font, violet: big enough to read from arm's length."""
+    from sprites.canvas import Canvas
+    from sprites.font import BIG_H, big_width, draw_big_text
+    from sprites.viewer import to_surface
+    c = Canvas(max(1, big_width(text)), BIG_H)
+    draw_big_text(c, 0, 0, text, color)
+    return to_surface(c)
+
+
+def line_surface(line: str, default: str) -> pygame.Surface:
+    """A line of a banner or a screen: big and violet if it's an instruction, small in `default` if not."""
+    from sprites.viewer import text_surface
+    return prompt_text(line) if is_prompt(line) else text_surface(line, default)
+
 P1_KEYS = (pygame.K_a, pygame.K_d, pygame.K_w, pygame.K_s, (pygame.K_SPACE, pygame.K_LSHIFT))   # left right up down action
 # The cabinet's 27" 16:9 monitor sits behind a bezel, so fullscreen leaves a black border round the
 # picture: BORDER_IN inches top and bottom. The picture keeps its 16:9 shape, so the sides come out
@@ -96,14 +130,14 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
                 running = False
             elif ev.type == pygame.KEYDOWN:
                 pressed_keys.add(ev.key)
-                if ev.key in ACTION_KEYS:
+                if ev.key in (*ACTION_KEYS, *P1_KEYS[4], *P2_KEYS[4]):
                     inp.action = True
             elif ev.type == pygame.JOYDEVICEADDED:
                 joy = open_pad(ev.device_index)
                 pads[joy.get_instance_id()] = joy
             elif ev.type == pygame.JOYDEVICEREMOVED:
                 pads.pop(ev.instance_id, None)
-            elif ev.type == pygame.JOYBUTTONDOWN and ev.button == JOY_JUMP:
+            elif ev.type == pygame.JOYBUTTONDOWN:          # any button on the cabinet
                 inp.action = True
                 pad_presses.add(ev.instance_id)
 
@@ -115,7 +149,7 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
         inp.x = max(-1, min(1, keys[pygame.K_RIGHT] - keys[pygame.K_LEFT] + sx))
         inp.y = max(-1, min(1, keys[pygame.K_DOWN] - keys[pygame.K_UP] + sy))
         inp.held = any(keys[k] for k in (*ACTION_KEYS, *P1_KEYS[4], *P2_KEYS[4])) or \
-            any(j.get_numbuttons() > JOY_JUMP and j.get_button(JOY_JUMP) for j in pads.values())
+            any(j.get_button(b) for j in pads.values() for b in range(j.get_numbuttons()))
         joys = players(pads)                  # P1 = left stick, by USB port
         per_player = []
         for i, (left, right, up, down, acts) in enumerate((P1_KEYS, P2_KEYS)):
@@ -125,7 +159,10 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
                 jx, jy = stick(joys[i])
                 px, py = px or jx, py or jy
                 act = act or joys[i].get_instance_id() in pad_presses
-            per_player.append(Input(max(-1, min(1, px)), max(-1, min(1, py)), act))
+            held = any(keys[k] for k in acts)
+            if i < len(joys):
+                held = held or any(joys[i].get_button(b) for b in range(joys[i].get_numbuttons()))
+            per_player.append(Input(max(-1, min(1, px)), max(-1, min(1, py)), act, held))
         inp.players = tuple(per_player)
         if autopilot:
             inp = autopilot(game)

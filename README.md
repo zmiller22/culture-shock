@@ -174,11 +174,23 @@ all, the drive reports TAPE MISSING.
 
 ### Leaving
 
-Leave the game alone for 20 seconds, or hold the button on a menu (the theories
-or the file listing; they say HOLD: EXIT), and it freezes under a STILL THERE?
-countdown from 60. Any button or the stick carries on. Hold the button, or let
-it run out, and it goes back to the start screen for the next visitor. Because
-of the hold, the menus act when you let go of the button.
+Leave the game alone for a minute, or hold the button down on a menu (the
+theories or the file listing; they say HOLD BUTTON: EXIT), and it freezes under
+the exit menu with a countdown from 60: CONTINUE, RETURN TO THEORY MENU or
+TERMINATE PROGRAM (back to the start screen for the next visitor). The stick
+picks one and holding the button down takes it; letting the countdown run out
+terminates too. Because of the hold, the menus act when you let go of the button.
+
+### Controls and instructions
+
+Every button on the cabinet counts as the button, and either stick steers (in
+It Takes Two each player uses their own). Every instruction for the stick or the
+button is drawn big and violet, and says TAP BUTTON (a quick press) or HOLD
+BUTTON DOWN (keep it held while a bar fills). The how-to pages in each
+mini-game are tagged WATCH (a demo) or TRY IT! (your turn), and so is the tour of
+the theory map. Videos and visual sequences (the rick rolls, OOH, the trip, the
+zoom out) ignore the button for their first 3 seconds (`SKIP_GRACE` in
+`minigames/shell.py`), so the taps that picked them don't skip them.
 
 ```bash
 python -m lifesim                 # windowed; add --fullscreen on the cabinet (./play.sh does this)
@@ -191,9 +203,9 @@ python -m lifesim --demo          # the computer boots it and plays every simula
 | Pick a theory | Up / Down | stick |
 | Name entry: roll the letter (down = A -> B) / back / next | Down, Up / Left / Right | stick |
 | Files: browse / back out (or `..` at the top) | Up, Down / Left | stick |
-| Files: type a code (roll / undo / lock) | Up, Down / Left / Right or Space | stick, button 0 |
-| Boot / skip the zoom / select / continue | Space, Z or Enter | button 0 |
-| Exit countdown (on a menu) / back to the start screen (on the countdown) | hold Space, Z or Enter | hold button 0 |
+| Files: type a code (roll / undo / lock) | Up, Down / Left / Right or Space | stick, any button |
+| Boot / skip the zoom / select / continue | Space, Z or Enter | any button |
+| Exit countdown (on a menu) / back to the start screen (on the countdown) | hold Space, Z or Enter | hold any button |
 | Quit | Esc or Q | |
 
 The code is in `lifesim/`: `art.py` draws the computer room and the spirit,
@@ -418,7 +430,7 @@ python -m minigames.stork_bomber --demo      # the computer plays
 | Action | Keyboard | Arcade stick |
 |---|---|---|
 | Fly | Arrows | stick |
-| Drop the baby / start / continue | Space, Z or Enter | button 0 |
+| Drop the baby / start / continue | Space, Z or Enter | any button |
 | Quit | Esc or Q | |
 
 ### Primordial Soup
@@ -486,7 +498,7 @@ python -m minigames.primordial_soup --demo     # the computer plays
 | Action | Keyboard | Arcade stick |
 |---|---|---|
 | Run around | Arrows | stick |
-| Pounce / throw / start / continue | Space, Z or Enter | button 0 |
+| Pounce / throw / start / continue | Space, Z or Enter | any button |
 | Quit | Esc or Q | |
 
 ### Womb Rave
@@ -569,7 +581,7 @@ python -m minigames.womb_rave --demo                   # the computer plays
 |---|---|---|
 | Choose a dancer | Left / right | stick |
 | Dance (left, right, up, down) | Arrows | stick |
-| Pick / squeeze / continue | Space, Z or Enter | button 0 |
+| Pick / squeeze / continue | Space, Z or Enter | any button |
 | Quit | Esc or Q | |
 
 ### Spit Kit
@@ -615,7 +627,7 @@ python -m minigames.spit_kit --demo             # the computer spits (keyboard s
 
 | Action | Keyboard | Arcade stick |
 |---|---|---|
-| Spit (no sensor) / next / hurry / attack | Space, Z or Enter | button 0 |
+| Spit (no sensor) / next / hurry / attack | Space, Z or Enter | any button |
 | Walk / jump the new you | Arrows | stick |
 | Quit | Esc or Q | |
 
@@ -697,7 +709,7 @@ python -m minigames.it_takes_two --demo        # the computer plays both sides
 | Action | Player 1 (egg) | Player 2 (sperm) |
 |---|---|---|
 | Swim | WASD or the first stick plugged in | Arrows or the second stick |
-| Start / continue | Space or button 0 | Enter or button 0 |
+| Start / continue | Space or any button on the first stick | Enter or any button on the second |
 | Quit | Esc or Q | |
 
 Two-player mini-games read `inp.players` from the shell: one input per player,

@@ -31,7 +31,7 @@ from sprites.palette import LAB_BG, LAB_DIM, LAB_TEXT
 from sprites.rig import ANIMATIONS, GROUND, SIZE, Pose
 from sprites.viewer import H, W, text_surface, to_surface
 
-from ..shell import Input, run
+from ..shell import Input, line_surface, prompt_text, run
 from ..stork_bomber import art as stork_art
 from . import art, people, tutorial
 
@@ -1373,9 +1373,9 @@ class PrimordialSoup:
         screen.blit(text_surface(f"TIME {secs:02d}", col), (44, H - 8))
         if self.phase == "won":
             self._banner(screen, "IT'S ALIVE!", ["LIFE FROM SOUP. SCIENCE!", "THE CHEF WAS AN INGREDIENT",
-                                                 "PRESS BUTTON"])
+                                                 "TAP BUTTON"])
         elif self.phase == "lost":
-            self._banner(screen, "KITCHEN NIGHTMARE", ["THE CUSTOMER IS ALWAYS RIGHT", "PRESS BUTTON"])
+            self._banner(screen, "KITCHEN NIGHTMARE", ["THE CUSTOMER IS ALWAYS RIGHT", "TAP BUTTON"])
 
     def _banner(self, screen: pygame.Surface, title: str, lines: list[str]) -> None:
         shade = pygame.Surface((W, 30 + 9 * len(lines)), pygame.SRCALPHA)
@@ -1386,7 +1386,7 @@ class PrimordialSoup:
         screen.blit(t, (W // 2 - t.get_width() // 2, top + 7))
         for i, line in enumerate(lines):
             if line:
-                s = text_surface(line, LAB_DIM)
+                s = line_surface(line, LAB_DIM)
                 screen.blit(s, (W // 2 - s.get_width() // 2, top + 25 + i * 9))
 
 

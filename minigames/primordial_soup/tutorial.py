@@ -398,9 +398,9 @@ def make(a, need: int, time_limit: float) -> Tutorial:
         "PRIMORDIAL SOUP", "",
         [
             Page(("MOVE THE STICK TO RUN AROUND", "WALK TO THE POT TO CONTINUE"), trial=Run),
-            Page(("GET CLOSE AND PRESS THE BUTTON", "TO POUNCE ON A CRITTER"), controls=("stick", "button"),
+            Page(("GET CLOSE AND TAP THE BUTTON", "TO POUNCE ON A CRITTER"), controls=("stick", "button"),
                  trial=Pounce),
-            Page(("PRESS THE BUTTON AGAIN NEAR THE POT", "TO THROW IT IN THE SOUP"), controls=("stick", "button"),
+            Page(("TAP THE BUTTON AGAIN NEAR THE POT", "TO THROW IT IN THE SOUP"), controls=("stick", "button"),
                  trial=Toss),
             Page((f"GET {need} IN THE SOUP IN {int(time_limit)} SECONDS.", "DODGE THE TOOLS FLYING OFF THE WALL!"),
                  dodge),

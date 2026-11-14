@@ -25,7 +25,7 @@ Leave it alone for IDLE_PROMPT s (outside the boot sequence and cut-scenes), or
 hold the button on a menu (the map or the file listing) for MENU_HOLD s, or
 anywhere else, mini-games included, for HOLD_ANYWHERE s, and the game freezes
 under the exit menu (STILL THERE? when it came up by itself): CONTINUE,
-RETURN TO THEORY MENU (once they've reached the map) and EXIT TO START SCREEN.
+RETURN TO THEORY MENU (once they've reached the map) and TERMINATE PROGRAM (back to the start screen).
 The stick picks one and holding the button for SELECT_HOLD s takes it. A
 countdown runs underneath, and letting it run out goes back to the start
 screen for the next visitor. Because of the hold, menus act when the button
@@ -56,7 +56,7 @@ from typing import Callable
 
 import pygame
 
-from minigames.shell import Input, MiniGame, run
+from minigames.shell import PROMPT, SKIP_GRACE, Input, MiniGame, run
 from sprites.canvas import Canvas, hex_to_rgba
 from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.viewer import text_surface, to_surface
@@ -94,7 +94,7 @@ LOAD_TIME = 1.8            # s from picking a theory to the screen switching off
 LOAD_DIVE = 0.7            # s for the spirit to dive into the tile, which then grows to fill the screen
 CRT_OFF_TIME = 0.35
 CRT_ON_TIME = 0.35
-IDLE_PROMPT = 20.0         # s of nobody touching anything before the "still there?" countdown
+IDLE_PROMPT = 60.0         # s of nobody touching anything before the "still there?" countdown
 IDLE_COUNTDOWN = 60        # s it counts down from before it goes back to the start screen
 SELECT_HOLD = 1.0          # s of holding the button on the exit menu to take the option
 MENU_HOLD = 0.8            # s of holding the button on a menu to bring the countdown up (menus act on release)
@@ -115,12 +115,13 @@ FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF 
                   "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
 # the tour of the map, the first time on it: what to light up, and what to say
 RETURN_OPTIONS = ["PLAY AGAIN", "EXPLORE OTHER THEORIES"]   # after a simulation's verdict
+TOUR_TRY = {"move"}         # the tour pages where they have a go (the rest they just watch)
 TUTORIAL = [
     ("tiles", ("EACH TILE IS A SIMULATION OF ONE", "THEORY OF HOW LIFE BEGINS.")),
     ("move", ("PUSH THE STICK TO FLOAT FROM", "TILE TO TILE. GO ON, TRY IT.")),
-    ("labels", ("PRESS THE BUTTON TO JUMP IN. WIN AND", "THE THEORY IS CONFIRMED. LOSE: REFUTED.")),
+    ("labels", ("TAP THE BUTTON TO JUMP IN. WIN AND", "THE THEORY IS CONFIRMED. LOSE: REFUTED.")),
     ("files", ("WAIT... WHAT IS THIS?",)),
-    ("exit", ("HOLD DOWN A BUTTON AT ANY TIME", "TO OPEN THE EXIT MENU.")),
+    ("exit", ("HOLD THE BUTTON DOWN AT ANY TIME", "TO OPEN THE EXIT MENU.")),
 ]
 
 
@@ -406,7 +407,8 @@ class Glyphs:
 
     The terminal is one colour: every shade of phosphor (dim, faint, the white-hot
     highlight) comes out as plain PHOSPHOR, so text is always the brightest, easiest
-    thing to read. The one exception is CRT_BG, for dark text on a lit bar.
+    thing to read. The exceptions are CRT_BG, for dark text on a lit bar, and
+    PROMPT, the violet every stick and button instruction is drawn in.
     `big` uses the 5x7 font instead of the 3x5 one."""
 
     def __init__(self, mono: bool = True) -> None:
@@ -414,7 +416,7 @@ class Glyphs:
         self.cache: dict[tuple[str, str, int, bool], pygame.Surface] = {}
 
     def get(self, s: str, color: str, scale: int = 1, big: bool = False) -> pygame.Surface:
-        if self.mono and color != CRT_BG:
+        if self.mono and color not in (CRT_BG, PROMPT):
             color = PHOSPHOR
         key = (s, color, scale, big)
         if key not in self.cache:
@@ -621,7 +623,7 @@ class LifeSim:
             return True
         self.countdown -= dt
         opts = self.menu_options()
-        y = inp.y or next((p.y for p in inp.players if p.y), 0)
+        y = inp.y or inp.x or next((p.y or p.x for p in inp.players if p.y or p.x), 0)
         if not self.armed:                   # brought up by holding the button: let go first
             self.armed = not inp.held
         elif self.hold is not None:          # holding: a bar fills up to taking the option
@@ -646,8 +648,8 @@ class LifeSim:
     def menu_options(self) -> list[str]:
         """The exit menu. No theory menu to go back to until they've reached the map."""
         if self.hold_exit:
-            return ["CONTINUE", "RETURN TO THEORY MENU", "EXIT TO START SCREEN"]
-        return ["CONTINUE", "EXIT TO START SCREEN"]
+            return ["CONTINUE", "RETURN TO THEORY MENU", "TERMINATE PROGRAM"]
+        return ["CONTINUE", "TERMINATE PROGRAM"]
 
     def _choose(self, option: str) -> None:
         self.activity("menu_choice", option=option, phase=self.phase, via=self.prompt_via)
@@ -742,7 +744,7 @@ class LifeSim:
         if t is None or t < 0.6:
             return
         k = min(1.0, (t - 0.6) / (HOLD_ANYWHERE - 0.6))
-        s = self.text.get("KEEP HOLDING: EXIT MENU", PHOSPHOR, big=True)
+        s = self.text.get("KEEP HOLDING THE BUTTON: EXIT MENU", PROMPT, big=True)
         w = max(s.get_width(), 120) + 12
         box = pygame.Rect(art.W // 2 - w // 2, art.H - 24, w, 20)
         screen.fill(rgb(CRT_BG), box)
@@ -913,7 +915,7 @@ class LifeSim:
             if self.phase_t < RAIN_FADE:
                 self.rain.update(dt)
             self.cosmos.update(dt)
-            if inp.action and self.phase_t > 0.5:
+            if inp.action and self.phase_t > SKIP_GRACE:
                 self.cosmos.skip()
             if self.cosmos.done:
                 self._go("spirit")
@@ -1066,7 +1068,7 @@ class LifeSim:
         screen.fill((90, 90, 90), special_flags=pygame.BLEND_MULT)
         opts = self.menu_options()
         cx = art.W // 2
-        pw, ph = 200, 64 + 14 * len(opts)
+        pw, ph = 252, 68 + 14 * len(opts)
         px, py = cx - pw // 2, art.H // 2 - ph // 2
         screen.fill(rgb(CRT_BG), (px, py, pw, ph))
         pygame.draw.rect(screen, rgb(PHOSPHOR), (px, py, pw, ph), 1)
@@ -1096,7 +1098,7 @@ class LifeSim:
         screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, y, bw, 2))
         screen.fill(rgb(PHOSPHOR), (px + 12, y, int(bw * self.countdown / IDLE_COUNTDOWN), 2))
         centre(self.text.get(f"BACK TO THE START SCREEN IN {left}", PHOSPHOR), y + 5)
-        centre(self.text.get("STICK: CHOOSE   HOLD BUTTON: SELECT", PHOSPHOR), y + 14)
+        centre(self.text.get("STICK: CHOOSE   HOLD BUTTON DOWN: SELECT", PROMPT, big=True), y + 14)
 
     def overlay(self, window: pygame.Surface) -> None:
         """Called by the shell after scaling, on the real window: the rick roll plays here, at full res."""
@@ -1196,17 +1198,17 @@ class LifeSim:
                     pygame.draw.rect(screen, rgb(PHOSPHOR_DIM), row, 1)
                     s = self.text.get(opt, PHOSPHOR, big=True)
                 screen.blit(s, (row.centerx - s.get_width() // 2, row.y + 3))
-            h = self.text.get("STICK: CHOOSE    BUTTON: SELECT", PHOSPHOR_DIM)
+            h = self.text.get("STICK: CHOOSE    TAP BUTTON: SELECT", PROMPT, big=True)
             screen.blit(h, (cx - h.get_width() // 2, top + 64))
             return
-        lines = ["STICK UP / DOWN: CHANGE THE LETTER", "BUTTON: SELECT LETTER",
-                 "HOLD BUTTON DOWN WHEN DONE"]
+        lines = ["STICK UP / DOWN: CHANGE THE LETTER", "TAP BUTTON: NEXT LETTER",
+                 "HOLD BUTTON DOWN: DONE"]
         if e.taken_t > 0:                                  # that name's someone else's
             lines[0] = "NAME TAKEN! CHOOSE A UNIQUE NAME" if int(self.time * 6) % 2 == 0 else ""
         for i, line in enumerate(lines):
             if not line:
                 continue
-            s = self.text.get(line, PHOSPHOR_DIM if i == 2 and not e.name else PHOSPHOR, big=True)
+            s = self.text.get(line, PHOSPHOR if i == 0 and e.taken_t > 0 else PROMPT, big=True)
             x, y = cx - s.get_width() // 2, top + 38 + i * 10
             screen.blit(s, (x, y))
             if i == 2 and e.hold_k > 0:                    # holding: a bar fills up to done
@@ -1239,7 +1241,7 @@ class LifeSim:
             self._draw_dance(screen, cx, cy, 3.0 * grow, self.phase_t - SUMMON_FORM)
         self._centre_lines(screen, self.typer, 94, 19, scale=2)
         if self.typer.done and int(self.time * 2) % 2 == 0:
-            s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
+            s = self.text.get("TAP BUTTON", PROMPT, big=True)
             screen.blit(s, (art.W // 2 - s.get_width() // 2, 162))
         screen.blit(self.art.scanlines, (0, 0))
 
@@ -1324,13 +1326,13 @@ class LifeSim:
                 screen.blit(self.text.get(line, PHOSPHOR), (6, 149 + i * 7))
         # the controls
         screen.fill(rgb(PHOSPHOR_FAINT), (4, 164, sw - 8, 1))
-        screen.blit(self.text.get("STICK: MOVE    BUTTON: ENTER", PHOSPHOR_DIM), (6, 169))
+        screen.blit(self.text.get("STICK: MOVE    TAP BUTTON: ENTER", PROMPT, big=True), (6, 168))
         if self.idle_exit:
-            hold = self.text.get("HOLD: EXIT", PHOSPHOR_DIM)
+            hold = self.text.get("HOLD BUTTON: EXIT", PROMPT, big=True)
             hx = sw - 6 - hold.get_width()
-            screen.blit(hold, (hx, 169))
+            screen.blit(hold, (hx, 168))
             if self.hold_k > 0:
-                screen.fill(rgb("#eaffea"), (hx, 175, int(hold.get_width() * self.hold_k), 1))
+                screen.fill(rgb("#eaffea"), (hx, 176, int(hold.get_width() * self.hold_k), 2))
         if self.phase == "hub" and self.tutorial is not None:
             self._draw_tutorial(screen)
         if self.phase == "hub":
@@ -1436,7 +1438,7 @@ class LifeSim:
             return [pygame.Rect(tile_at(i)[0] - 2, tile_at(i)[1] + TILE_H + 1, TILE_W + 4, 9) for i in range(n)] + \
                 [tile_rect(self.sel).inflate(6, 6)] * (self.sel >= 0)
         if what == "exit":
-            return [EXIT_RECT.inflate(6, 6), pygame.Rect(art.W - 52, 166, 48, 11)]
+            return [EXIT_RECT.inflate(6, 6)]
         return [tile_rect(FILES).inflate(6, 6)]
 
     def _draw_tutorial(self, screen: pygame.Surface) -> None:
@@ -1448,17 +1450,23 @@ class LifeSim:
         for r in self._tour_rects(what):
             screen.blit(lit, r, r)
             if on:
-                pygame.draw.rect(screen, rgb(PHOSPHOR), r, 1)
-        box = pygame.Rect(4, 138, art.W - 8, 25)
+                pygame.draw.rect(screen, rgb(PROMPT), r, 1)
+        box = pygame.Rect(4, 137, art.W - 8, 42)              # over the controls line, which the tour explains
         screen.fill(rgb(CRT_BG), box)
-        pygame.draw.rect(screen, rgb(PHOSPHOR), box, 1)
+        pygame.draw.rect(screen, rgb(PROMPT), box, 1)
+        # what kind of page: WATCH, or TRY IT! when the stick is theirs
+        tag = "TRY IT!" if what in TOUR_TRY else "WATCH"
+        t = self.text.get(tag, CRT_BG, big=True)
+        badge = pygame.Rect(box.x + 4, box.y + 4, t.get_width() + 6, 11)
+        screen.fill(rgb(PROMPT), badge)
+        screen.blit(t, (badge.x + 3, badge.y + 2))
         for i, line in enumerate(lines):
-            screen.blit(self.text.get(line, PHOSPHOR, big=True), (box.x + 5, box.y + 3 + i * 10))
+            screen.blit(self.text.get(line, PROMPT, big=True), (badge.right + 6, box.y + 6 + i * 10))
         page = self.text.get(f"{self.tutorial + 1}/{len(TUTORIAL)}", PHOSPHOR_DIM)
-        screen.blit(page, (box.right - 4 - page.get_width(), box.y + 3))
+        screen.blit(page, (box.x + 6, box.bottom - 9))
         if int(self.time * 2) % 2 == 0:
-            s = self.text.get("BUTTON: NEXT", PHOSPHOR, big=False)
-            screen.blit(s, (box.right - 4 - s.get_width(), box.bottom - 7))
+            s = self.text.get("TAP BUTTON: NEXT", PROMPT, big=True)
+            screen.blit(s, (box.right - 5 - s.get_width(), box.bottom - 11))
 
     def _draw_load(self, screen: pygame.Surface) -> None:
         """The body dives into the tile, the tile grows to fill the screen, then it switches off."""
@@ -1513,8 +1521,8 @@ class LifeSim:
                     pygame.draw.rect(screen, rgb(PHOSPHOR_DIM), row, 1)
                     s = self.text.get(opt, PHOSPHOR, big=True)
                 screen.blit(s, (row.centerx - s.get_width() // 2, row.y + 3))
-            s = self.text.get("STICK: CHOOSE    BUTTON: SELECT", PHOSPHOR_DIM)
-            screen.blit(s, (x, 152))
+            s = self.text.get("STICK: CHOOSE    TAP BUTTON: SELECT", PROMPT, big=True)
+            screen.blit(s, (x, 151))
             self._draw_body(screen, art.W - 40, 172, "idle", 2.0)
         if self.phase_t < CRT_ON_TIME:
             self._squash(screen, 1.0 - self.phase_t / CRT_ON_TIME)
@@ -1529,7 +1537,7 @@ class LifeSim:
                 x = art.W // 2 - big_width(self.typer.lines[i]) * scale // 2
                 screen.blit(self.text.get(line, PHOSPHOR, scale, big=True), (x, 22 if i == 0 else 30 + i * 11))
         if self.typer.done and int(self.time * 2) % 2 == 0:
-            s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
+            s = self.text.get("TAP BUTTON", PROMPT, big=True)
             screen.blit(s, (art.W // 2 - s.get_width() // 2, 162))
         screen.blit(self.art.scanlines, (0, 0))
 
@@ -1732,7 +1740,7 @@ def main() -> None:
     rounds = 0
 
     def make() -> LifeSim:
-        # --skip-boot and --played-all are for the first round only: after EXIT TO START SCREEN
+        # --skip-boot and --played-all are for the first round only: after TERMINATE PROGRAM
         # (or a timeout) the next visitor gets the start screen and the whole boot sequence
         nonlocal rounds
         first, rounds = rounds == 0, rounds + 1

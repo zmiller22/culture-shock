@@ -47,7 +47,7 @@ from sprites.palette import LAB_BG, LAB_DIM, LAB_FLOOR, LAB_GRID, LAB_TEXT
 from sprites.rig import SIZE, poses
 from sprites.viewer import H, W, Actor, text_surface, to_surface
 
-from ..shell import Input, run
+from ..shell import PROMPT, Input, prompt_text, run
 from . import dna, tutorial
 from .jar import get_jar
 
@@ -565,7 +565,7 @@ class SpitKit:
         jar = self.jar
         blink = int(self.time * 3) % 2 == 0
         if not jar.live:
-            return ("NO SENSOR: PRESS BUTTON TO SPIT", ACCENT if blink else LAB_DIM)
+            return ("NO SENSOR: TAP BUTTON TO SPIT", PROMPT if blink else LAB_DIM)
         if jar.state == "CHANGING":
             return ("SOMETHING IS HAPPENING...", ACCENT if blink else LAB_TEXT)
         if jar.state == "IDLE":
@@ -575,7 +575,7 @@ class SpitKit:
         if jar.state == "START":
             return ("CALIBRATING. DON'T TOUCH THE JAR.", LAB_DIM)
         if self.not_ready_t > FALLBACK_AFTER:
-            return ("SENSOR TROUBLE: PRESS BUTTON TO SPIT", ACCENT if blink else LAB_DIM)
+            return ("SENSOR TROUBLE: TAP BUTTON TO SPIT", PROMPT if blink else LAB_DIM)
         return ("SENSOR TROUBLE. HOLD ON...", "#ff6a6a")
 
     def _draw_got(self, screen: pygame.Surface) -> None:
@@ -667,8 +667,8 @@ class SpitKit:
             screen.set_clip(box.inflate(-2, -2))
             blit_c(screen, img, box.centerx + dx, box.centery)
             screen.set_clip(clip)
-        blit_c(screen, txt("STICK LEFT / RIGHT: CHANGE ANSWER    UP / DOWN: QUESTION", PHOS_DIM), W / 2, H - 30)
-        submit = txt("HOLD ANY BUTTON TO SUBMIT YOUR ANSWERS", PHOS)
+        blit_c(screen, txt("STICK LEFT / RIGHT: CHANGE ANSWER    UP / DOWN: QUESTION", PROMPT), W / 2, H - 30)
+        submit = prompt_text("HOLD BUTTON DOWN TO SUBMIT YOUR ANSWERS")
         if int(self.time * 2.5) % 2 == 0 or sv.hold_k > 0:
             blit_c(screen, submit, W / 2, H - 18)
         if sv.hold_k > 0:                                 # holding: a bar fills up to handing it in
@@ -722,7 +722,7 @@ class SpitKit:
                 if part:                                     # typed left to right, where the whole line will sit
                     screen.blit(txt(part, ACCENT), (round(W / 2 - text_width(line) / 2), 130 + j * 9))
             if u > len(full) / TYPE_RATE + 0.5 and int(self.time * 2.5) % 2 == 0:
-                blit_c(screen, txt("BUTTON: SPLICE ME", LAB_DIM), W / 2, 170)
+                blit_c(screen, prompt_text("TAP BUTTON: SPLICE ME"), W / 2, 170)
 
     def _draw_splice(self, screen: pygame.Surface) -> None:
         sp, t, you = self._surfaces(), self.phase_t, self.you
@@ -821,7 +821,7 @@ class SpitKit:
         for j, line in enumerate(wrap(dna.sentence(self.profile), 300)):
             blit_c(screen, txt(line, LAB_TEXT), W / 2, 37 + j * 8)       # (bright: the room may be any colour)
         if self.phase_t > 1.5:
-            hint = txt("STICK: WALK  UP: JUMP  BUTTON: ATTACK", LAB_DIM)
+            hint = prompt_text("STICK: WALK  UP: JUMP  TAP BUTTON: ATTACK")
             blit_c(screen, hint, W / 2, H - 7)
 
     def _bubble(self, screen: pygame.Surface, text: str, x: float, y: float) -> None:
@@ -843,7 +843,7 @@ class SpitKit:
         blit_c(screen, txt("NO SAMPLE.", "#ff6a6a", 2), 214, 50)
         blit_c(screen, txt("THE JAR IS DISAPPOINTED IN YOU.", LAB_TEXT), 214, 70)
         if self.phase_t > 1 and int(self.time * 2.5) % 2 == 0:
-            blit_c(screen, txt("BUTTON: CONTINUE", LAB_DIM), 214, 90)
+            blit_c(screen, prompt_text("TAP BUTTON: CONTINUE"), 214, 90)
 
 
 # -- demo / test driver -----------------------------------------------------------------

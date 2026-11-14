@@ -28,6 +28,7 @@ import pygame
 from sprites.canvas import Canvas, hex_to_rgba
 from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.viewer import to_surface
+from minigames.shell import PROMPT, SKIP_GRACE
 
 SONG = Path(__file__).resolve().parent.parent / "assets" / "sounds" / "ooh_2001.mp3"
 W, H = 320, 180
@@ -54,7 +55,6 @@ SKY = "#0c0614"
 GLOW = "#3a1030"
 TEXT = "#ffd86a"
 TEXT_SHADOW = "#5a1a10"
-HINT = "#5dff7a"
 RAVE = ("#ff6a9a", "#5ff3ff", "#ffe14d", "#b46bff", "#9dff5a")   # the womb rave's lights
 BEAT = 2.0                  # pulses/s for the strobing background
 
@@ -202,7 +202,9 @@ class Ooh:
         self.beams = pygame.Surface((W, H))
         self.words = [text_surface(s, TEXT, 3) for s in LINES]
         self.shadows = [text_surface(s, TEXT_SHADOW, 3) for s in LINES]
-        self.hint = text_surface("BUTTON: BACK", HINT, 1)
+        c = Canvas(big_width("TAP BUTTON: BACK"), BIG_H)
+        draw_big_text(c, 0, 0, "TAP BUTTON: BACK", PROMPT)
+        self.hint = to_surface(c)
         self.scaled: dict[tuple[int, int, int], pygame.Surface] = {}
         if not mute and SONG.exists():
             try:
@@ -235,7 +237,7 @@ class Ooh:
             pos = pygame.mixer.music.get_pos()
             if pos > 0 and abs(pos / 1000 - self.t) > 0.08:      # follow the music, so the cues land on the beats
                 self.t = pos / 1000
-        if sx < 0 or act and self.words_up or self.t > END + 0.5:
+        if self.t > SKIP_GRACE and (sx < 0 or act and self.words_up) or self.t > END + 0.5:
             self.done = True
         if self.t > REVEAL:                                      # hearts float up off the cast
             for _ in range(1 if self.rng.random() < dt * 9 else 0):
@@ -513,5 +515,5 @@ class Ooh:
             punch = round(max(0.0, 1 - since / 0.15) * 3)        # a little jolt as each line lands
             screen.blit(sh, (x + 2, y + 2 - punch))
             screen.blit(img, (x, y - punch))
-        if self.words_up and int(self.t * 2) % 2 == 0:
+        if self.words_up and self.t > SKIP_GRACE and int(self.t * 2) % 2 == 0:
             screen.blit(self.hint, (W - 4 - self.hint.get_width(), H - 10))

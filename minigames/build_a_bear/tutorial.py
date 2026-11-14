@@ -214,7 +214,7 @@ def make(a) -> Tutorial:
             if not self.done:
                 x0, y0 = SLAB_L - self.at[0], art.SLAB_FRONT - a.slab.get_height() + 1 - self.at[1]
                 box(s, (x0, y0, art.SLAB_W, art.SLAB_DEPTH + art.SLAB_FACE + 2), t,
-                    YELLOW if self.at_slab() else CYAN, "PRESS BUTTON HERE" if self.at_slab() else "THE SLAB")
+                    YELLOW if self.at_slab() else CYAN, "TAP BUTTON HERE" if self.at_slab() else "THE SLAB")
             sx, sy, _ = self.toward(art.SLAB_X + 20, art.SLAB_FRONT + 6, t)
             return [(sx, sy, False), (0, 0, self.at_slab() and int(t * 3) % 2 == 0)]
 
@@ -412,12 +412,12 @@ def make(a) -> Tutorial:
     return Tutorial(
         "BUILD-A-BEAR", "",
         [
-            Page(("STICK TO MOVE. BUTTON TO GRAB A PART.",), controls=("stick", "button"), trial=Grab),
-            Page(("WALK TO THE SLAB. BUTTON TO SEW.",), controls=("stick", "button"), trial=Carry),
-            Page(("STICK PICKS THE SPOT. BUTTON SEWS IT ON.",), controls=("stick", "button"), trial=Sew),
+            Page(("STICK TO MOVE. TAP BUTTON TO GRAB A PART.",), controls=("stick", "button"), trial=Grab),
+            Page(("WALK TO THE SLAB. TAP BUTTON TO SEW.",), controls=("stick", "button"), trial=Carry),
+            Page(("STICK PICKS THE SPOT. TAP BUTTON TO SEW.",), controls=("stick", "button"), trial=Sew),
             Page(("DODGE THE TRAIN AND THE TEETH.",), toys, ("stick", "button"), time=SPAN),
             Page(("FINISH BEFORE THE STORM ENDS.",), storm, ("button",), time=STORM_SPAN),
-            Page(("ALL 5 ON? BUTTON AT THE SWITCH.",), controls=("stick", "button"), trial=Switch),
+            Page(("ALL 5 ON? TAP BUTTON AT THE SWITCH.",), controls=("stick", "button"), trial=Switch),
         ],
         accent=GREEN,
         intro="SPARKS WILL FLY",

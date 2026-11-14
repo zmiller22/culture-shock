@@ -28,7 +28,7 @@ from sprites.palette import LAB_DIM, LAB_GRID, LAB_TEXT
 from sprites.rig import GROUND, SIZE
 from sprites.viewer import H, W, text_surface, to_surface
 
-from ..shell import Input, run
+from ..shell import Input, line_surface, prompt_text, run
 from . import art, hairy_man, tutorial
 
 BABIES, NEED = 5, 3            # babies per round, deliveries needed to win
@@ -670,9 +670,9 @@ class StorkBomber:
             streak = text_surface(f"IN A ROW {self.streak}", art.SQUIRT if self.streak >= STREAK else LAB_DIM)
             screen.blit(streak, (6, 14))
         if self.phase == "won":
-            self._banner(screen, "SPECIAL DELIVERY!", [f"{self.delivered} BABIES DELIVERED", "PRESS BUTTON"])
+            self._banner(screen, "SPECIAL DELIVERY!", [f"{self.delivered} BABIES DELIVERED", "TAP BUTTON"])
         elif self.phase == "lost":
-            self._banner(screen, "RETURN TO SENDER", [f"ONLY {self.delivered} OF {NEED} DELIVERED", "PRESS BUTTON"])
+            self._banner(screen, "RETURN TO SENDER", [f"ONLY {self.delivered} OF {NEED} DELIVERED", "TAP BUTTON"])
 
     def _banner(self, screen: pygame.Surface, title: str, lines: list[str]) -> None:
         shade = pygame.Surface((W, 64), pygame.SRCALPHA)
@@ -682,7 +682,7 @@ class StorkBomber:
         screen.blit(t, (W // 2 - t.get_width() // 2, 60))
         for i, line in enumerate(lines):
             if line:
-                s = text_surface(line, LAB_DIM)
+                s = line_surface(line, LAB_DIM)
                 screen.blit(s, (W // 2 - s.get_width() // 2, 80 + i * 9))
 
 

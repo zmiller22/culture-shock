@@ -36,7 +36,7 @@ from sprites.palette import LAB_DIM, LAB_GRID, LAB_TEXT
 from sprites.rig import GROUND, SIZE
 from sprites.viewer import H, W, Loaded, text_surface, to_surface
 
-from ..shell import Input, run
+from ..shell import Input, line_surface, prompt_text, run
 from ..tutorial import Intro
 from . import art, music, tutorial
 from .art import CX, CY, MEM_RX, MEM_RY, RECEPTOR, SAC_RX, SAC_RY
@@ -838,7 +838,7 @@ class WombRave:
                 ax = W // 2 + side * (W // 2 - 10 + nudge)
                 pygame.draw.polygon(screen, col, [(ax, 92), (ax - side * 6, 86), (ax - side * 6, 98)])
             if int(self.time * 2) % 2 == 0:
-                s = text_surface("STICK: CHOOSE   BUTTON: GO IN", LAB_DIM)
+                s = prompt_text("STICK: CHOOSE   TAP BUTTON: GO IN")
                 screen.blit(s, (W // 2 - s.get_width() // 2, 170))
 
     # outside
@@ -1086,7 +1086,7 @@ class WombRave:
         if self.phase in ("select", "howto"):
             return
         if self.phase == "rejected" and self.phase_t > REJECT_LINE_TIME * len(REJECT_LINES):
-            self._banner(screen, "REJECTED", ["THE WOMB IS CLOSED FOR BUSINESS", "PRESS BUTTON TO PICK SOMEONE ELSE"])
+            self._banner(screen, "REJECTED", ["THE WOMB IS CLOSED FOR BUSINESS", "TAP BUTTON TO PICK SOMEONE ELSE"])
             return
         if self.phase == "dance" or self.phase == "flush":
             screen.blit(self.art.heart, (4, 4))
@@ -1112,10 +1112,10 @@ class WombRave:
                 screen.blit(text_surface("COMBO", LAB_DIM), (8, H - 12))
         if self.phase == "won":
             self._banner(screen, "BORN TO DANCE", [f"GRADE {self.grade}   {round(self.accuracy * 100)}% IN SYNC",
-                                                   f"SCORE {self.score}   MAX COMBO {self.max_combo}", "PRESS BUTTON"])
+                                                   f"SCORE {self.score}   MAX COMBO {self.max_combo}", "TAP BUTTON"])
         elif self.phase == "lost":
             self._banner(screen, "EVICTED", ["THE WOMB DIDN'T FEEL YOUR GROOVE",
-                                             f"SHE WAS {self.how_close}% OF THE WAY THERE", "PRESS BUTTON"])
+                                             f"SHE WAS {self.how_close}% OF THE WAY THERE", "TAP BUTTON"])
 
     def _draw_fade(self, screen: pygame.Surface) -> None:
         alpha = 0
@@ -1141,7 +1141,7 @@ class WombRave:
         screen.blit(t, (W // 2 - t.get_width() // 2, 61))
         for i, line in enumerate(lines):
             if line:
-                s = text_surface(line, LAB_DIM if i else LAB_TEXT)
+                s = line_surface(line, LAB_DIM if i else LAB_TEXT)
                 screen.blit(s, (W // 2 - s.get_width() // 2, 76 + i * 9))
 
 

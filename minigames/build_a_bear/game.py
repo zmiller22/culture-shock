@@ -39,7 +39,7 @@ from sprites.rig import ANIMATIONS, GROUND, SIZE, Pose
 from sprites.viewer import H, W, text_surface, to_surface
 
 from ..primordial_soup import art as soup_art
-from ..shell import Input, run
+from ..shell import Input, line_surface, prompt_text, run
 from . import art, tutorial
 
 SLOTS = art.SLOTS
@@ -1005,11 +1005,11 @@ class BuildABear:
             self._draw_menu(screen)
         if self.phase == "lost":
             self._banner(screen, "THE STORM PASSED", ["NO LIGHTNING, NO LIFE.", f"IT HAD {n} OF {NEED} PARTS.", "",
-                                                       "PRESS BUTTON"])
+                                                       "TAP BUTTON"])
         if self.phase == "won":
             names = [self.built[s].name for s in SLOTS]
             self._banner(screen, "IT'S ALIVE!", [f"{names[0]}, {names[1]},", f"{names[2]}, {names[3]},",
-                                                  f"AND A {names[4]}.", "", "PRESS BUTTON"])
+                                                  f"AND A {names[4]}.", "", "TAP BUTTON"])
 
     def _draw_menu(self, screen: pygame.Surface) -> None:
         """The sewing screen: the body from the front at double size, with the held
@@ -1054,7 +1054,7 @@ class BuildABear:
             y = 110 + i * 7
             pygame.draw.rect(screen, hex_to_rgba(col), (cx + 4, y, 5, 5), 0 if done else 1)
             screen.blit(text_surface(slot, col), (cx + 12, y))
-        screen.blit(text_surface("STICK: MOVE IT  BUTTON: SEW", LAB_DIM), (cx, 160))
+        screen.blit(prompt_text("STICK: MOVE IT  TAP BUTTON: SEW"), (cx, 158))
 
     def _banner(self, screen: pygame.Surface, title: str, lines: list[str]) -> None:
         shade = pygame.Surface((W, 30 + 9 * len(lines)), pygame.SRCALPHA)
@@ -1065,7 +1065,7 @@ class BuildABear:
         screen.blit(t, (W // 2 - t.get_width() // 2, top + 7))
         for i, line in enumerate(lines):
             if line:
-                s = text_surface(line, LAB_DIM if line != "PRESS BUTTON" else LAB_TEXT)
+                s = line_surface(line, LAB_DIM)
                 screen.blit(s, (W // 2 - s.get_width() // 2, top + 25 + i * 9))
 
 
