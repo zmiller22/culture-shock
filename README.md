@@ -134,7 +134,8 @@ switches off into that simulation. Each simulation is one of the mini-games:
 When the simulation ends you're disincarnated back into the terminal, which
 prints the result: win and the theory is CONFIRMED, lose and it's REFUTED. Then
 you choose PLAY AGAIN (straight back into the same simulation, skipping its
-how-to) or EXPLORE OTHER THEORIES (back to the map). Every theory you've played
+how-to) or EXPLORE OTHER THEORIES (back to the map): the stick picks one, and
+holding the button down takes it. Every theory you've played
 is stamped CONFIRMED or REFUTED on its tile, so a returning visitor can see what
 they've done.
 
@@ -411,7 +412,7 @@ the cast, and the same 320×180 window and controls as the viewer.
 
 ### Stork Bomber
 
-Fly the stork and drop the baby into the target strolling along the bottom of the
+Fly the stork and drop the baby into the target running back and forth along the bottom of the
 screen. Deliver 3 of 5 babies to win. The target speeds up after every delivery.
 A dropped baby keeps the stork's momentum, so lead your shot. If it falls within
 arm's reach of the target, the arms grab it, pull it in and eat it.
@@ -447,7 +448,7 @@ python -m minigames.stork_bomber --demo      # the computer plays
 ### Primordial Soup
 
 A play on the primordial soup theory of how life began. The lab's critters have
-escaped into the kitchen, and you play the chef. Catch 4 of them and throw them
+escaped into the kitchen, and you play the chef. Catch 3 of them and throw them
 in the stockpot before the 45-second clock on the wall runs out. The game is seen
 from above, arcade-style, in a room that's half kitchen and half mad-science lab.
 

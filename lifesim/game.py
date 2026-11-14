@@ -345,7 +345,7 @@ def theories(mute: bool = False) -> list[Theory]:
                {"win": "BIRD CONFIRMED. NOTIFY THE PRESS.", "lose": "NO BIRD. WHERE DO BABIES COME FROM?"}, par=1800),
         Theory("02", "PRIMORDIAL SOUP", "PRIMORDIAL SOUP", ("LIFE BEGAN IN A WARM BROTH", "OF CHEMICALS. COOK SOME UP."),
                "1P", soup, pilot("minigames.primordial_soup.game"),
-               {"win": "THE SOUP IS ALIVE. IT ATE THE CHEF.", "lose": "SOUP COLD. DINERS ANGRY."}, par=1900),
+               {"win": "THE SOUP IS ALIVE. IT ATE THE CHEF.", "lose": "SOUP COLD. DINERS ANGRY."}, par=1550),
         Theory("03", "IT TAKES TWO", "IT TAKES TWO", ("LIFE STARTS WHEN TWO CELLS", "FALL IN LOVE. 2 SPIRITS NEEDED."),
                "2P", meet, pilot("minigames.it_takes_two.game"),
                {"win": "THEY MET. IT WAS ADORABLE.", "lose": "THEY NEVER MET. TRY AGAIN NEXT MONTH."}, par=4700),
@@ -522,6 +522,8 @@ class LifeSim:
         self.saved_frames: dict[str, int] = {}  # what's in the saved body's strips
         self.return_sel = 1                     # the picked option on a simulation's verdict screen
         self.return_y = 0
+        self.return_press: float | None = None  # s the button's been held on the verdict's choice
+        self.return_armed = False               # the button has to come up before a hold counts
         self.score_saved = False
         self.scores = scores.ranked(scores.load())
         self.entry: NameEntry | None = None
@@ -602,6 +604,7 @@ class LifeSim:
             self.typer = Typer(lines)
             self.return_sel = RETURN_OPTIONS.index("PLAY AGAIN" if res != "win" else "EXPLORE OTHER THEORIES")
             self.return_y = 1                   # a stick already held doesn't move it straight away
+            self.return_press, self.return_armed = None, False
         elif phase == "frontier":
             self.typer = Typer(FRONTIER_LINES, rate=30, pause=0.6)
 
@@ -737,7 +740,8 @@ class LifeSim:
         True means it just came up. The game still sees the button as usual."""
         if not self.hold_exit or self.press is not None or self.countdown is not None or \
                 self.phase == "hub" and self.tutorial is not None or \
-                self.phase == "sim" and getattr(self.sim, "hold_in_use", False):
+                self.phase == "sim" and getattr(self.sim, "hold_in_use", False) or \
+                self.phase == "return":                # (its choice is made by holding)
             # (the tour's holds turn its pages, and a mini-game asking for a hold gets it)
             self.long_press = None
             return False
@@ -995,11 +999,19 @@ class LifeSim:
             if self.typer.done and y and not self.return_y:   # the stick: PLAY AGAIN or EXPLORE OTHER THEORIES
                 self.return_sel = max(0, min(len(RETURN_OPTIONS) - 1, self.return_sel + y))
             self.return_y = y
-            if inp.action and self.phase_t > READ_GRACE:
-                if not self.typer.done:
+            if not self.typer.done:                     # a tap finishes the typing
+                if inp.action and self.phase_t > READ_GRACE:
                     self.typer.finish()
-                else:
+            elif not self.return_armed:                 # then the choice is a hold, started fresh
+                self.return_armed = not inp.held
+            elif inp.held and self.phase_t > READ_GRACE:
+                self.return_press = (self.return_press or 0.0) + dt
+                if self.return_press >= SELECT_HOLD:
+                    self.return_press = None
+                    self.swallow = True                 # (that hold isn't for what comes next)
                     self._after_return(RETURN_OPTIONS[self.return_sel])
+            else:
+                self.return_press = None
         elif self.phase == "frontier":                  # CONGRATULATIONS! ... XXX IS THE ANSWER.
             if inp.action and self.phase_t > READ_GRACE:
                 if not self.typer.done:
@@ -1533,13 +1545,15 @@ class LifeSim:
             for i, opt in enumerate(RETURN_OPTIONS):       # PLAY AGAIN / EXPLORE OTHER THEORIES
                 row = pygame.Rect(x, 120 + i * 14, bw, 12)
                 if i == self.return_sel:
-                    screen.fill(rgb(PHOSPHOR), row)
+                    screen.fill(rgb(PHOSPHOR_DIM), row)
+                    if self.return_press:                  # holding: the bar fills up to taking it
+                        screen.fill(rgb(PHOSPHOR), (row.x, row.y, int(bw * min(1.0, self.return_press / SELECT_HOLD)), row.h))
                     s = self.text.get(opt, CRT_BG, big=True)
                 else:
                     pygame.draw.rect(screen, rgb(PHOSPHOR_DIM), row, 1)
                     s = self.text.get(opt, PHOSPHOR, big=True)
                 screen.blit(s, (row.centerx - s.get_width() // 2, row.y + 3))
-            s = self.text.get("STICK: CHOOSE    TAP BUTTON: SELECT", PROMPT, big=True)
+            s = self.text.get("STICK: CHOOSE   HOLD BUTTON: SELECT", PROMPT, big=True)   # (clear of the body)
             screen.blit(s, (x, 151))
             self._draw_body(screen, art.W - 40, 172, "idle", 2.0)
         if self.phase_t < CRT_ON_TIME:
@@ -1732,8 +1746,11 @@ def autopilot(game: LifeSim) -> Input:
         else:
             inp.held = True
         return inp
-    if game.phase == "return" and game.typer.done and RETURN_OPTIONS[game.return_sel] != "EXPLORE OTHER THEORIES":
-        inp.y = 1 if int(game.time * 30) % 2 else 0           # tap down to EXPLORE OTHER THEORIES
+    if game.phase == "return" and game.typer.done:
+        if RETURN_OPTIONS[game.return_sel] != "EXPLORE OTHER THEORIES":
+            inp.y = 1 if int(game.time * 30) % 2 else 0       # tap down to EXPLORE OTHER THEORIES
+        else:
+            inp.held = game.return_armed and game.phase_t > 2.5   # then a fresh hold of the button
         return inp
     if game.phase in ("dive", "journey", "rain", "cosmos") or game.phase == "off" and game.pushed is not None:
         return inp                                          # let the intro play

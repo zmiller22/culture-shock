@@ -231,7 +231,6 @@ class StorkBomber:
         self.splats: list[list[float]] = []           # [x, size, t]
         self.ewed = False
         self.t_anim = 0.0
-        self.turn_in = self._next_turn()
         self.gulp = 0.0                               # counts down through swallow / chew / spit
         self.chomp_in = 0.0
         self.men: list[Man] = []
@@ -244,9 +243,6 @@ class StorkBomber:
         self.time = 0.0
 
     # -- helpers ------------------------------------------------------------------
-    def _next_turn(self) -> float:
-        return self.rng.uniform(1.0, 3.0)
-
     @property
     def bundle_pos(self) -> tuple[float, float]:
         dx = art.BUNDLE_AT[0] - art.STORK_CENTER[0]
@@ -424,14 +420,9 @@ class StorkBomber:
             return
         self.tx += self.tvx * dt
         self.tfacing = 1 if self.tvx >= 0 else -1
-        if not TARGET_X[0] <= self.tx <= TARGET_X[1]:
+        if not TARGET_X[0] <= self.tx <= TARGET_X[1]:     # back and forth, turning only at the edges
             self.tx = max(TARGET_X[0], min(TARGET_X[1], self.tx))
             self.tvx = -self.tvx
-        self.turn_in -= dt
-        if self.turn_in <= 0:
-            self.turn_in = self._next_turn()
-            if self.rng.random() < 0.5:
-                self.tvx = -self.tvx
 
     def _update_fsm(self, dt: float) -> None:
         m = self.fsm

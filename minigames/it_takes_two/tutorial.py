@@ -431,8 +431,7 @@ def make(a) -> Tutorial:
             Page(("BAR FULL? TOUCH TO CONCEIVE!",), controls=both, trial=Meet),
         ],
         labels={"stick": "P1 EGG", "stick2": "P2 SPERM"},
-        accent="#ff6a8a",
-        intro="LIFE STARTS WHEN TWO CELLS FALL IN LOVE.",
+        accent="#ff6a8a",                # (no intro screen: the game's own prelude and entrances came first)
     )
 
 

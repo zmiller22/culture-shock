@@ -35,7 +35,7 @@ from ..shell import READ_GRACE, Input, line_surface, prompt_text, run
 from ..stork_bomber import art as stork_art
 from . import art, people, tutorial
 
-NEED = 4                        # critters in the soup to bring it to life
+NEED = 3                        # critters in the soup to bring it to life
 TIME_LIMIT = 45.0               # seconds before the diners lose patience
 POINTS_CRITTER, POINTS_SEC = 300, 20     # for the lab's high scores: per critter souped, per second to spare
 
