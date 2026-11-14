@@ -79,6 +79,25 @@ def make(a) -> Tutorial:
         caption(s, text, x + 1, y + 1, "#140c1c")
         caption(s, text, x, y, col)
 
+    def ring(s: pygame.Surface, tx: float, ty: float, t: float, col: str, label: str = "", r: int = 12) -> None:
+        """A callout: a pulsing ring round a tile, and a label over it."""
+        x, y = px(tx, ty)
+        x, y = round(x * 2), round(y * 2)
+        rr = r + round(math.sin(t * 8) * 1.5)
+        pygame.draw.circle(s, (20, 12, 28), (x + 1, y + 1), rr, 2)
+        pygame.draw.circle(s, col, (x, y), rr, 2)
+        if label:
+            shout(s, label, min(DEMO_W - 30, max(30, x)), y - rr - 8, col)
+
+    def link(s: pygame.Surface, p, q, t: float) -> None:
+        """A dotted line marching from one of them to the other: go find them."""
+        (x0, y0), (x1, y1) = px(p.fx, p.fy), px(q.fx, q.fy)
+        n = max(1, round(math.dist((x0, y0), (x1, y1)) / 4))
+        for i in range(n):
+            k = (i + (t * 3) % 1) / n
+            x, y = (x0 + (x1 - x0) * k) * 2, (y0 + (y1 - y0) * k) * 2
+            pygame.draw.rect(s, (255, 154, 200) if i % 2 else (95, 243, 255), (round(x) - 1, round(y) - 1, 2, 2))
+
     def meter(s: pygame.Surface, share: float, t: float) -> None:
         """The fertility bar, like the one in the game's HUD, flashing a yellow box
         round it and an arrow pointing at it."""
@@ -136,10 +155,16 @@ def make(a) -> Tutorial:
             hearts(s, 2, u)
             if u < 1.6:
                 shout(s, "BAGGED!", px(1 + 3.0 * HIT, 1)[0] * 2, px(0, 1)[1] * 2 + 12 - u * 4, "#ff4a6a")
+            if u > 0.3:                                       # the callouts: a heart gone, and back to start
+                x0 = DEMO_W - 48
+                pygame.draw.rect(s, (255, 74, 106), (x0, 1, 44, 17), 1)
+                shout(s, "-1", x0 - 8, 7, "#ff4a6a")
             if u > 0.6:
-                shout(s, "-1 HEART. BACK TO START!", DEMO_W // 2, DEMO_H - 22, "#ffe14d")
+                ring(s, 1, 1, t, "#ffe14d")
+                shout(s, "BACK TO START", px(1, 1)[0] * 2 + 2, px(1, 1)[1] * 2 + 16, "#ffe14d")
         else:
             hearts(s, 3)
+            ring(s, 12 - 4.5 * t, 1, t, "#ff4a6a", "CONDOM")
         return [(1, 0, False) if t < HIT else (0, 0, False), (0, 0, False)]
 
     # -- try it --------------------------------------------------------------------------
@@ -221,9 +246,16 @@ def make(a) -> Tutorial:
             floor()
             self.players(t)
 
+        def callouts(self, s: pygame.Surface, t: float) -> None:
+            if not self.done:
+                link(s, self.egg, self.sperm, t)
+                ring(s, self.egg.fx, self.egg.fy, t, PLAYER_HEX["egg"])
+                ring(s, self.sperm.fx, self.sperm.fy, t, PLAYER_HEX["sperm"])
+
         def draw(self, s: pygame.Surface, t: float):
             self.scene(t)
             done(s)
+            self.callouts(s, t)
             self.tags(s, t)
             if self.done:
                 hush(s)
@@ -261,6 +293,8 @@ def make(a) -> Tutorial:
                 blit(a.pop["#ffe14d"][min(3, int(u / 0.1))], x, y)
             self.players(t)
             done(s)
+            for i, d in enumerate(sorted(self.food)):
+                ring(s, *d, t + i * 0.3, "#ffe14d", r=8)
             self.tags(s, t)
             meter(s, self.share, t)
             if self.done:
@@ -341,13 +375,16 @@ def make(a) -> Tutorial:
                     blit(a.pop["#ff4a6a"][min(3, int(u / 0.1))], x, y)
             self.players(t)
             done(s)
+            if self.capsule:
+                ring(s, *CAPSULE, t, "#ffe14d", "FOLIC ACID")
+                if self.eaten_t is None:
+                    ring(s, e.fx, e.fy, t, "#ff4a6a", "AVOID!")
+            elif self.eaten_t is None:
+                ring(s, e.fx, e.fy, t, "#5ff3ff", "EAT IT!")
             self.tags(s, t)
             for x, y, u in self.caught:
                 cx, cy = px(x, y)
                 shout(s, "BAGGED!", cx * 2, cy * 2 - 26 - u * 8, "#ff4a6a")
-            if not self.capsule and self.eaten_t is None:
-                cx, cy = px(e.fx, e.fy)
-                shout(s, "SCARED! EAT IT!", min(DEMO_W - 34, max(34, cx * 2)), cy * 2 - 24, "#5ff3ff")
             if self.done:
                 hush(s)
                 ex, ey = px(*self.eaten_at)
@@ -365,6 +402,7 @@ def make(a) -> Tutorial:
             if not self.done:
                 self.players(t)
                 done(s)
+                self.callouts(s, t)
                 self.tags(s, t)
                 meter(s, 1.0, t)
                 k = loop(t, 3.0)                              # the icons: egg down then right, sperm left
@@ -386,16 +424,11 @@ def make(a) -> Tutorial:
     return Tutorial(
         "IT TAKES TWO", "LIFE STARTS WHEN TWO CELLS FALL IN LOVE.",
         [
-            Page(("P1 STEERS THE EGG WITH STICK 1, P2 THE SPERM WITH STICK 2.",
-                  "SWIM ROUND THE MAZE AND FIND EACH OTHER!"), controls=both, trial=Swim),
-            Page(("SHE HAS TO BE FERTILE BEFORE YOU CAN CONCEIVE.",
-                  "EAT 4 NUTRIENTS TOGETHER TO FILL THE BAR!"), controls=both, trial=Feast),
-            Page(("WATCH OUT FOR CONTRACEPTIVES! IF ONE CATCHES",
-                  "YOU, YOU LOSE A HEART AND GO BACK TO START."), caught, both, time=SPAN),
-            Page(("EAT FOLIC ACID TO FIGHT BACK!",
-                  "GRAB THE CAPSULE, THEN EAT THE CONDOM."), controls=both, trial=Fight),
-            Page(("THE BAR IS FULL! NOW FIND EACH OTHER AND",
-                  "TOUCH TO CONCEIVE. BEAT THE CLOCK!"), controls=both, trial=Meet),
+            Page(("FIND EACH OTHER!",), controls=both, trial=Swim),
+            Page(("EAT 4 NUTRIENTS TO GET FERTILE",), controls=both, trial=Feast),
+            Page(("DODGE THE CONTRACEPTIVES",), caught, both, time=SPAN),
+            Page(("EAT FOLIC ACID, THEN EAT THEM!",), controls=both, trial=Fight),
+            Page(("BAR FULL? TOUCH TO CONCEIVE!",), controls=both, trial=Meet),
         ],
         labels={"stick": "P1 EGG", "stick2": "P2 SPERM"},
         accent="#ff6a8a",
