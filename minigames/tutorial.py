@@ -70,6 +70,8 @@ class Page:
     controls: tuple[str, ...] = ("stick",)         # icons in the left column: "stick", "button", "stick2", "jar"
     time: float = PAGE_TIME
     trial: Callable[[], Trial] | None = None       # a try-it page: makes the sandbox
+    lock: float = 0.0                              # s the demo plays before the button does anything (and
+                                                   # before the prompt shows), so nobody skips it by accident
 
 
 @dataclass
@@ -126,7 +128,7 @@ class Tutorial:
             elif self.t >= TRY_TIME:
                 self._turn()
             return
-        if pressed and self.time > MIN_SHOW and self.t > MIN_SHOW:
+        if pressed and self.time > MIN_SHOW and self.t > max(MIN_SHOW, self.pages[self.page].lock):
             if self.last:
                 self.done = True
             else:
@@ -210,7 +212,7 @@ class Tutorial:
             prompt = self._try if self.cheer_t is None else None
             blink = True
         else:
-            prompt = self._start if self.last else self._next
+            prompt = (self._start if self.last else self._next) if self.t >= p.lock else None
             blink = self.last
         if prompt and (not blink or int(self.time * 2.5) % 2 == 0):
             screen.blit(prompt, (W - prompt.get_width() - 6, H - 9))

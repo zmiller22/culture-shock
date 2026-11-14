@@ -274,7 +274,7 @@ def make(a, frame: Callable[[str, int, int], pygame.Surface],
         "WOMB RAVE", "LIFE IS A NINE MONTH PARTY IN A VERY SMALL CLUB.",
         [
             Page(("PUSH THE STICK THAT WAY JUST AS", "EACH THING TOUCHES YOUR BUBBLE"), trial=Beats),
-            Page(("MISSES DRAIN YOUR VITALS. RUN OUT", "AND THE WOMB EVICTS YOU!"), vitals),
+            Page(("MISSES DRAIN YOUR VITALS. RUN OUT", "AND THE WOMB EVICTS YOU!"), vitals, lock=VIT_LOOP),
         ],
         accent=F["hi"],
     )
