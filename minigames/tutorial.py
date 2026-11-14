@@ -51,6 +51,8 @@ HANDS_OFF = 1.5                  # s after the player last touched anything that
 INTRO_TYPE = 0.05                # s per letter as the intro line types out
 INTRO_HOLD = 1.8                 # s it stays up once it's all there
 INTRO_FADE = 0.4                 # s fading in from, and out to, the dark
+EXIT_HINT = False                # the main game turns this on: its exit menu opens on a held button, so the
+EXIT_LINE = "DONE PLAYING? HOLD ANY BUTTON TO EXIT"   # last page says so (standalone, holding does nothing)
 
 Controls = tuple[int, int, bool]
 Demo = Callable[[pygame.Surface, float], "Controls | list[Controls] | None"]   # a list: one per control icon
@@ -284,10 +286,14 @@ class Tutorial:
             label = prompt_text(self.labels[kind])
             screen.blit(label, (37 - label.get_width() // 2, cy + 15))
 
-        y = DEMO_Y + DEMO_H + 6
+        y = DEMO_Y + DEMO_H + 4
         for s in map(prompt_text, p.caption):                # big, so centred on the whole screen to fit
             screen.blit(s, (W // 2 - s.get_width() // 2, y))
-            y += BIG_H + 3
+            y += BIG_H + 2
+
+        if self.last and EXIT_HINT:                          # the way out, on the last page
+            s = prompt_text(EXIT_LINE)
+            screen.blit(s, (W // 2 - s.get_width() // 2, H - 2 * BIG_H - 4))
 
         # WATCH or TRY IT!, top left over the controls column
         b = self._badges["TRY IT!" if self.trial else "WATCH"]

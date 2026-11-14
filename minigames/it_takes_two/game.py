@@ -50,7 +50,7 @@ from sprites.canvas import hex_to_rgba
 from sprites.palette import LAB_DIM, LAB_TEXT
 from sprites.viewer import H, W, text_surface, to_surface
 
-from ..shell import Input, line_surface, prompt_text, run
+from ..shell import Input, line_surface, prompt_color, prompt_text, run
 from . import art, tutorial
 from .art import F, TILE
 
@@ -768,13 +768,13 @@ class ItTakesTwo:
         elif self.phase == "end":
             if self.result == "win":
                 self._banner(screen, "IT'S CONCEPTION!", [f"MET WITH {int(TIME_LIMIT - self.clock)}S TO SPARE",
-                                                         f"SCORE {self.score}", "", "TAP BUTTON" if blink else ""])
+                                                         f"SCORE {self.score}", "", "TAP BUTTON"])
             elif self.lose_reason == "time":
                 self._banner(screen, "TIME'S UP. PERIOD.", ["THE EGG WAITED. NOBODY CAME.",
-                                                           f"SCORE {self.score}", "", "TAP BUTTON" if blink else ""])
+                                                           f"SCORE {self.score}", "", "TAP BUTTON"])
             else:
                 self._banner(screen, "MISSED CONNECTION", ["PROTECTION WORKED. THIS TIME.",
-                                                          f"SCORE {self.score}", "", "TAP BUTTON" if blink else ""])
+                                                          f"SCORE {self.score}", "", "TAP BUTTON"])
 
     def _draw_fx(self, screen: pygame.Surface) -> None:
         for x, y, c, pt in self.pops:
@@ -930,7 +930,7 @@ class ItTakesTwo:
         if k > PRELUDE_TYPE:
             y = y0 + full.get_height() + 12
             for line in PRELUDE_ASK:
-                self._label(screen, line, "#ffe14d" if int(t * 2) % 2 or self.prelude_hold else LAB_TEXT, W / 2, y)
+                self._label(screen, line, prompt_color(), W / 2, y)
                 y += 9
             bw = 120
             hk = 0.0 if self.prelude_hold is None else min(1.0, self.prelude_hold / PRELUDE_HOLD)

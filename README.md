@@ -185,12 +185,16 @@ terminates too. Because of the hold, the menus act when you let go of the button
 
 Every button on the cabinet counts as the button, and either stick steers (in
 It Takes Two each player uses their own). Every instruction for the stick or the
-button is drawn big in violet, flashing to pink-white and back, and says TAP
-BUTTON (a quick press) or HOLD BUTTON DOWN (keep it held while a bar fills). The
-how-to pages in each mini-game are tagged WATCH (a demo) or TRY IT! (your turn).
-The first time on the theory map, a short tour headed INSTRUCTIONS points out the
-tiles, how to jump in, the file drawer and the exit; TAP FOR NEXT INSTRUCTION
-flashes under it. In the main game Spit Kit has no how-to pages and no walk out
+button is drawn big in violet, flashing to pink-white and back (never off), and
+says TAP BUTTON (a quick press) or HOLD BUTTON DOWN (keep it held while a bar
+fills). The how-to pages in each mini-game are tagged WATCH (a demo) or TRY IT!
+(your turn), and in the main game the last one adds DONE PLAYING? HOLD ANY BUTTON
+TO EXIT. The first time on the theory map, four INSTRUCTIONS come up one at a
+time, each over TAP BUTTON TO CONTINUE: use the stick to move around, tap the
+button to select a tile, THIS LOOKS INTERESTING... (over the file drawer), and
+DONE PLAYING? HOLD ANY BUTTON TO EXIT (over the exit). In Spit Kit, a big banner
+says CALIBRATING... PLEASE DON'T TOUCH THE JAR! (or PUT THE JAR BACK ON THE
+SCALE) whenever the jar needs leaving alone. In the main game Spit Kit has no how-to pages and no walk out
 the door: once you're spliced you go straight to the map. Videos and visual sequences (the rick rolls, OOH, the trip, the
 zoom out) ignore the button for their first 3 seconds (`SKIP_GRACE` in
 `minigames/shell.py`), so the taps that picked them don't skip them.

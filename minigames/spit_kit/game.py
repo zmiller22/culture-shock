@@ -526,6 +526,9 @@ class SpitKit:
             tick = x0 + w // 3
             pygame.draw.line(screen, rgb(ACCENT), (tick, y0 - 2), (tick, y0 + 8))
         status, col = self._sensor_status()
+        if jar.live and jar.state in ("START", "RESET"):   # the jar needs leaving alone: say so, big
+            self._draw_hands_off(screen, jar.state)
+            return
         if status:
             screen.blit(txt(status, col), (x0, y0 + 12))
         left = max(0, int(SPIT_TIMEOUT - self.phase_t))
@@ -533,6 +536,21 @@ class SpitKit:
             self._draw_malfunction(screen)
         elif left < 30:
             screen.blit(txt(f"SAMPLE WINDOW CLOSES IN {left}", "#ff6a6a"), (x0, y0 + 22))
+
+    def _draw_hands_off(self, screen: pygame.Surface, state: str) -> None:
+        """CALIBRATING / PUT THE JAR BACK, in a banner across the screen that can't be missed:
+        flashing between red and yellow, never off."""
+        flash = int(self.time * 4) % 2
+        hot, cool = ("#ff4a4a", "#ffe14d") if flash else ("#ffe14d", "#ff4a4a")
+        band = pygame.Rect(0, 72, W, 52)
+        pygame.draw.rect(screen, (20, 12, 28), band)
+        pygame.draw.rect(screen, rgb(hot), band, 2)
+        if state == "START":
+            big, small = "CALIBRATING...", "PLEASE DON'T TOUCH THE JAR!"
+        else:
+            big, small = "JAR MOVED!", "PUT THE JAR BACK ON THE SCALE"
+        blit_c(screen, txt(big, hot, 3), W / 2, band.y + 16)
+        blit_c(screen, prompt_text(small, cool), W / 2, band.y + 38)
 
     def _draw_malfunction(self, screen: pygame.Surface) -> None:
         """SENSOR MALFUNCTION DETECTED, over the sensor readout, with the hold bar."""
@@ -662,14 +680,15 @@ class SpitKit:
             screen.set_clip(box.inflate(-2, -2))
             blit_c(screen, img, box.centerx + dx, box.centery)
             screen.set_clip(clip)
-        blit_c(screen, txt("STICK LEFT / RIGHT: CHANGE ANSWER    UP / DOWN: QUESTION", prompt_color()), W / 2, H - 30)
+        # the instructions, big
+        blit_c(screen, prompt_text("STICK LEFT / RIGHT: CHANGE ANSWER"), W / 2, H - 42)
+        blit_c(screen, prompt_text("STICK UP / DOWN OR TAP BUTTON: NEXT QUESTION"), W / 2, H - 32)
         submit = prompt_text("HOLD BUTTON DOWN TO SUBMIT YOUR ANSWERS")
-        if int(self.time * 2.5) % 2 == 0 or sv.hold_k > 0:
-            blit_c(screen, submit, W / 2, H - 18)
+        blit_c(screen, submit, W / 2, H - 21)
         if sv.hold_k > 0:                                 # holding: a bar fills up to handing it in
             x0, w = W // 2 - submit.get_width() // 2, submit.get_width()
-            pygame.draw.rect(screen, rgb(PHOS_DIM), (x0, H - 12, w, 2))
-            pygame.draw.rect(screen, (234, 255, 234), (x0, H - 12, round(w * sv.hold_k), 2))
+            pygame.draw.rect(screen, rgb(PHOS_DIM), (x0, H - 15, w, 2))
+            pygame.draw.rect(screen, (234, 255, 234), (x0, H - 15, round(w * sv.hold_k), 2))
 
     def _draw_report(self, screen: pygame.Surface) -> None:
         sp, t = self._surfaces(), self.phase_t
@@ -716,7 +735,7 @@ class SpitKit:
                 done += len(line) + 1
                 if part:                                     # typed left to right, where the whole line will sit
                     screen.blit(txt(part, ACCENT), (round(W / 2 - text_width(line) / 2), 130 + j * 9))
-            if u > len(full) / TYPE_RATE + 0.5 and int(self.time * 2.5) % 2 == 0:
+            if u > len(full) / TYPE_RATE + 0.5:
                 blit_c(screen, prompt_text("TAP BUTTON: SPLICE ME"), W / 2, 170)
 
     def _draw_splice(self, screen: pygame.Surface) -> None:
@@ -837,7 +856,7 @@ class SpitKit:
         draw_jar(screen, 70, FLOOR_Y, 0.0, self.time)
         blit_c(screen, txt("NO SAMPLE.", "#ff6a6a", 2), 214, 50)
         blit_c(screen, txt("THE JAR IS DISAPPOINTED IN YOU.", LAB_TEXT), 214, 70)
-        if self.phase_t > 1 and int(self.time * 2.5) % 2 == 0:
+        if self.phase_t > 1:
             blit_c(screen, prompt_text("TAP BUTTON: CONTINUE"), 214, 90)
 
 

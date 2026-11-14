@@ -837,9 +837,8 @@ class WombRave:
             for side in (-1, 1):
                 ax = W // 2 + side * (W // 2 - 10 + nudge)
                 pygame.draw.polygon(screen, col, [(ax, 92), (ax - side * 6, 86), (ax - side * 6, 98)])
-            if int(self.time * 2) % 2 == 0:
-                s = prompt_text("STICK: CHOOSE   TAP BUTTON: GO IN")
-                screen.blit(s, (W // 2 - s.get_width() // 2, 170))
+            s = prompt_text("STICK: CHOOSE   TAP BUTTON: GO IN")       # (flashes colour, never off)
+            screen.blit(s, (W // 2 - s.get_width() // 2, 170))
 
     # outside
     def _draw_outside(self, screen: pygame.Surface) -> None:

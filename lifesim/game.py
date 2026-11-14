@@ -115,11 +115,11 @@ FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF 
                   "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
 # the tour of the map, the first time on it: what to light up, and what to say
 RETURN_OPTIONS = ["PLAY AGAIN", "EXPLORE OTHER THEORIES"]   # after a simulation's verdict
-TUTORIAL = [
-    ("tiles", ("EACH TILE IS A SIMULATION OF ONE", "THEORY OF HOW LIFE BEGINS.")),
-    ("labels", ("TAP THE BUTTON TO JUMP IN. WIN AND", "THE THEORY IS CONFIRMED. LOSE: REFUTED.")),
-    ("files", ("WAIT... WHAT IS THIS?",)),
-    ("exit", ("HOLD THE BUTTON DOWN AT ANY TIME", "TO OPEN THE EXIT MENU.")),
+TUTORIAL = [                # the first time on the map: (what to light up, the instruction)
+    ("move", "USE THE STICK TO MOVE AROUND."),
+    ("select", "TAP THE BUTTON TO SELECT A TILE."),
+    ("files", "THIS LOOKS INTERESTING..."),
+    ("exit", "DONE PLAYING? HOLD ANY BUTTON TO EXIT."),
 ]
 
 
@@ -472,6 +472,8 @@ class LifeSim:
                  record: bool = True, log_activity: bool = True, idle_exit: bool = True,
                  played_all: bool = False) -> None:
         global _ART
+        import minigames.tutorial
+        minigames.tutorial.EXIT_HINT = idle_exit    # each how-to's last page: DONE PLAYING? HOLD ANY BUTTON TO EXIT
         _ART = _ART or Art()
         self.art = _ART
         self.text = Glyphs()
@@ -1241,7 +1243,7 @@ class LifeSim:
             grow = min(1.0, (k - 0.6) / 0.4)
             self._draw_dance(screen, cx, cy, 3.0 * grow, self.phase_t - SUMMON_FORM)
         self._centre_lines(screen, self.typer, 94, 19, scale=2)
-        if self.typer.done and int(self.time * 2) % 2 == 0:
+        if self.typer.done:                                  # (it flashes colour, never off)
             s = self.text.get("TAP BUTTON", PROMPT, big=True)
             screen.blit(s, (art.W // 2 - s.get_width() // 2, 162))
         screen.blit(self.art.scanlines, (0, 0))
@@ -1418,6 +1420,8 @@ class LifeSim:
         screen.blit(img, (px, py))
 
     def _tutorial(self, dt: float, inp: Input) -> None:
+        if TUTORIAL[self.tutorial][0] == "move":           # the stick works while it says so
+            self._walk(dt, inp)
         if inp.action and self.phase_t > 0.4 and not self.map.moving:
             self.tutorial += 1
             self.phase_t = MAP_FADE                        # (no fade between pages)
@@ -1428,18 +1432,17 @@ class LifeSim:
     def _tour_rects(self, what: str) -> list[pygame.Rect]:
         n = len(self.theories)
         grid = tile_rect(0).unionall([tile_rect(i) for i in range(n)])
-        if what == "tiles":
+        if what == "move":
+            return [grid.union(tile_rect(FILES)).union(EXIT_RECT).inflate(6, 6)]
+        if what == "select":
             return [grid.inflate(6, 6)]
-        if what == "labels":
-            return [pygame.Rect(tile_at(i)[0] - 2, tile_at(i)[1] + TILE_H + 1, TILE_W + 4, 9) for i in range(n)] + \
-                [tile_rect(self.sel).inflate(6, 6)] * (self.sel >= 0)
         if what == "exit":
             return [EXIT_RECT.inflate(6, 6)]
         return [tile_rect(FILES).inflate(6, 6)]
 
     def _draw_tutorial(self, screen: pygame.Surface) -> None:
         """Dim everything but what this page is about, and say what it is."""
-        what, lines = TUTORIAL[self.tutorial]
+        what, line = TUTORIAL[self.tutorial]
         lit = screen.copy()
         screen.fill((70, 70, 70), special_flags=pygame.BLEND_MULT)
         on = int(self.time * 3) % 3 != 0
@@ -1454,13 +1457,12 @@ class LifeSim:
         box = pygame.Rect(4, 137, art.W - 8, 42)              # over the controls line, which the tour explains
         screen.fill(rgb(CRT_BG), box)
         pygame.draw.rect(screen, rgb(PROMPT), box, 1)
-        for i, line in enumerate(lines):
-            screen.blit(self.text.get(line, PROMPT, big=True), (box.x + 6, box.y + 4 + i * 10))
+        s = self.text.get(line, PROMPT, big=True)
+        screen.blit(s, (box.centerx - s.get_width() // 2, box.y + 6))
         page = self.text.get(f"{self.tutorial + 1}/{len(TUTORIAL)}", PHOSPHOR_DIM)
         screen.blit(page, (box.right - 5 - page.get_width(), box.y + 4))
-        if int(self.time * 2.5) % 2 == 0:                  # big and flashing: how to move on
-            s = self.text.get("TAP FOR NEXT INSTRUCTION", PROMPT, 2, big=True)
-            screen.blit(s, (box.centerx - s.get_width() // 2, box.bottom - 18))
+        s = self.text.get("TAP BUTTON TO CONTINUE", PROMPT, 2, big=True)   # big, flashing colour, never off
+        screen.blit(s, (box.centerx - s.get_width() // 2, box.bottom - 19))
 
     def _draw_load(self, screen: pygame.Surface) -> None:
         """The body dives into the tile, the tile grows to fill the screen, then it switches off."""
@@ -1530,7 +1532,7 @@ class LifeSim:
                 scale = 2 if i == 0 else 1
                 x = art.W // 2 - big_width(self.typer.lines[i]) * scale // 2
                 screen.blit(self.text.get(line, PHOSPHOR, scale, big=True), (x, 22 if i == 0 else 30 + i * 11))
-        if self.typer.done and int(self.time * 2) % 2 == 0:
+        if self.typer.done:                                  # (it flashes colour, never off)
             s = self.text.get("TAP BUTTON", PROMPT, big=True)
             screen.blit(s, (art.W // 2 - s.get_width() // 2, 162))
         screen.blit(self.art.scanlines, (0, 0))
