@@ -116,7 +116,7 @@ switches off into that simulation. Each simulation is one of the mini-games:
 |---|---|---|
 | 01 | The Stork Hypothesis: babies are delivered by air, by a large bird | Stork Bomber |
 | 02 | Primordial Soup: life began in a warm broth of chemicals | Primordial Soup |
-| 03 | The Meet Cute: life starts when two cells fall in love (2 players) | Meet Cute |
+| 03 | It Takes Two: life starts when two cells fall in love (2 players) | It Takes Two |
 | 04 | The Womb Rave: life is a nine-month party in a very small club | Womb Rave |
 | 05 | The Genetic Code: life is a recipe, and it's in your spit | Spit Kit |
 
@@ -588,24 +588,30 @@ python -m minigames.spit_kit --demo             # the computer spits (keyboard s
 | Walk / jump the new you | Arrows | stick |
 | Quit | Esc or Q | |
 
-### Meet Cute
+### It Takes Two
 
 A two-player maze chase. Player 1 is the egg, player 2 is the sperm. You start
 at opposite corners of a maze of fleshy tubes and have to find each other.
 Every round is a new maze: mirrored left to right, with no dead ends, a pen in
 the middle, and a wrap-around tunnel on each side.
 
-Each round opens with an eight-second close-up of the delivery, on an empty
-screen. A fallopian tube and ovary slide in on the left and a penis on the
-right. The ovary releases the egg (*OVULATION!*), and she rolls up the tube and
-out into the open. The penis throbs and shoots the sperm (*SPLOOSH!*) along with
-a spray of others who fade away (*1 IN 200 MILLION*). The two stop face to face
-with a gap between them, a heart over their heads and *P1 EGG* / *P2 SPERM*
-under them, and she blushes. Then the penis wilts, both organs pull out, and the
-pair drift apart to opposite corners as the camera pulls back. The maze walls
-fly in from every side and lock together around them, the nutrients sparkle in,
-and the four contraceptives pop into the pen one at a time with their names.
-Press start to skip straight to *READY*.
+Each round opens with a sixteen-second intro on an empty screen, before the
+how-to-play pages. A fallopian tube and ovary slide in on the left and a penis
+on the right. The ovary releases the egg (*OVULATION!*), and she rolls up the
+tube and out into the open. The penis throbs and shoots the sperm (*SPLOOSH!*)
+along with a spray of others who fade away (*1 IN 200 MILLION*). The two stop
+face to face with a gap between them, a heart over their heads and *P1 EGG* /
+*P2 SPERM* under them, and she blushes. Then the penis wilts, both organs pull
+out, and the heart bursts: the screen flashes red, *OH NO! CONTRACEPTIVES!*,
+and the pair get shoved to the edges, trembling. Each of the four
+contraceptives then gets a ring-announcer entrance: it slides into a spotlight,
+glares at whoever it hunts, and gets a lead-in, its name, a nickname and two
+lines of hype (*IN THE BLUE CORNER... CONDOM, THE LATEX LEGEND!*) before
+joining a line at the bottom. Then the camera pulls back (*NOW FIND EACH
+OTHER!*): the egg and sperm drift to opposite corners, the contraception flies
+into the pen, the maze walls fly in from every side and lock together, and the
+nutrients sparkle in. Press start to skip the intro. The how-to-play pages come
+next, over the finished maze, and then *READY... GO!*
 
 It's co-op. You both eat the nutrients lining the tubes, and once you've eaten
 40% of them between you, the egg is **ripe**: she blushes and glows. Touch
@@ -633,14 +639,14 @@ into 2, 4 and 8 cells under a shower of hearts: *IT'S CONCEPTION!*
 **Lose:** all three hearts go (*MISSED CONNECTION: PROTECTION WORKED*), or the 90-second clock
 runs out and a red tide rises up the screen (*TIME'S UP. PERIOD.*).
 
-Tune it with the constants at the top of `minigames/meet_cute/game.py`:
+Tune it with the constants at the top of `minigames/it_takes_two/game.py`:
 `TIME_LIMIT`, `RIPE_SHARE`, `LIVES`, the `*_SPEED` values, `SCARED_TIME`,
 `RELEASE`, `MODES` and `EXTRA_SPAWN`.
 
 ```bash
-python -m minigames.meet_cute               # windowed; add --fullscreen on the cabinet
-python -m minigames.meet_cute --seed 7      # same seed, same maze
-python -m minigames.meet_cute --demo        # the computer plays both sides
+python -m minigames.it_takes_two               # windowed; add --fullscreen on the cabinet
+python -m minigames.it_takes_two --seed 7      # same seed, same maze
+python -m minigames.it_takes_two --demo        # the computer plays both sides
 ```
 
 | Action | Player 1 (egg) | Player 2 (sperm) |

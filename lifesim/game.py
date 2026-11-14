@@ -218,8 +218,8 @@ def theories(mute: bool = False) -> list[Theory]:
         return PrimordialSoup()
 
     def meet():
-        from minigames.meet_cute.game import MeetCute
-        return MeetCute()
+        from minigames.it_takes_two.game import ItTakesTwo
+        return ItTakesTwo()
 
     def womb():
         from minigames.womb_rave.game import WombRave
@@ -242,8 +242,8 @@ def theories(mute: bool = False) -> list[Theory]:
         Theory("02", "PRIMORDIAL SOUP", ("LIFE BEGAN IN A WARM BROTH", "OF CHEMICALS. COOK SOME UP."),
                "1P", soup, pilot("minigames.primordial_soup.game"),
                {"win": "THE SOUP IS ALIVE. IT ATE THE CHEF.", "lose": "SOUP COLD. DINERS ANGRY."}),
-        Theory("03", "THE MEET CUTE", ("LIFE STARTS WHEN TWO CELLS", "FALL IN LOVE. 2 SPIRITS NEEDED."),
-               "2P", meet, pilot("minigames.meet_cute.game"),
+        Theory("03", "IT TAKES TWO", ("LIFE STARTS WHEN TWO CELLS", "FALL IN LOVE. 2 SPIRITS NEEDED."),
+               "2P", meet, pilot("minigames.it_takes_two.game"),
                {"win": "THEY MET. IT WAS ADORABLE.", "lose": "THEY NEVER MET. TRY AGAIN NEXT MONTH."}),
         Theory("04", "THE WOMB RAVE", ("LIFE IS A NINE MONTH PARTY", "IN A VERY SMALL CLUB."),
                "1P", womb, pilot("minigames.womb_rave.game"),

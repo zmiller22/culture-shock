@@ -1,4 +1,4 @@
-"""Meet Cute's how-to-play pages. They play on a tiny maze, drawn at 1x and blown
+"""It Takes Two's how-to-play pages. They play on a tiny maze, drawn at 1x and blown
 up 2x so the egg and the sperm read from across the room. Most are try-it pages:
 P1 steers the egg and P2 the sperm round the little maze, with the game's own
 speeds and cornering."""
@@ -47,7 +47,7 @@ def px(tx: float, ty: float) -> tuple[float, float]:
 
 def make(a) -> Tutorial:
     """`a` is the game's Art (pre-rendered surfaces)."""
-    from .game import PLAYER_HEX, TOUCH, EGG_SPEED, SPERM_SPEED, MeetCute, Player
+    from .game import PLAYER_HEX, TOUCH, EGG_SPEED, SPERM_SPEED, ItTakesTwo, Player
     from ..shell import Input
 
     half = pygame.Surface((DEMO_W // 2, DEMO_H // 2))
@@ -118,8 +118,8 @@ def make(a) -> Tutorial:
         """The tiny maze, driven by the game's own steering and corridor sliding."""
         passable = staticmethod(lambda t, who: 0 <= t[1] < len(GRID) and 0 <= t[0] < len(GRID[0])
                                 and GRID[t[1]][t[0]] == ".")
-        _move = MeetCute._move
-        _steer = MeetCute._steer
+        _move = ItTakesTwo._move
+        _steer = ItTakesTwo._steer
 
     box = Box()
 
@@ -249,7 +249,7 @@ def make(a) -> Tutorial:
 
     both = ("stick", "stick2")
     return Tutorial(
-        "MEET CUTE", "LIFE STARTS WHEN TWO CELLS FALL IN LOVE.",
+        "IT TAKES TWO", "LIFE STARTS WHEN TWO CELLS FALL IN LOVE.",
         [
             Page(("P1: MOVE STICK 1 TO STEER THE EGG", "P2: MOVE STICK 2 TO STEER THE SPERM"),
                  controls=both, trial=Swim),

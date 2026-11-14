@@ -1,14 +1,16 @@
-"""Meet Cute: a two-player maze chase. The egg and the sperm start at opposite
+"""It Takes Two: a two-player maze chase. The egg and the sperm start at opposite
 ends of the reproductive tract and have to find each other.
 
 Each round opens with a close-up of the delivery: a fallopian tube on one side
 of an empty screen, a penis on the other. The ovary releases the egg, the penis
 shoots the sperm (and a spray of others who don't make it), and the two of them
-stop face to face. Then the organs pull out, the pair drift off to opposite
-corners as the camera pulls back, and the maze and the contraception assemble
-around them. Press start to skip it.
+stop face to face. Then the organs pull out and... OH NO! CONTRACEPTIVES! The
+pair get shoved to the edges and each contraceptive gets a ring-announcer
+entrance in the spotlight before joining a line at the bottom. The camera pulls
+back, everyone flies to their places, and the maze assembles around them. Then
+the how-to-play pages, then the round. Press start to skip the intro.
 
-    python -m minigames.meet_cute [--fullscreen] [--scale 4] [--demo] [--seed N]
+    python -m minigames.it_takes_two [--fullscreen] [--scale 4] [--demo] [--seed N]
 
 Controls (keyboard, or one arcade stick / gamepad per player):
     P1 EGG      WASD     or the first stick plugged in
@@ -92,12 +94,30 @@ OVULATE = (0.8, 2.0, 2.5)        # egg leaves the ovary, reaches the tube mouth,
 EJACULATE = (2.6, 3.0)           # sperm leaves the tip, stops in the open
 WILT = (3.2, 3.7)
 ORGANS_OUT = (3.8, 4.4)
-DRIFT = (4.6, 6.0)               # off to their corners, shrinking as the camera pulls back
-MAZE_IN = (4.6, 6.2)             # the walls fly in and lock together
-DOTS_IN = (6.0, 6.6)
-ENEMIES_IN, ENEMY_GAP = 6.5, 0.45   # each contraceptive pops into the pen
-INTRO = 8.4
+OH_NO = (4.5, 6.1)               # "OH NO! CONTRACEPTIVES!" and the two of them get shoved apart
+SHOVE = (4.5, 4.9)
+EGG_COWER, SPERM_COWER = (40, 92), (280, 92)    # where they hide while the contraception shows off
+CARDS, CARD = 6.1, 1.9           # each contraceptive's ring entrance, one after another
+STAGE = (160, 80)                # where it poses in the spotlight
+LINEUP_Y = 156                   # then it joins the line at the bottom
+DRIFT = (CARDS + 4 * CARD + 0.2, CARDS + 4 * CARD + 1.6)   # everyone off to their places as the camera pulls back
+MAZE_IN = (DRIFT[0], DRIFT[0] + 1.6)                       # the walls fly in and lock together
+DOTS_IN = (DRIFT[1], DRIFT[1] + 0.6)
+INTRO = DOTS_IN[1] + 0.6
 NAMES = {"condom": "CONDOM", "pill": "THE PILL", "spermicide": "SPERMICIDE", "iud": "COPPER IUD"}
+# the ring announcer: lead-in, nickname, and two lines of hype
+HYPE = {
+    "condom": ("IN THE BLUE CORNER...", "THE LATEX LEGEND!",
+               ("98% EFFECTIVE. 100% CLINGY.", "IT CHASES WHOEVER IS CLOSEST!"), "#5ab8ff"),
+    "pill": ("AND IN THE PINK CORNER...", "ONE A DAY, BABY AWAY!",
+             ("A FRESH DOSE EVERY MORNING", "AND IT'S GUNNING FOR THE EGG!"), "#ff9ac8"),
+    "spermicide": ("STRAIGHT OUT OF THE TUBE...", "THE GEL WITH NO CHILL!",
+                   ("SLIPPERY. STICKY. LETHAL.", "IT'S HUNTING THE SPERM!"), "#6ad84a"),
+    "iud": ("AND YOUR MAIN EVENT...", "THE COPPER BOUNCER!",
+            ("T-SHAPED AND TEN YEARS STRONG.", "IT STANDS RIGHT BETWEEN YOU!"), "#e08a4a"),
+}
+# who each one glares at while it poses (egg on the left, sperm on the right)
+GLARE = {"condom": None, "pill": (-1, 0), "spermicide": (1, 0), "iud": (0, 1)}
 
 
 NOT_YET = ["NOT YET!", "SHE'S NOT READY", "TOO SOON!", "EAT MORE!", "SLOW DOWN!"]
@@ -281,8 +301,8 @@ class Art:
 _ART: Art | None = None
 
 
-class MeetCute:
-    title = "MEET CUTE"
+class ItTakesTwo:
+    title = "IT TAKES TWO"
     players_needed = 2
 
     def __init__(self, seed: int | None = None, show_title: bool = True) -> None:
@@ -336,9 +356,15 @@ class MeetCute:
         self.popups: list[Popup] = []
         self.bits: list[Bit] = []
         self.pops: list[tuple[float, float, str, float]] = []
-        self.phase = "title" if show_title else "intro"
+        self.phase = "intro"                          # the delivery and the ring entrances, then the how-to
         self.phase_t = 0.0
+        self.show_title = show_title
         self.howto = tutorial.make(self.art)
+        self.card_text = {k: (text_surface(lead, LAB_DIM), big_text(NAMES[k], col), text_surface(nick, "#ffe14d"),
+                              [text_surface(line, LAB_TEXT) for line in lines])
+                          for k, (lead, nick, lines, col) in HYPE.items()}
+        self.oh_no = big_text("OH NO!", "#ff4a6a", 3)
+        self.oh_no_sub = big_text("CONTRACEPTIVES!", "#ffe14d")
         self.lose_reason = ""
         self.meet_at = (0.0, 0.0)
         self.result: str | None = None
@@ -478,7 +504,7 @@ class MeetCute:
         if self.phase == "title":
             self.howto.update(dt, inp)
             if self.howto.done:
-                self._enter("intro")
+                self._enter("ready")
         elif self.phase == "intro":
             self._update_intro(dt, inp)
         elif self.phase == "ready":
@@ -515,9 +541,7 @@ class MeetCute:
 
     def _update_intro(self, dt: float, inp: Input) -> None:
         if self.phase_t > 0.4 and (inp.action or any(p.action for p in inp.players)):
-            self.popups.clear()                       # skip it
-            self.decoys.clear()
-            self._enter("ready")
+            self._end_intro()                         # skip it
             return
         if self._cue("ovulate", OVULATE[0]):
             self._popup("OVULATION!", OVARY[0] + 10, OVARY[1] - 22, "#ff9ac8", big=True)
@@ -530,12 +554,17 @@ class MeetCute:
             self._popup("SPLOOSH!", tx + 20, ty - 30, "#ffffff", big=True)
         if self._cue("odds", EJACULATE[1] + 0.2):
             self._popup("1 IN 200 MILLION", SPERM_MEET[0] + 10, SPERM_MEET[1] - 26, "#5ff3ff", life=1.6)
+        if self._cue("heartbreak", OH_NO[0]):
+            self.popups.clear()
+            hx = (EGG_MEET[0] + SPERM_MEET[0]) / 2
+            self.pops.append((hx, EGG_MEET[1] - 18, "#ff4a6a", 0.0))
+            self._burst(hx, EGG_MEET[1] - 18, ["#ff4a6a", "#ff9ac8", "#ffffff"], n=18, speed=80)
         for i, e in enumerate(self.enemies):
-            if self._cue(e.kind, ENEMIES_IN + i * ENEMY_GAP):
-                x, y = screen_pos(e.fx, e.fy)
-                self.pops.append((x, y, "#ffe14d", 0.0))
-                ny = OY + (PEN[1] - 2) * TILE - 2 if i % 2 == 0 else OY + (PEN[1] + PEN[3] + 2) * TILE + 2
-                self._popup(NAMES[e.kind], x, ny, "#ffe14d", life=1.2)
+            if self._cue(e.kind, CARDS + i * CARD + 0.35):    # lands on its mark
+                self.pops.append((*STAGE, "#ffe14d", 0.0))
+                self._burst(*STAGE, [HYPE[e.kind][3], "#ffe14d", "#ffffff"], n=24, speed=110)
+        if self._cue("go", DRIFT[0]):
+            self._popup("NOW FIND EACH OTHER!", W / 2, OY + PEN[1] * TILE - 10, "#ffe14d", big=True, life=1.8)
         for d in self.decoys:
             d.t += dt
             d.x += d.vx * dt
@@ -543,7 +572,14 @@ class MeetCute:
             d.vy += 200 * dt
         self.decoys = [d for d in self.decoys if d.t < d.life]
         if self.phase_t >= INTRO:
-            self._enter("ready")
+            self._end_intro()
+
+    def _end_intro(self) -> None:
+        self.popups.clear()
+        self.decoys.clear()
+        self.bits.clear()
+        self.pops.clear()
+        self._enter("title" if self.show_title else "ready")
 
     def _update_play(self, dt: float, inp: Input) -> None:
         self.clock += dt
@@ -689,8 +725,7 @@ class MeetCute:
 
         if self.phase not in ("won", "end") or self.result != "win":
             self._draw_enemies(screen, t)
-            if self.phase != "title":
-                self._draw_players(screen, t)
+            self._draw_players(screen, t)
             if self.phase == "ready":
                 self._draw_labels(screen, t)
         else:
@@ -763,8 +798,8 @@ class MeetCute:
                 for x, y in self.pills:
                     sx, sy = screen_pos(x, y)
                     screen.blit(self.art.folic[int(t * 4) % 2], (sx - 5, sy - 3))
-        for i, e in enumerate(self.enemies):
-            if k >= ENEMIES_IN + i * ENEMY_GAP:
+        if k >= DRIFT[1]:                                  # settled in the pen
+            for i, e in enumerate(self.enemies):
                 x, y = screen_pos(e.fx, e.fy)
                 s = self.art.enemy[(e.kind, int(t * 5) % 2, (0, 1))]
                 screen.blit(s, (round(x - s.get_width() / 2), round(y - s.get_height() / 2 + math.sin(t * 6 + i) * 2)))
@@ -787,9 +822,21 @@ class MeetCute:
             s.set_alpha(int(255 * (1 - dcy.t / dcy.life)))
             screen.blit(s, (round(dcy.x - s.get_width() / 2), round(dcy.y - s.get_height() / 2)))
 
-        # -- the two of them
+        # -- oh no: the siren, and the contraception's ring entrances
+        if OH_NO[0] <= k < DRIFT[0]:
+            self._draw_contra(screen, t, k, ease)
         z = prog(DRIFT)
+        if k >= DRIFT[0] and z < 1:                        # off to the pen with the rest of the camera pull-back
+            for i, e in enumerate(self.enemies):
+                lx, ly = self._lineup(i)
+                ex, ey = screen_pos(e.fx, e.fy)
+                s = self.art.enemy[(e.kind, int(t * 5) % 2, (0, 1))]
+                self._blit_scaled(screen, s, lx + (ex - lx) * z, ly + (ey - ly) * z, 2 - z)
+
+        # -- the two of them
         scale = CLOSE + (1 - CLOSE) * z
+        shove = prog(SHOVE)
+        shake = math.sin(t * 50) * (1 if OH_NO[0] < k < DRIFT[0] else 0)     # trembling
         bob = math.sin(t * 4) * 2 * (1 - z)
         a, b, c = OVULATE
         if k >= a:
@@ -799,12 +846,16 @@ class MeetCute:
             elif k < c:                                    # out into the open
                 u = ease((k - b) / (c - b))
                 x, y = TUBE_MOUTH[0] + (EGG_MEET[0] - TUBE_MOUTH[0]) * u, TUBE_MOUTH[1]
-            else:                                          # off to her corner
+            else:                                          # shoved aside, then off to her corner
+                hx = EGG_MEET[0] + (EGG_COWER[0] - EGG_MEET[0]) * shove + shake
+                hy = EGG_MEET[1] + (EGG_COWER[1] - EGG_MEET[1]) * shove
                 ex, ey = screen_pos(*EGG_START)
-                x = EGG_MEET[0] + (ex - EGG_MEET[0]) * z
-                y = EGG_MEET[1] + (ey - EGG_MEET[1]) * z + bob
-            frames = self.art.egg_ripe if c <= k < DRIFT[0] else self.art.egg
+                x = hx + (ex - hx) * z
+                y = hy + (ey - hy) * z + bob
+            frames = self.art.egg_ripe if c <= k < OH_NO[0] else self.art.egg
             self._blit_scaled(screen, frames[int(k * 6) % 4], x, y, scale)
+            if OH_NO[0] + 0.4 <= k < DRIFT[0]:
+                self._label(screen, "P1 EGG", "#ff9ac8", x, y + 18)
         a, b = EJACULATE
         if k >= a:
             if k < b:                                      # flying out
@@ -812,24 +863,106 @@ class MeetCute:
                 x = PENIS_TIP[0] + (SPERM_MEET[0] - PENIS_TIP[0]) * u
                 y = PENIS_TIP[1] - math.sin(math.pi * u) * 18
                 face = (-1, 0)
-            else:                                          # off to his corner
+            else:                                          # shoved aside, then off to his corner
+                hx = SPERM_MEET[0] + (SPERM_COWER[0] - SPERM_MEET[0]) * shove - shake
+                hy = SPERM_MEET[1] + (SPERM_COWER[1] - SPERM_MEET[1]) * shove
                 sx, sy = screen_pos(*SPERM_START)
-                x = SPERM_MEET[0] + (sx - SPERM_MEET[0]) * z
-                y = SPERM_MEET[1] + (sy - SPERM_MEET[1]) * z - bob
-                face = (1, 0) if 0 < z < 0.9 else (-1, 0)
+                x = hx + (sx - hx) * z
+                y = hy + (sy - hy) * z - bob
+                face = (1, 0) if SHOVE[0] <= k < SHOVE[1] or 0 < z < 0.9 else (-1, 0)
             self._blit_scaled(screen, self.art.sperm[face][int(k * 12) % 4], x, y, scale)
+            if OH_NO[0] + 0.4 <= k < DRIFT[0]:
+                self._label(screen, "P2 SPERM", "#5ff3ff", x, y + 18)
 
         # -- face to face: a heart, and who's who
-        if EJACULATE[1] + 0.1 < k < DRIFT[0] + 0.3:
+        if EJACULATE[1] + 0.1 < k < OH_NO[0]:
             if int(t * 3) % 3:
                 hx = (EGG_MEET[0] + SPERM_MEET[0]) / 2
                 h = self.art.heart_close
                 screen.blit(h, (hx - h.get_width() / 2, EGG_MEET[1] - 24 - (k * 6) % 6))
             for text, col, (x, y) in (("P1 EGG", "#ff9ac8", EGG_MEET), ("P2 SPERM", "#5ff3ff", SPERM_MEET)):
-                s = text_surface(text, col)
-                screen.blit(s, (x - s.get_width() / 2, y + 18))
+                self._label(screen, text, col, x, y + 18)
         elif k >= DRIFT[1]:
             self._draw_labels(screen, t)
+
+    def _label(self, screen: pygame.Surface, text: str, col: str, x: float, y: float) -> None:
+        s = text_surface(text, col)
+        screen.blit(s, (round(x - s.get_width() / 2), round(y)))
+
+    def _lineup(self, i: int) -> tuple[float, float]:
+        return W / 2 + (i - 1.5) * 44, LINEUP_Y
+
+    def _draw_contra(self, screen: pygame.Surface, t: float, k: float, ease) -> None:
+        """OH NO! CONTRACEPTIVES! Then each one gets a ring-announcer entrance in
+        the spotlight, glares at its target, and joins the line at the bottom."""
+        if k < OH_NO[1]:                                   # the siren
+            u = k - OH_NO[0]
+            if int(u * 8) % 2 == 0:
+                fx = self.art.overlay
+                fx.fill((255, 30, 50, 46))
+                screen.blit(fx, (0, 0))
+            drop = 1 - ease(u / 0.25)
+            s = self.oh_no
+            screen.blit(s, (W / 2 - s.get_width() / 2 + math.sin(t * 40) * 2, 34 - 40 * drop))
+            if u > 0.45:
+                s = self.oh_no_sub
+                pop = min(1.0, (u - 0.45) / 0.12)
+                s = pygame.transform.scale_by(s, 0.5 + 0.5 * pop) if pop < 1 else s
+                screen.blit(s, (W / 2 - s.get_width() / 2, 58 - s.get_height() / 2 + 5))
+            return
+        for i, e in enumerate(self.enemies):
+            c0 = CARDS + i * CARD
+            u = k - c0
+            f = int(t * 5) % 2
+            if u >= CARD:                                  # in the line, waiting
+                x, y = self._lineup(i)
+                look = (0, -1) if int(t * 2 + i) % 3 else (0, 0)
+                self._blit_scaled(screen, self.art.enemy[(e.kind, f, look)], x, y + math.sin(t * 6 + i) * 2, 2)
+                continue
+            if u < 0:
+                continue
+            lead, name, nick, lines = self.card_text[e.kind]
+            col = rgb(HYPE[e.kind][3])
+            leave = CARD - 0.35
+            if u < leave:                                  # the spotlight
+                fx = self.art.overlay
+                fx.fill((0, 0, 0, 0))
+                beam = min(1.0, u / 0.2)
+                pygame.draw.polygon(fx, (*col, int(40 * beam)),
+                                    [(STAGE[0] - 10, 0), (STAGE[0] + 10, 0), (STAGE[0] + 38, STAGE[1] + 22),
+                                     (STAGE[0] - 38, STAGE[1] + 22)])
+                pygame.draw.ellipse(fx, (*col, int(70 * beam)), (STAGE[0] - 38, STAGE[1] + 14, 76, 16))
+                screen.blit(fx, (0, 0))
+            if u < 0.35:                                   # in from the side, overshooting its mark
+                v = u / 0.35
+                back = 1 + 2.2 * (v - 1) ** 3 + 1.2 * (v - 1) ** 2
+                side = W + 30 if i % 2 == 0 else -30
+                x, y, sc = side + (STAGE[0] - side) * back, STAGE[1], 3
+                look = (-1, 0) if i % 2 == 0 else (1, 0)
+            elif u < leave:                                # posing
+                x, y, sc = STAGE[0], STAGE[1] + math.sin(t * 8) * 2, 3
+                look = GLARE[e.kind] or ((-1, 0) if int(u * 2.5) % 2 == 0 else (1, 0))
+            else:                                          # into the line
+                v = ease((u - leave) / (CARD - leave))
+                lx, ly = self._lineup(i)
+                x, y = STAGE[0] + (lx - STAGE[0]) * v, STAGE[1] + (ly - STAGE[1]) * v - math.sin(math.pi * v) * 20
+                sc, look = 3 - v, (0, 1)
+            self._blit_scaled(screen, self.art.enemy[(e.kind, f, look)], x, y, sc)
+            if 0.1 <= u < CARD - 0.25:                     # the announcer
+                fade = min(1.0, (CARD - 0.25 - u) / 0.2)
+                slam = 1 - ease((u - 0.1) / 0.18)
+                for surf, sy in ((lead, 6), (name, 15 - 12 * slam), (nick, 29)):
+                    if surf is name or u > 0.3:
+                        self._blit_fade(screen, surf, W / 2, sy, fade)
+                for j, line in enumerate(lines):
+                    if u > 0.55 + j * 0.25:
+                        self._blit_fade(screen, line, W / 2, 112 + j * 9, fade)
+
+    def _blit_fade(self, screen: pygame.Surface, s: pygame.Surface, cx: float, y: float, fade: float) -> None:
+        if fade < 1:
+            s = s.copy()
+            s.set_alpha(int(255 * fade))
+        screen.blit(s, (round(cx - s.get_width() / 2), round(y)))
 
     def _blit_scaled(self, screen: pygame.Surface, s: pygame.Surface, x: float, y: float, scale: float) -> None:
         if scale != 1:
@@ -967,7 +1100,7 @@ class MeetCute:
 
 # -- the computer plays both ---------------------------------------------------------
 
-def _route(game: MeetCute, p: Player, goal) -> tuple[int, int]:
+def _route(game: ItTakesTwo, p: Player, goal) -> tuple[int, int]:
     """First step of the cheapest path from `p` to any tile where goal(tile) holds,
     steering well clear of enemies that aren't scared."""
     danger = set()
@@ -999,7 +1132,7 @@ def _route(game: MeetCute, p: Player, goal) -> tuple[int, int]:
     return p.dir
 
 
-def autopilot(game: MeetCute) -> Input:
+def autopilot(game: ItTakesTwo) -> Input:
     if game.phase in ("title", "end"):
         act = game.phase_t > 0.8
         return Input(action=act, players=(Input(action=act), Input()))
@@ -1023,7 +1156,7 @@ def main() -> None:
     ap.add_argument("--ticks", type=int, help="quit after this many frames (testing)")
     ap.add_argument("--screenshot", help="save the last frame here (with --ticks)")
     args = ap.parse_args()
-    run(lambda: MeetCute(seed=args.seed), "Meet Cute", scale=args.scale, fullscreen=args.fullscreen,
+    run(lambda: ItTakesTwo(seed=args.seed), "It Takes Two", scale=args.scale, fullscreen=args.fullscreen,
         autopilot=autopilot if args.demo else None, max_ticks=args.ticks, screenshot=args.screenshot)
 
 

@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 import pygame
 
-from minigames.meet_cute.art import heart
+from minigames.it_takes_two.art import heart
 from minigames.stork_bomber.art import stork
 from sprites.canvas import hex_to_rgba
 from sprites.font import GLYPHS

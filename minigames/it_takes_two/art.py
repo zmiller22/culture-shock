@@ -1,4 +1,4 @@
-"""Meet Cute art: the reproductive-tract maze, the two lovebirds, the organs
+"""It Takes Two art: the reproductive-tract maze, the two lovebirds, the organs
 that deliver them, and the contraception that wants to keep them apart.
 
 Drawn with the same canvas, palette and 1px outline as the main cast. The maze

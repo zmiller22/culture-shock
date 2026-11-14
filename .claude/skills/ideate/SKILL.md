@@ -56,7 +56,7 @@ On "go" (or "go ahead", "ship it", "looks good"):
 
 1. Set up the branch they chose (`git switch -c <name>` or `git switch <name>`). If the working tree has uncommitted changes that would conflict or get carried along, say so in one line and ask before switching.
 2. Build it, following the existing patterns:
-   - Mini-games live in `minigames/<slug>/` (`__init__.py`, `__main__.py`, `game.py`, `art.py`) and follow the `minigames/shell.py` protocol. Look at `minigames/meet_cute/` as the model.
+   - Mini-games live in `minigames/<slug>/` (`__init__.py`, `__main__.py`, `game.py`, `art.py`) and follow the `minigames/shell.py` protocol. Look at `minigames/it_takes_two/` as the model.
    - Sprites and characters follow `sprites/` and get added to the README cast table if they're new.
    - Add a preview image to `assets/previews/` and a short README section, matching the existing voice.
 3. Run it headless (`SDL_VIDEODRIVER=dummy`) for a few seconds to make sure it starts and draws without errors, and grab a screenshot to show the user.
