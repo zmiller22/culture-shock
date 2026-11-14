@@ -605,8 +605,8 @@ face to face with a gap between them, a heart over their heads and *P1 EGG* /
 out, and the heart bursts: the screen flashes red, *OH NO! CONTRACEPTIVES!*,
 and the pair get shoved to the edges, trembling. Each of the four
 contraceptives then gets a ring-announcer entrance: it slides into a spotlight,
-glares at whoever it hunts, and gets a lead-in, its name, a nickname and two
-lines of hype (*IN THE BLUE CORNER... CONDOM, THE LATEX LEGEND!*) before
+glares at whoever it hunts, and gets a lead-in, its name and a nickname
+(*IN THE BLUE CORNER... CONDOM, THE LATEX LEGEND!*) before
 joining a line at the bottom. Then the camera pulls back (*NOW FIND EACH
 OTHER!*): the egg and sperm drift to opposite corners, the contraception flies
 into the pen, the maze walls fly in from every side and lock together, and the

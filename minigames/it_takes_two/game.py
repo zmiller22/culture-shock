@@ -105,16 +105,12 @@ MAZE_IN = (DRIFT[0], DRIFT[0] + 1.6)                       # the walls fly in an
 DOTS_IN = (DRIFT[1], DRIFT[1] + 0.6)
 INTRO = DOTS_IN[1] + 0.6
 NAMES = {"condom": "CONDOM", "pill": "THE PILL", "spermicide": "SPERMICIDE", "iud": "COPPER IUD"}
-# the ring announcer: lead-in, nickname, and two lines of hype
+# the ring announcer: lead-in, nickname, and the spotlight colour
 HYPE = {
-    "condom": ("IN THE BLUE CORNER...", "THE LATEX LEGEND!",
-               ("98% EFFECTIVE. 100% CLINGY.", "IT CHASES WHOEVER IS CLOSEST!"), "#5ab8ff"),
-    "pill": ("AND IN THE PINK CORNER...", "ONE A DAY, BABY AWAY!",
-             ("A FRESH DOSE EVERY MORNING", "AND IT'S GUNNING FOR THE EGG!"), "#ff9ac8"),
-    "spermicide": ("STRAIGHT OUT OF THE TUBE...", "THE GEL WITH NO CHILL!",
-                   ("SLIPPERY. STICKY. LETHAL.", "IT'S HUNTING THE SPERM!"), "#6ad84a"),
-    "iud": ("AND YOUR MAIN EVENT...", "THE COPPER BOUNCER!",
-            ("T-SHAPED AND TEN YEARS STRONG.", "IT STANDS RIGHT BETWEEN YOU!"), "#e08a4a"),
+    "condom": ("IN THE BLUE CORNER...", "THE LATEX LEGEND!", "#5ab8ff"),
+    "pill": ("AND IN THE PINK CORNER...", "ONE A DAY, BABY AWAY!", "#ff9ac8"),
+    "spermicide": ("STRAIGHT OUT OF THE TUBE...", "THE GEL WITH NO CHILL!", "#6ad84a"),
+    "iud": ("AND YOUR MAIN EVENT...", "THE COPPER BOUNCER!", "#e08a4a"),
 }
 # who each one glares at while it poses (egg on the left, sperm on the right)
 GLARE = {"condom": None, "pill": (-1, 0), "spermicide": (1, 0), "iud": (0, 1)}
@@ -360,9 +356,8 @@ class ItTakesTwo:
         self.phase_t = 0.0
         self.show_title = show_title
         self.howto = tutorial.make(self.art)
-        self.card_text = {k: (text_surface(lead, LAB_DIM), big_text(NAMES[k], col), text_surface(nick, "#ffe14d"),
-                              [text_surface(line, LAB_TEXT) for line in lines])
-                          for k, (lead, nick, lines, col) in HYPE.items()}
+        self.card_text = {k: (text_surface(lead, LAB_DIM), big_text(NAMES[k], col), text_surface(nick, "#ffe14d"))
+                          for k, (lead, nick, col) in HYPE.items()}
         self.oh_no = big_text("OH NO!", "#ff4a6a", 3)
         self.oh_no_sub = big_text("CONTRACEPTIVES!", "#ffe14d")
         self.lose_reason = ""
@@ -562,7 +557,7 @@ class ItTakesTwo:
         for i, e in enumerate(self.enemies):
             if self._cue(e.kind, CARDS + i * CARD + 0.35):    # lands on its mark
                 self.pops.append((*STAGE, "#ffe14d", 0.0))
-                self._burst(*STAGE, [HYPE[e.kind][3], "#ffe14d", "#ffffff"], n=24, speed=110)
+                self._burst(*STAGE, [HYPE[e.kind][2], "#ffe14d", "#ffffff"], n=24, speed=110)
         if self._cue("go", DRIFT[0]):
             self._popup("NOW FIND EACH OTHER!", W / 2, OY + PEN[1] * TILE - 10, "#ffe14d", big=True, life=1.8)
         for d in self.decoys:
@@ -921,8 +916,8 @@ class ItTakesTwo:
                 continue
             if u < 0:
                 continue
-            lead, name, nick, lines = self.card_text[e.kind]
-            col = rgb(HYPE[e.kind][3])
+            lead, name, nick = self.card_text[e.kind]
+            col = rgb(HYPE[e.kind][2])
             leave = CARD - 0.35
             if u < leave:                                  # the spotlight
                 fx = self.art.overlay
@@ -954,9 +949,6 @@ class ItTakesTwo:
                 for surf, sy in ((lead, 6), (name, 15 - 12 * slam), (nick, 29)):
                     if surf is name or u > 0.3:
                         self._blit_fade(screen, surf, W / 2, sy, fade)
-                for j, line in enumerate(lines):
-                    if u > 0.7 + j * 0.5:
-                        self._blit_fade(screen, line, W / 2, 112 + j * 9, fade)
 
     def _blit_fade(self, screen: pygame.Surface, s: pygame.Surface, cx: float, y: float, fade: float) -> None:
         if fade < 1:
