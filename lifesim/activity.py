@@ -15,9 +15,11 @@ Events:
     sign_in                        the visitor typed their name
     files_open / files_close       C:/> FILES opened / backed out of
     file_open                      a file was opened. "via": list, code or next (the button a message ends on)
-    code                           a 3-letter code was typed. "result": unlocked, already, found or miss
+    code                           a password was typed into UNLOCK.EXE. "result": granted, denied, ooh or trip
+    ooh_end                        the OOH sequence ended (or they backed out of it): "secs" in
     roll_end                       a rick roll finished. "bailed": true if they skipped out early
     theory_start / theory_end      a simulation was picked / ended (theory_end has "result")
+    frontier                       every theory tested: the CONGRATULATIONS! screen (OOH IS THE ANSWER)
     idle_prompt                    nobody touched anything for a while: the countdown came up ("phase")
     idle_continue                  someone tapped to carry on
     idle_exit                      back to the start screen. "why": hold (held the button) or timeout

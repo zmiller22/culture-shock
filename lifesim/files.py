@@ -1,20 +1,22 @@
 """The lab's file drawer: a little file system on the mainframe.
 
-Pick C:/> FILES off the theory menu and the whole screen becomes a terminal
-full of what the lab would rather you didn't read: notebooks, incident reports,
-and photos of experiments that went wrong. Some files are locked. Their 3-letter
-codes are hidden around the room (masking tape, a sticky note, the wall, the
-floor), and one notebook gives up another.
+Pick SYSTEM FILES off the theory map and the whole screen becomes a terminal.
+It holds the two rick roll videos, a few unlocked text files (stick up / down
+scrolls a long one) and UNLOCK.EXE.
 
 Opening it types a DIR command, like a real terminal, and the directory listing
 it prints is the menu. It's all stick-and-button, like the visitor name entry:
 
     on ..             (the top row) button goes back to the theories; so does left
     on a file         button opens it
-    on UNLOCK.EXE     button starts typing a code: down rolls A -> B, up rolls back,
-                      button or right locks a letter in, left backs up. Three letters
-                      and it runs: a hidden code unlocks its file, anything else
-                      searches names
+    on UNLOCK.EXE     a full-screen ENTER PASSWORD: three letters, typed like the
+                      name entry (down rolls A -> B, up rolls back, button or right
+                      locks a letter in, left backs up, and out from the first).
+                      One of PASSWORDS gets ACCESS GRANTED; ANSWER (what the lab
+                      tells you once you've tested every theory) plays the OOH
+                      sequence (see ooh.py); TRIP_CODE (hidden in the room) is a
+                      psychedelic thank-you (see trip.py); anything else is
+                      ACCESS DENIED and another go
 
 The terminal uses the bigger 5x7 font, in one colour, so it reads easily on the
 cabinet.
@@ -42,6 +44,8 @@ import pygame
 from sprites.font import BIG_ADV, BIG_H, big_width
 
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
+from .ooh import Ooh
+from .trip import Trip
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 MEDIA_DIR = ASSETS / "files"
@@ -58,6 +62,10 @@ ROLL_GRACE = 0.6            # s before we trust mixer.music.get_busy() to mean "
 FLASH_TIME = 2.2            # s a status message stays up
 REPEAT = (0.4, 0.09)        # s before a held stick repeats, then s per step
 LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
+PASSWORDS = ("XXX",)       # what UNLOCK.EXE says ACCESS GRANTED to, for now
+ANSWER = "OOH"              # the answer you get for testing every theory: it plays ooh.py
+TRIP_CODE = "SEX"           # hidden somewhere in the room: it plays trip.py
+DENIED_TIME = 1.6           # s ACCESS DENIED stays up before another go
 
 # the terminal fills the 320x180 screen, in the 5x7 font: 6 px a character, 10 px a line
 SW, SH = 320, 180
@@ -88,74 +96,58 @@ class LabFile:
 FILES = [
     LabFile("WATCH_IF_YOU_ARE_ROLLING.VID", "roll"),
     LabFile("WATCH_IF_YOU_ARE_NOT_ROLLING.VID", "roll"),
-    LabFile("NOTEBOOK_001.TXT", "txt", (
-        "DAY 1. THE STORK IS LOOSE IN",
-        "THE VENTS. THE DIRECTOR SAYS",
-        "THIS IS FINE. IT IS NOT FINE.",
-        "",
-        "DAY 2. FOUND A BABY IN THE",
-        "BREAKROOM. NOT OURS. PROBABLY.",
-        "",
-        "DAY 3. THE STORK HAS A UNION.",
+    LabFile("MATH_IS_EASY.TXT", "txt", (
+        "Sex = fun",
+        "More sex = more fun",
+        "=> Polycule",
+        "Q.E.D",
     )),
-    LabFile("NOTEBOOK_002.TXT", "txt", (
-        "SOUP TRIAL 41. ADDED LIGHTNING.",
-        "SOUP TWITCHED.",
-        "",
-        "SOUP TRIAL 42. MORE LIGHTNING.",
-        "SOUP SAT UP.",
-        "",
-        "SOUP TRIAL 43. SOUP HAS ASKED",
-        "FOR A LAWYER. PAUSING TRIALS.",
+    LabFile("LAB_NOTEBOOK_11-13-26.TXT", "txt", (
+        "No sleep for 72 hours",
+        "Hung out with Calvin and Klein",
+        "Met the machine elves",
+        "Shit my pants",
     )),
-    LabFile("INCIDENT_REPORT_88.TXT", "txt", (
-        "NATURE OF INCIDENT: RAVE.",
-        "LOCATION: INSIDE A WOMB.",
-        "",
-        "THE NEIGHBOURS REPORT A BASS",
-        "LINE AT 3 AM FOR NINE MONTHS.",
-        "",
-        "ACTION TAKEN: NONE. THE DJ IS",
-        "AN UNBORN CHILD. NO JURISDICTION.",
+    LabFile("DREAM_JOURNAL.TXT", "txt", (
+        "Was a sperm again",
+        "Came in second",
+        "Still not over it",
     )),
-    LabFile("EXPERIMENT_2.IMG", "img", ("SUBJECT 2. BANANA + LOBSTER.", "WE ARE SO SORRY."),
-            sprite="kronenberg_002_banaclaw"),
-    LabFile("EXPERIMENT_3.IMG", "img", ("SUBJECT 3. IT KNOWS OUR NAMES.", "DO NOT LET IT READ."),
-            sprite="kronenberg_003_brainpus", code="BRN"),
-    LabFile("MEMO_FROM_STORK.TXT", "txt", (
-        "TO: THE LAB",
-        "FROM: THE STORK",
-        "",
-        "I DO NOT DELIVER BABIES. I HAVE",
-        "NEVER DELIVERED BABIES. I WAS",
-        "DELIVERING SANDWICHES AND YOU",
-        "KEPT HANDING ME BABIES.",
-        "",
-        "I QUIT.",
-    ), code="STK"),
-    LabFile("SOUP_RECIPE.TXT", "txt", (
-        "PRIMORDIAL SOUP. SERVES 1 PLANET.",
-        "",
-        "1 OCEAN, WARM",
-        "A PINCH OF AMINO ACIDS",
-        "LIGHTNING TO TASTE",
-        "",
-        "SIMMER 500 MILLION YEARS.",
-        "DO NOT LET IT SIT UP.",
-    ), code="SUP"),
-    LabFile("NOTEBOOK_000.TXT", "txt", (
-        "FIRST ENTRY. WE FILE THE BAD ONES",
-        "UNDER CODES SO THE DIRECTOR",
-        "CAN'T FIND THEM.",
-        "",
-        "THE BIG HAIRY ONE IS FILED UNDER",
-        "S-Q-B. IT IS NOT A PERSON. IT",
-        "WOULD LIKE YOU TO KNOW IT IS",
-        "NOT A PERSON.",
-    ), code="RKR"),
-    LabFile("EXPERIMENT_6.IMG", "img", ("SUBJECT 6. HE SAYS HE'S FINE.", "HE IS DEFINITELY NOT FINE."),
-            sprite="kronenberg_006_squatchbro", code="SQB"),
+    LabFile("MS_SUSIE.TXT", "txt", (
+        "Miss Susie had a steamboat,",
+        "The steamboat had a bell, (ding, ding!)",
+        "Miss Susie went to heaven,",
+        "The steamboat went to... (hell)",
+        "Hello operator,",
+        "Please give me number nine,",
+        "And if you disconnect me,",
+        "I'll chop off your... (behind)",
+        "Behind the refrigerator,",
+        "There lay a piece of glass,",
+        "Miss Susie sat upon it,",
+        "And cut her little... (ask)",
+        "Ask me no more questions,",
+        "Tell me no more lies,",
+        "The boys are in the bathroom,",
+        "Zipping up their... (flies)",
+        "Flies are in the meadow,",
+        "The bees are in the park,",
+        "Miss Susie and her boyfriend",
+        "Are kissing in the... (dark)",
+        "D-A-R-K,",
+        "Dark, dark, dark.",
+    )),
+    LabFile("DATA.TXT", "txt", (
+        "Andy and Zack",
+        "Sitting in a tree",
+        "K-I-S-S-I-N-G",
+        "First comes love",
+        "Then comes marriage",
+        "Then comes a baby in a baby carriage.",
+    )),
 ]
+TXT_Y = 24                                   # the first line of an open text file
+TXT_ROWS = (FOOT_Y - 2 - TXT_Y) // LINE      # lines of it that fit (13); longer ones scroll
 
 # what the terminal says after a roll. Always the same for a file: watching one never changes the other.
 # A message whose last line names a file ends on a button that opens it.
@@ -438,14 +430,18 @@ class FileTerminal:
 
     # -- state ---------------------------------------------------------------------------
     def open(self) -> None:
-        self.mode = "boot"              # boot (the DIR typing out), list, code, txt, img, roll, msg
+        self.mode = "boot"              # boot (the DIR typing out), list, code, granted, ooh, trip, txt, img, roll, msg
+        self.ooh: Ooh | None = None
+        self.trip: Trip | None = None
         self.boot_t = 0.0
         self.sel = 1                    # the first file, with .. (the way out) just above it
         self.scroll = 0
         self.code = ""
         self.letter = 0
+        self.denied = 0.0               # s left on ACCESS DENIED
         self.flash = ("", 0.0)
         self.viewing: LabFile | None = None
+        self.txt_scroll = 0             # first line of an open text file on screen
         self.msg: list[str] = []
         self.roll_t = 0.0
         self.closed = False
@@ -489,7 +485,7 @@ class FileTerminal:
 
     @property
     def playing(self) -> bool:
-        return self.mode == "roll"
+        return self.mode in ("roll", "ooh")
 
     def _say(self, s: str) -> None:
         self.flash = (s, FLASH_TIME)
@@ -515,13 +511,16 @@ class FileTerminal:
         elif act:
             row = rows[self.sel]
             if row == "CODE":
-                self.mode, self.code, self.letter = "code", "", 0
+                self.mode, self.code, self.letter, self.denied = "code", "", 0, 0.0
             elif row == "UP":
                 self.closed = True
             else:
                 self._open_file(row, "list")
 
     def _update_code(self, dt: float, sx: int, sy: int, act: bool) -> None:
+        if self.denied > 0:                                      # ACCESS DENIED, then another go
+            self.denied -= dt
+            return
         if sy:
             self.letter = (self.letter + sy) % len(LETTERS)      # down goes A -> B, like the name entry
         if sx < 0:
@@ -536,25 +535,38 @@ class FileTerminal:
                 self._run_code(self.code)
 
     def _run_code(self, code: str) -> None:
-        self.mode = "list"
-        hidden = next((f for f in FILES if f.code == code), None)
-        if hidden:
-            new = code not in self.unlocked
-            self.unlocked.add(code)
-            self.sel = self.rows().index(hidden)
-            self._follow()
-            self._say("ACCESS GRANTED" if new else "ALREADY OPEN")
-            self.log("code", code=code, result="unlocked" if new else "already", file=hidden.name)
-            self._open_file(hidden, "code")
+        if code == ANSWER:
+            self.log("code", code=code, result="ooh")
+            self.mode, self.ooh = "ooh", Ooh(self.mute)
             return
-        hits = [i for i, f in enumerate(self.rows()) if isinstance(f, LabFile) and code in f.name.replace("_", "")]
-        self.log("code", code=code, result="found" if hits else "miss")
-        if hits:
-            self.sel = hits[0]
-            self._follow()
-            self._say(f"FOUND {len(hits)}: {code}")
+        if code == TRIP_CODE:
+            self.log("code", code=code, result="trip")
+            self.mode, self.trip = "trip", Trip()
+            return
+        ok = code in PASSWORDS
+        self.log("code", code=code, result="granted" if ok else "denied")
+        if ok:
+            self.mode = "granted"
         else:
-            self._say(f"NO MATCH: {code}")
+            self.code, self.letter, self.denied = "", 0, DENIED_TIME
+
+    def _update_granted(self, dt: float, sx: int, sy: int, act: bool) -> None:
+        if act or sx < 0:
+            self.mode = "list"
+
+    def _update_ooh(self, dt: float, sx: int, sy: int, act: bool) -> None:
+        self.ooh.update(dt, sx, act)
+        if self.ooh.done:
+            self.log("ooh_end", secs=round(self.ooh.t, 1))
+            self.ooh.stop()
+            self.ooh = None
+            self.mode = "list"
+
+    def _update_trip(self, dt: float, sx: int, sy: int, act: bool) -> None:
+        self.trip.update(dt, sx, act)
+        if self.trip.done:
+            self.trip = None
+            self.mode = "list"
 
     def _open_file(self, f: LabFile, via: str) -> None:
         self.viewing = f
@@ -576,9 +588,12 @@ class FileTerminal:
                 except pygame.error:
                     self.media.audio = None
         else:
-            self.mode = f.kind
+            self.mode, self.txt_scroll = f.kind, 0
 
     def _update_txt(self, dt: float, sx: int, sy: int, act: bool) -> None:
+        if sy and self.viewing.kind == "txt":
+            top = max(0, len(self.viewing.lines) - TXT_ROWS)
+            self.txt_scroll = max(0, min(top, self.txt_scroll + sy))
         if act or sx < 0:
             self.mode = "list"
 
@@ -624,13 +639,31 @@ class FileTerminal:
         """Paint the terminal over the whole screen, in the 5x7 font."""
         self.text = text
         screen.fill(rgb(CRT_BG))
-        if self.mode in ("boot", "list", "code"):
+        if self.mode in ("boot", "list"):
             self._draw_list(screen, time)
+        elif self.mode == "code":
+            self._draw_code(screen, time)
+        elif self.mode == "granted":
+            self._header(screen, "UNLOCK.EXE")
+            for i, line in enumerate(("ACCESS", "GRANTED")):
+                img = self.text.get(line, PHOSPHOR, 3, big=True)
+                screen.blit(img, (SW // 2 - img.get_width() // 2, 50 + i * 30))
+            self._footer(screen, "BUTTON: OK")
+        elif self.mode == "ooh":
+            self.ooh.draw(screen)
+        elif self.mode == "trip":
+            self.trip.draw(screen)
         elif self.mode == "txt":
             self._header(screen, self.viewing.name)
-            for i, line in enumerate(self.viewing.lines):
-                self._put(screen, line, X0, 24 + i * LINE)
-            self._footer(screen, "BUTTON: BACK")
+            lines, s = self.viewing.lines, self.txt_scroll
+            for i, line in enumerate(lines[s:s + TXT_ROWS]):
+                self._put(screen, line, X0, TXT_Y + i * LINE)
+            long = len(lines) > TXT_ROWS
+            if s > 0:                                   # more above
+                self._put(screen, "^", SW - X0 - 5, TXT_Y)
+            if s + TXT_ROWS < len(lines):               # more below
+                self._put(screen, "+", SW - X0 - 5, TXT_Y + (TXT_ROWS - 1) * LINE)
+            self._footer(screen, "STICK: SCROLL   BUTTON: BACK" if long else "BUTTON: BACK")
         elif self.mode == "img":
             self._header(screen, self.viewing.name)
             photo = self._photo(self.viewing.sprite)
@@ -729,21 +762,6 @@ class FileTerminal:
 
         screen.fill(rgb(PHOSPHOR_DIM), (X0, FOOT_Y, SW - 2 * X0, 1))
         y = HINT_Y
-        if self.mode == "code":
-            w = self._put(screen, "CODE:", X0, y)
-            for i in range(3):
-                bx = X0 + w + 6 + i * 12
-                active = i == len(self.code)
-                pygame.draw.rect(screen, rgb(PHOSPHOR), (bx, y - 2, 9, BIG_H + 4), 1 + active)
-                ch = self.code[i] if i < len(self.code) else LETTERS[self.letter] if active else "_"
-                self._put(screen, ch, bx + 2, y)
-                if active:                                     # little up / down arrows
-                    screen.fill(rgb(PHOSPHOR), (bx + 4, y - 6, 1, 1))
-                    screen.fill(rgb(PHOSPHOR), (bx + 3, y - 5, 3, 1))
-                    screen.fill(rgb(PHOSPHOR), (bx + 3, y + BIG_H + 4, 3, 1))
-                    screen.fill(rgb(PHOSPHOR), (bx + 4, y + BIG_H + 5, 1, 1))
-            self._put(screen, "UP/DN: LETTER   LEFT: BACK", X0 + w + 50, y)
-            return
         msg, left = self.flash
         row = rows[self.sel]
         if left > 0:
@@ -752,6 +770,38 @@ class FileTerminal:
             self._put(screen, "BUTTON: BACK TO THEORIES" if row == "UP" else
                       "BUTTON: TYPE A CODE" if row == "CODE" else "BUTTON: OPEN", X0, y)
         self._draw_hold_hint(screen)
+
+    def _draw_code(self, screen, time: float) -> None:
+        """UNLOCK.EXE: ENTER PASSWORD and three big letter slots, the current one rolling."""
+        self._header(screen, "UNLOCK.EXE")
+        title = self.text.get("ENTER PASSWORD", PHOSPHOR, 2, big=True)
+        screen.blit(title, (SW // 2 - title.get_width() // 2, 30))
+        if self.denied > 0:
+            if int(time * 4) % 2 == 0:
+                img = self.text.get("ACCESS DENIED", PHOSPHOR, 2, big=True)
+                screen.blit(img, (SW // 2 - img.get_width() // 2, 80))
+            self._footer(screen, "TRY AGAIN")
+            return
+        slot_w, gap, top = 22, 10, 74
+        x0 = SW // 2 - (3 * slot_w + 2 * gap) // 2
+        bob = int(time * 4) % 2                                   # the arrows nudge in and out
+        hi = rgb(PHOSPHOR)
+        for i in range(3):
+            x = x0 + i * (slot_w + gap)
+            here = i == len(self.code)
+            ch = self.code[i] if i < len(self.code) else LETTERS[self.letter] if here else ""
+            if ch:
+                img = self.text.get(ch, PHOSPHOR, 2, big=True)
+                screen.blit(img, (x + (slot_w - img.get_width()) // 2, top))
+            screen.fill(rgb(PHOSPHOR if here else PHOSPHOR_DIM), (x, top + 18, slot_w, 1 + here))
+            if here:                                              # arrows above and below: up and down roll it
+                mx = x + slot_w // 2
+                for k in range(4):
+                    screen.fill(hi, (mx - k, top - 8 - bob + k, 2 * k + 1, 1))
+                    screen.fill(hi, (mx - k, top + 26 + bob - k, 2 * k + 1, 1))
+        for i, line in enumerate(("STICK UP / DOWN: CHANGE THE LETTER", "BUTTON: SELECT LETTER")):
+            self._put(screen, line, SW // 2 - big_width(line) // 2, 116 + i * LINE)
+        self._footer(screen, "LEFT: BACK")
 
     def _draw_hold_hint(self, screen) -> None:
         """HOLD: EXIT at the right of the footer, with a bar filling up while the button's held."""

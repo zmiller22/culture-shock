@@ -8,7 +8,8 @@ life begins. Push the button to boot it: the camera dives into the CRT, the
 lab welcomes you as its next visitor, and you sign in with a 1-4 letter name,
 arcade high-score style. Then the genesis program runs: code pours down the
 screen and it zooms out from the Earth to the edge of everything (see
-intro.py), where you form as a spirit. To get a body you spit in the jar
+intro.py), where you form as a spirit. WE KNOW LIFE STARTS WITH DNA, says the
+lab's evidence board (board.py), so to get a body you spit in the jar
 (Spit Kit, theory SPLICER): it reads your DNA, asks a behavioral survey, and
 splices you a creature. That creature walks the theory map (see worldmap.py): every theory is a tile playing a
 clip of its simulation, joined by paths you float along. Pick one, get
@@ -29,9 +30,14 @@ holding the button, or letting it run out, goes back to the start screen for
 the next visitor. Because of the hold, menus act when the button is let go.
 
 Win a simulation and the theory is CONFIRMED; lose and it's REFUTED. The
-terminal keeps score for the session.
+terminal keeps score for the session. Test every theory and the lab says
+CONGRATULATIONS! and lets slip that OOH IS THE ANSWER: typed into UNLOCK.EXE in
+the file system, it plays the OOH sequence (see ooh.py).
 
-SYSTEM FILES, at the left end of the map, opens the lab's
+EXIT, down the right of the map, asks ARE YOU SURE YOU WANT TO EXIT? and holding
+the button goes back to the start screen for the next visitor.
+
+SYSTEM FILES, down the left of the map, opens the lab's
 file drawer (see files.py): notebooks, photos of experiments gone wrong, and
 locked files whose 3-letter codes are hidden around the room.
 """
@@ -58,8 +64,9 @@ from . import art
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT, SCREEN
 from .activity import ActivityLog, enabled_by_env
 from .files import FileTerminal
+from .board import Board
 from .intro import Cosmos, Rain
-from .worldmap import COLS, FILES, FILES_RECT, TILE_H, TILE_W, VOID, WorldMap, tile_at, tile_rect
+from .worldmap import COLS, EXIT, EXIT_RECT, FILES, FILES_RECT, TILE_H, TILE_W, VOID, WorldMap, tile_at, tile_rect
 
 # -- tuning ------------------------------------------------------------------------
 TYPE_RATE = 70.0           # characters/s the terminal types at
@@ -83,6 +90,7 @@ IDLE_PROMPT = 20.0         # s of nobody touching anything before the "still the
 IDLE_COUNTDOWN = 60        # s it counts down from before it goes back to the start screen
 HOLD_TO_EXIT = 1.5         # s of holding the button on the countdown to go back to the start screen
 MENU_HOLD = 0.8            # s of holding the button on a menu to bring the countdown up (menus act on release)
+LEAVE_HOLD = 1.5           # s of holding the button on the EXIT tile's ARE YOU SURE? to leave
 HOLD_ANYWHERE = 2.5        # s of holding the button anywhere else, mini-games too, to bring the countdown up
 REEL_IDLE, REEL_FAST = 90.0, 900.0      # degrees/s
 DIVE = (SCREEN[0], SCREEN[1] + 7, SCREEN[2], SCREEN[2] * 9 // 16)     # the part of the glass the camera dives into
@@ -92,12 +100,20 @@ SIGN_IN_LINES = ["WELCOME TO THE LIFE LAB, VISITOR {num}!", "",
 JOURNEY_LINES = ["OUR JOURNEY STARTS", "AT THE VERY BEGINNING..."]
 JOURNEY_TIME = 4.0         # s on the journey screen before the genesis program runs (the button skips it)
 SPIRIT_LINES = ["YOU ARE A SPIRIT!", "BUT HOW DO YOU", "BECOME A LIFE?"]
+DNA_LINES = ["WE KNOW LIFE", "STARTS WITH DNA."]
+DNA_HOLD = 1.5             # s the DNA line stays up once it's typed, before the evidence board
+BOARD_WAIT = 6.0           # s on the pulled-back board before it moves on by itself
+BOARD_CAPTION = "WE'RE PRETTY SURE."
+# once every theory's been tested: the lab's thanks, and the answer to type into UNLOCK.EXE (see ooh.py)
+FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF OUR KNOWLEDGE.", "",
+                  "WHAT YOU LEARNED...", "OOH IS THE ANSWER.", "",
+                  "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
 # the tour of the map, the first time on it: what to light up, and what to say
 TUTORIAL = [
     ("tiles", ("EACH TILE IS A SIMULATION OF ONE", "THEORY OF HOW LIFE BEGINS.")),
     ("move", ("PUSH THE STICK TO FLOAT FROM", "TILE TO TILE. GO ON, TRY IT.")),
     ("labels", ("PRESS THE BUTTON TO JUMP IN. WIN AND", "THE THEORY IS CONFIRMED. LOSE: REFUTED.")),
-    ("files", ("SYSTEM FILES IS THE LAB'S FILE DRAWER.", "SOME OF IT IS LOCKED. LOOK AROUND.")),
+    ("files", ("WAIT... WHAT IS THIS?",)),
     ("exit", ("HOLD DOWN A BUTTON AT ANY TIME", "TO OPEN THE EXIT MENU.")),
 ]
 
@@ -254,7 +270,8 @@ def theories(mute: bool = False) -> list[Theory]:
     ]
 
 
-FILES_BLURB = ("THE LAB'S FILE DRAWER. MOSTLY", "NOTEBOOKS. SOME OF IT IS LOCKED.")
+FILES_BLURB = ("WAIT... WHAT IS THIS?",)
+EXIT_BLURB = ("LEAVE THE LIFE LAB.", "THE NEXT VISITOR IS WAITING.")
 SPLICER = "05"             # the theory that gives the spirit its body (Spit Kit), played before the map
 AVATAR_FEET = 20           # px below a tile's middle that the new body stands on the map
 VERDICT = {"win": "CONFIRMED", "lose": "REFUTED", None: "UNTESTED", "?": "INCONCLUSIVE"}
@@ -361,7 +378,8 @@ class LifeSim:
     title = "THEORIES OF LIFE"
 
     def __init__(self, skip_boot: bool = False, mute: bool = False, seed: int | None = None,
-                 record: bool = True, log_activity: bool = False, idle_exit: bool = True) -> None:
+                 record: bool = True, log_activity: bool = False, idle_exit: bool = True,
+                 played_all: bool = False) -> None:
         global _ART
         _ART = _ART or Art()
         self.art = _ART
@@ -374,6 +392,9 @@ class LifeSim:
         self.avatar: dict[str, dict[int, list[pygame.Surface]]] | None = None   # the body they got, for the map
         self.facing = 1
         self.results: dict[str, list[str]] = {t.code: [] for t in self.theories}
+        self.frontier_shown = False             # the CONGRATULATIONS! screen comes up once a session
+        if played_all:                          # testing: as if every theory's been played already
+            self.results = {code: ["?"] for code in self.results}
         self.map = WorldMap([t.code for t in self.theories])
         self.result: str | None = None
         self.done = False
@@ -411,12 +432,17 @@ class LifeSim:
         self.armed = True                       # False: opened by a held button, waiting for it to let go
         self.press: float | None = None         # s the button's been down on a menu
         self.long_press: float | None = None    # s the button's been down anywhere else (since it went down)
+        self.leave_hold: float | None = None    # s the button's been held on the EXIT tile's ARE YOU SURE?
         self.hold_exit = skip_boot              # holding anywhere only exits once they've reached the map
-        self._go("hub" if skip_boot else "off")
+        if skip_boot and played_all:            # straight to the CONGRATULATIONS! screen
+            self.frontier_shown = True
+            self._go("frontier")
+        else:
+            self._go("hub" if skip_boot else "off")
 
     @property
     def sel(self) -> int:
-        """The map node the spirit's on: a theory's index, or FILES."""
+        """The map node the body's on: a theory's index, FILES or EXIT."""
         return self.map.sel
 
     # -- phases --------------------------------------------------------------------
@@ -433,6 +459,10 @@ class LifeSim:
             self.typer = Typer([s.format(num=f"{self.visitor:04d}") for s in SIGN_IN_LINES])
         elif phase == "journey":
             self.typer = Typer(JOURNEY_LINES, rate=24, pause=0.5)
+        elif phase == "dnafact":
+            self.typer = Typer(DNA_LINES, rate=24, pause=0.4)
+        elif phase == "board":
+            self.board = Board()
         elif phase == "spirit":                 # after the big bang the spirit comes together
             self.typer = Typer(SPIRIT_LINES, rate=30, pause=0.6)
             self.motes = [[math.cos(a) * r, math.sin(a) * r * 0.6, self.rng.uniform(0.5, 1.0)]
@@ -451,12 +481,14 @@ class LifeSim:
             else:
                 lines += [f"THEORIES TESTED: {len(tested)} OF {len(self.theories)}"]
             self.typer = Typer(lines)
+        elif phase == "frontier":
+            self.typer = Typer(FRONTIER_LINES, rate=30, pause=0.6)
 
     # -- the "still there?" countdown -----------------------------------------------------
     def _idle_paused(self) -> bool:
         """Times nobody is expected to touch anything: the start screen, the boot
         sequence, loading a tape, a rick roll, or a mini-game's own cut-scene."""
-        if self.phase in ("off", "dive", "journey", "rain", "cosmos", "load"):
+        if self.phase in ("off", "dive", "journey", "dnafact", "rain", "cosmos", "load"):
             return True
         if self.phase == "files":
             return self.term.playing
@@ -539,7 +571,7 @@ class LifeSim:
         """Off the menus, once they've reached the map, holding the button down for
         HOLD_ANYWHERE brings the countdown up, whatever's going on: a cut-scene, a mini-game.
         True means it just came up. The game still sees the button as usual."""
-        if not self.hold_exit or self.press is not None or self.countdown is not None:
+        if not self.hold_exit or self.press is not None or self.countdown is not None or self.phase == "leave":
             self.long_press = None
             return False
         if inp.action:
@@ -625,7 +657,8 @@ class LifeSim:
                 self._go("return")
             return
 
-        if self.phase in ("load", "return", "summon", "journey") or self.phase == "spirit" and self.phase_t > SUMMON_FORM:
+        if self.phase in ("load", "return", "frontier", "summon", "journey", "dnafact") or \
+                self.phase == "spirit" and self.phase_t > SUMMON_FORM:
             self.typer.update(dt)
 
         if self.phase == "off":
@@ -668,11 +701,19 @@ class LifeSim:
             if inp.action and self.phase_t > SUMMON_FORM:
                 if not self.typer.done:
                     self.typer.finish()
-                else:                               # off to get a body: spit in the jar
-                    self.sim_theory = self.splicer
-                    self.activity("theory_start", theory=self.splicer.code)
-                    self.sim = self.splicer.make()
-                    self._go("sim")
+                else:
+                    self._go("dnafact")
+        elif self.phase == "dnafact":                   # WE KNOW LIFE STARTS WITH DNA.
+            if inp.action and not self.typer.done:
+                self.typer.finish()
+            elif self.typer.done and (inp.action or self.typer.t > self.typer.end + DNA_HOLD):
+                self._go("board")
+        elif self.phase == "board":                     # ...the evidence
+            self.board.update(dt)
+            if inp.action and not self.board.settled:
+                self.board.skip()                       # straight to the whole board
+            elif inp.action or self.board.since_settled > BOARD_WAIT:
+                self._start_splicer()
         elif self.phase == "hub" and self.tutorial is not None:
             self._tutorial(dt, inp)
         elif self.phase == "hub":
@@ -682,8 +723,23 @@ class LifeSim:
                     self.term.open()
                     self.activity("files_open")
                     self._go("files")
+                elif self.sel == EXIT:
+                    self.leave_hold = None
+                    self._go("leave")
                 else:
                     self._go("load")
+        elif self.phase == "leave":                     # ARE YOU SURE YOU WANT TO EXIT?
+            if inp.action:
+                self.leave_hold = 0.0
+            elif self.leave_hold is not None:
+                if inp.held:
+                    self.leave_hold += dt
+                    if self.leave_hold >= LEAVE_HOLD:
+                        self._back_to_start("exit_tile")
+                else:
+                    self.leave_hold = None              # let go too soon: still here
+            if (inp.x or inp.y) and self.leave_hold is None:
+                self._go("hub")                         # the stick: stay
         elif self.phase == "files":
             self.term.update(dt, inp)
             if self.term.closed:
@@ -697,11 +753,23 @@ class LifeSim:
                 self._go("sim")
         elif self.phase == "return":
             if inp.action and self.phase_t > CRT_ON_TIME + 0.5:
-                if self.typer.done:
+                if not self.typer.done:
+                    self.typer.finish()
+                elif all(self.results.values()) and not self.frontier_shown:   # every theory tested
+                    self.frontier_shown = True
+                    self.activity("frontier")
+                    self._go("frontier")
+                else:
                     self.map.place(self.theories.index(self.last[0]))
                     self._go("hub")
-                else:
+        elif self.phase == "frontier":                  # CONGRATULATIONS! ... OOH IS THE ANSWER.
+            if inp.action and self.phase_t > 0.5:
+                if not self.typer.done:
                     self.typer.finish()
+                else:
+                    if self.last:
+                        self.map.place(self.theories.index(self.last[0]))
+                    self._go("hub")
 
     # -- drawing -----------------------------------------------------------------------
     def draw(self, screen: pygame.Surface) -> None:
@@ -717,14 +785,24 @@ class LifeSim:
             self._draw_journey(screen)
         elif self.phase == "spirit":
             self._draw_spirit_formed(screen)
+        elif self.phase == "dnafact":
+            screen.fill(VOID)
+            self._centre_lines(screen, self.typer, 66, 22, scale=2)
+            screen.blit(self.art.scanlines, (0, 0))
+        elif self.phase == "board":
+            self._draw_board(screen)
         elif self.phase == "files":                       # the file system takes the whole screen
             self.term.draw(screen, self.text, self.time)
         elif self.phase == "hub":
             self._draw_map(screen)
+        elif self.phase == "leave":
+            self._draw_leave(screen)
         elif self.phase == "load":
             self._draw_load(screen)
         elif self.phase == "return":
             self._draw_return(screen)
+        elif self.phase == "frontier":
+            self._draw_frontier(screen)
         elif self.phase == "rain":
             self._draw_genesis(screen)
         elif self.phase == "dive":
@@ -896,6 +974,23 @@ class LifeSim:
             screen.blit(s, (art.W // 2 - s.get_width() // 2, 162))
         screen.blit(self.art.scanlines, (0, 0))
 
+    def _draw_board(self, screen: pygame.Surface) -> None:
+        """The evidence board, then WE'RE PRETTY SURE. once the camera's pulled back."""
+        self.board.draw(screen)
+        k = min(1.0, self.phase_t / 0.4)
+        if k < 1:                                          # in from black
+            v = int(255 * k)
+            screen.fill((v, v, v), special_flags=pygame.BLEND_MULT)
+        if self.board.settled:
+            s = self.text.get(BOARD_CAPTION, PHOSPHOR, 2, big=True)
+            box = s.get_rect(center=(art.W // 2, art.H - 24)).inflate(16, 10)
+            screen.fill(rgb(CRT_BG), box)
+            pygame.draw.rect(screen, rgb(PHOSPHOR), box, 1)
+            screen.blit(s, (box.x + 8, box.y + 5))
+            if int(self.time * 2) % 2 == 0:
+                p = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
+                screen.blit(p, (art.W - 6 - p.get_width(), art.H - 10))
+
     def _draw_dance(self, screen: pygame.Surface, x: float, y: float, scale: float, t: float) -> None:
         """A little dance, four moves round and round on a beat: sway, hop, spin, sway back."""
         if scale <= 0.05:
@@ -956,10 +1051,15 @@ class LifeSim:
         for i, word in enumerate(("SYSTEM", "FILES")):
             s = self.text.get(word, PHOSPHOR if self.sel == FILES else PHOSPHOR_DIM, big=True)
             screen.blit(s, (FILES_RECT.centerx - s.get_width() // 2, FILES_RECT.top + 56 + i * 10))
+        m.draw_exit(screen, self.time, lit=self.sel == EXIT and not m.moving)
+        s = self.text.get("EXIT", PHOSPHOR if self.sel == EXIT else PHOSPHOR_DIM, big=True)
+        screen.blit(s, (EXIT_RECT.centerx - s.get_width() // 2, EXIT_RECT.top + 61))
         self._header(screen, f"VISITOR {self.visitor:04d} {self.name}")
         if info and not m.moving and self.tutorial is None:
             if self.sel == FILES:
                 title, blurb, tag = "SYSTEM FILES", FILES_BLURB, "C:\\> FILES"
+            elif self.sel == EXIT:
+                title, blurb, tag = "EXIT", EXIT_BLURB, ""
             else:
                 t = self.theories[self.sel]
                 title, blurb, tag = t.name, t.blurb, ("2 PLAYERS   " if t.players == "2P" else "") + f"TAPE {t.code}"
@@ -987,6 +1087,28 @@ class LifeSim:
             v = int(255 * k)
             screen.fill((v, v, v), special_flags=pygame.BLEND_MULT)
 
+    def _draw_leave(self, screen: pygame.Surface) -> None:
+        """ARE YOU SURE YOU WANT TO EXIT? over the map, with a bar while the button's held."""
+        self._draw_map(screen, info=False)
+        screen.fill((80, 80, 80), special_flags=pygame.BLEND_MULT)
+        box = pygame.Rect(art.W // 2 - 120, art.H // 2 - 40, 240, 80)
+        screen.fill(rgb(CRT_BG), box)
+        pygame.draw.rect(screen, rgb(PHOSPHOR), box, 1)
+        pygame.draw.rect(screen, rgb(PHOSPHOR_FAINT), box.inflate(-4, -4), 1)
+
+        def centre(s: pygame.Surface, y: int) -> None:
+            screen.blit(s, (box.centerx - s.get_width() // 2, y))
+
+        centre(self.text.get("ARE YOU SURE YOU", PHOSPHOR, 2, big=True), box.y + 8)
+        centre(self.text.get("WANT TO EXIT?", PHOSPHOR, 2, big=True), box.y + 26)
+        k = min(1.0, (self.leave_hold or 0.0) / LEAVE_HOLD)
+        if int(self.time * 2.5) % 2 == 0 or k > 0:
+            centre(self.text.get("HOLD ANY BUTTON TO EXIT", PHOSPHOR, big=True), box.y + 48)
+        bw = box.w - 40
+        screen.fill(rgb(PHOSPHOR_FAINT), (box.x + 20, box.y + 59, bw, 3))
+        screen.fill(rgb("#eaffea"), (box.x + 20, box.y + 59, int(bw * k), 3))
+        centre(self.text.get("STICK: STAY", PHOSPHOR_DIM), box.y + 68)
+
     # -- the tour of the map ------------------------------------------------------------
     def _walk(self, dt: float, inp: Input) -> None:
         """Move on the map, turning the body to face where it's going."""
@@ -994,6 +1116,13 @@ class LifeSim:
         if self.map.target is not None:
             dx = tile_rect(self.map.target).centerx - self.map.pos[0]
             self.facing = 1 if dx > 0 else -1 if dx < 0 else self.facing
+
+    def _start_splicer(self) -> None:
+        """Off to get a body: spit in the jar."""
+        self.sim_theory = self.splicer
+        self.activity("theory_start", theory=self.splicer.code)
+        self.sim = self.splicer.make()
+        self._go("sim")
 
     def _take_body(self, kit) -> None:
         """Spit Kit's done: keep the creature it spliced to walk the
@@ -1042,12 +1171,12 @@ class LifeSim:
         if what == "tiles":
             return [grid.inflate(6, 6)]
         if what == "move":
-            return [grid.union(FILES_RECT).inflate(6, 6)]
+            return [grid.union(FILES_RECT).union(EXIT_RECT).inflate(6, 6)]
         if what == "labels":
             return [pygame.Rect(tile_at(i)[0] - 2, tile_at(i)[1] + TILE_H + 1, TILE_W + 4, 9) for i in range(n)] + \
-                [tile_rect(self.sel).inflate(6, 6)] * (self.sel != FILES)
+                [tile_rect(self.sel).inflate(6, 6)] * (self.sel >= 0)
         if what == "exit":
-            return [pygame.Rect(art.W - 52, 166, 48, 11)]
+            return [EXIT_RECT.inflate(6, 6), pygame.Rect(art.W - 52, 166, 48, 11)]
         return [FILES_RECT.inflate(6, 6)]
 
     def _draw_tutorial(self, screen: pygame.Surface) -> None:
@@ -1120,6 +1249,20 @@ class LifeSim:
             self._draw_body(screen, art.W - 40, 172, "idle", 2.0)
         if self.phase_t < CRT_ON_TIME:
             self._squash(screen, 1.0 - self.phase_t / CRT_ON_TIME)
+
+    def _draw_frontier(self, screen: pygame.Surface) -> None:
+        """Every theory tested: CONGRATULATIONS!, big, then the hint about OOH."""
+        self._draw_void(screen)
+        self._header(screen, "PROGRAM: RESEARCH EXPLORATION")
+        for i, line in enumerate(self.typer.visible()):
+            if line:
+                scale = 2 if i == 0 else 1
+                x = art.W // 2 - big_width(self.typer.lines[i]) * scale // 2
+                screen.blit(self.text.get(line, PHOSPHOR, scale, big=True), (x, 22 if i == 0 else 30 + i * 11))
+        if self.typer.done and int(self.time * 2) % 2 == 0:
+            s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
+            screen.blit(s, (art.W // 2 - s.get_width() // 2, 162))
+        screen.blit(self.art.scanlines, (0, 0))
 
     def _squash(self, screen: pygame.Surface, k: float) -> None:
         """An old tube switching off: k=0 is the picture, then a bright line, then a dot, then dark at 1."""
@@ -1248,6 +1391,9 @@ def main() -> None:
     ap.add_argument("--skip-boot", action="store_true", help="skip the boot and the intro: straight to the theory menu")
     ap.add_argument("--mute", action="store_true", help="no sound in the simulations that have it")
     ap.add_argument("--seed", type=int)
+    ap.add_argument("--played-all", action="store_true",
+                    help="testing: as if every theory's been played. With --skip-boot it opens on the "
+                         "CONGRATULATIONS! screen; otherwise it comes up after the next result")
     ap.add_argument("--ticks", type=int, help="quit after this many frames (testing)")
     ap.add_argument("--screenshot", help="save the last frame here (with --ticks)")
     ap.add_argument("--log-activity", action="store_true",
@@ -1255,7 +1401,8 @@ def main() -> None:
     args = ap.parse_args()
     record = not args.demo and args.ticks is None
     run(lambda: LifeSim(skip_boot=args.skip_boot, mute=args.mute, seed=args.seed, record=record,
-                        log_activity=args.log_activity, idle_exit=not args.demo), "Theories of Life",
+                        log_activity=args.log_activity, idle_exit=not args.demo,
+                        played_all=args.played_all), "Theories of Life",
         scale=args.scale, fullscreen=args.fullscreen, autopilot=autopilot if args.demo else None,
         max_ticks=args.ticks, screenshot=args.screenshot)
 

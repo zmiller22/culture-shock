@@ -30,11 +30,14 @@ VOID = (4, 6, 14)
 
 COLS = 2
 GRID_Y, GAP_X, GAP_Y = 22, 8, 15
-FILES_W, FILES_GAP = 54, 12
-# the files tile and the grid, centred together
-GRID_X = (320 - (FILES_W + FILES_GAP + COLS * TILE_W + (COLS - 1) * GAP_X)) // 2 + FILES_W + FILES_GAP
-FILES = -1                      # the SYSTEM FILES tile; theories are 0, 1, 2...
+FILES_W, FILES_GAP = 54, 12      # the tall tiles either side of the grid, and the gap to it
+GRID_W = COLS * TILE_W + (COLS - 1) * GAP_X
+# SYSTEM FILES, the grid and EXIT, centred together
+GRID_X = (320 - (2 * (FILES_W + FILES_GAP) + GRID_W)) // 2 + FILES_W + FILES_GAP
+FILES = -1                      # the SYSTEM FILES tile, down the left; theories are 0, 1, 2...
+EXIT = -2                       # the EXIT tile, down the right
 FILES_RECT = pygame.Rect(GRID_X - FILES_GAP - FILES_W, GRID_Y, FILES_W, 2 * TILE_H + GAP_Y)
+EXIT_RECT = pygame.Rect(GRID_X + GRID_W + FILES_GAP, GRID_Y, FILES_W, 2 * TILE_H + GAP_Y)
 
 
 def rgb(c: str) -> tuple[int, int, int]:
@@ -48,7 +51,11 @@ def tile_at(i: int) -> tuple[int, int]:
 
 
 def tile_rect(node: int) -> pygame.Rect:
-    return FILES_RECT if node == FILES else pygame.Rect(*tile_at(node), TILE_W, TILE_H)
+    if node == FILES:
+        return FILES_RECT
+    if node == EXIT:
+        return EXIT_RECT
+    return pygame.Rect(*tile_at(node), TILE_W, TILE_H)
 
 
 def load_preview(code: str) -> list[pygame.Surface]:
@@ -67,7 +74,7 @@ class WorldMap:
     def __init__(self, codes: list[str]) -> None:
         self.n = len(codes)
         self.previews = [load_preview(c) for c in codes]
-        self.row = 0                    # the grid row the spirit left by, to come back to it from the files
+        self.row = 0                    # the grid row it left by, to come back to it from FILES or EXIT
         self.place(0)
 
     @property
@@ -81,9 +88,13 @@ class WorldMap:
     def neighbour(self, node: int, dx: int, dy: int) -> int | None:
         if node == FILES:
             return min(self.row * COLS, self.n - 1) if dx > 0 else None
+        if node == EXIT:
+            return min(self.row * COLS + COLS - 1, self.n - 1) if dx < 0 else None
         c, r = node % COLS + dx, node // COLS + dy
         if c < 0:
             return FILES
+        if c >= COLS:
+            return EXIT
         nxt = r * COLS + c
         return nxt if 0 <= c < COLS and 0 <= nxt < self.n and r >= 0 else None
 
@@ -93,7 +104,7 @@ class WorldMap:
             d = (inp.x, 0) if inp.x else (0, inp.y) if inp.y else None
             nxt = self.neighbour(self.sel, *d) if d else None
             if nxt is not None:
-                if nxt == FILES:
+                if nxt in (FILES, EXIT):
                     self.row = self.sel // COLS
                 self.target = nxt
             return
@@ -160,6 +171,20 @@ class WorldMap:
             screen.fill(col, (x + w // 2 - 3, dy + 3, 6, 1))           # the handle
         screen.fill(col, (x + 2, y + h, 3, 2))                          # feet
         screen.fill(col, (x + w - 5, y + h, 3, 2))
+        self._frame(screen, r, t, lit)
+
+    def draw_exit(self, screen: pygame.Surface, t: float, lit: bool) -> None:
+        """A tall tile with a door in it, ajar."""
+        r = EXIT_RECT
+        screen.fill(rgb(CRT_BG), r)
+        col = rgb(PHOSPHOR if lit else PHOSPHOR_DIM)
+        w, h = 22, 34
+        x, y = r.centerx - w // 2, r.top + 10
+        pygame.draw.rect(screen, col, (x, y, w, h), 1)                           # the frame
+        pygame.draw.polygon(screen, col, [(x + 1, y + 1), (x + 15, y + 4), (x + 15, y + h - 2), (x + 1, y + h - 1)], 1)
+        screen.fill(col, (x + 12, y + h // 2, 2, 2))                             # the knob
+        for k in range(3):                                                       # an arrow out the door
+            screen.fill(col, (x + w + 3 + k, y + h // 2 - (2 - k), 1, 2 * (2 - k) + 1))
         self._frame(screen, r, t, lit)
 
     def _frame(self, screen: pygame.Surface, r: pygame.Rect, t: float, lit: bool) -> None:
