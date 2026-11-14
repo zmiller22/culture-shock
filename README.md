@@ -595,7 +595,7 @@ at opposite corners of a maze of fleshy tubes and have to find each other.
 Every round is a new maze: mirrored left to right, with no dead ends, a pen in
 the middle, and a wrap-around tunnel on each side.
 
-Each round opens with a sixteen-second intro on an empty screen, before the
+Each round opens with a twenty-second intro on an empty screen, before the
 how-to-play pages. A fallopian tube and ovary slide in on the left and a penis
 on the right. The ovary releases the egg (*OVULATION!*), and she rolls up the
 tube and out into the open. The penis throbs and shoots the sperm (*SPLOOSH!*)

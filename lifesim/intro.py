@@ -195,7 +195,11 @@ def build_levels() -> list[Level]:
               props=[Prop(stork_frames, cx, cy, size=0.32, orbit=(62, 40))]),
         Level(_surf(sa.solar_level()), scale="1E+13 M", hold=4.5 / ZOOM_TEMPO,
               labels=[(*sa.URANUS, -(sa.CHEEK_R + 1), "URANUS", ""),
-                      (*sa.SUN, 13, "THE SUN", "")]),
+                      (*sa.SUN, 13, "THE SUN", "")] +
+                     # every other planet is just balls (radius: + label below it, - above)
+                     [(*sa.AT[name], r, "BALLS", "") for name, r in
+                      (("mercury", -3), ("venus", 4), ("mars", -4), ("jupiter", 8), ("saturn", -5),
+                       ("neptune", -5))] + [(cx, cy, -4, "BALLS", "")]),
         Level(_surf(sa.milky_way_level()), scale="1E+21 M", hold=4.5 / ZOOM_TEMPO, fade_out=True,
               labels=[(sa.CX + 2, sa.BOOBS[0][1], 36, "THE MILKY WAY", ""),
                       (*sa.YOU_ARE_HERE, -3, "YOU ARE HERE", "V")]),
@@ -436,5 +440,5 @@ class Cosmos:
         screen.blit(s, (W - 4 - s.get_width(), 3))
         i = min(len(self.levels) - 1, int(self.z + 0.5))
         screen.blit(self._label(f"SCALE: {self.levels[i].scale}", PHOSPHOR), (4, H - 9))
-        s = self._label("BUTTON: SKIP", PHOSPHOR_FAINT)
+        s = self._label("BUTTON: SKIP", PHOSPHOR_DIM)          # the same shade as the top corners
         screen.blit(s, (W - 4 - s.get_width(), H - 9))

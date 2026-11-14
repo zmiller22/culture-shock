@@ -8,7 +8,8 @@ life begins. Push the button to boot it: the camera dives into the CRT, the
 lab welcomes you as its next visitor, and you sign in with a 1-4 letter name,
 arcade high-score style. Then the genesis program runs: code pours down the
 screen and it zooms out from the Earth to the edge of everything (see
-intro.py), where you form as a spirit. To get a body you spit in the jar
+intro.py), where you form as a spirit. WE KNOW LIFE STARTS WITH DNA, says the
+lab's evidence board (board.py), so to get a body you spit in the jar
 (Spit Kit, theory SPLICER): it reads your DNA, asks a behavioral survey, and
 splices you a creature. That creature walks the theory map (see worldmap.py): every theory is a tile playing a
 clip of its simulation, joined by paths you float along. Pick one, get
@@ -58,6 +59,7 @@ from . import art
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT, SCREEN
 from .activity import ActivityLog, enabled_by_env
 from .files import FileTerminal
+from .board import Board
 from .intro import Cosmos, Rain
 from .worldmap import COLS, FILES, FILES_RECT, TILE_H, TILE_W, VOID, WorldMap, tile_at, tile_rect
 
@@ -92,12 +94,16 @@ SIGN_IN_LINES = ["WELCOME TO THE LIFE LAB, VISITOR {num}!", "",
 JOURNEY_LINES = ["OUR JOURNEY STARTS", "AT THE VERY BEGINNING..."]
 JOURNEY_TIME = 4.0         # s on the journey screen before the genesis program runs (the button skips it)
 SPIRIT_LINES = ["YOU ARE A SPIRIT!", "BUT HOW DO YOU", "BECOME A LIFE?"]
+DNA_LINES = ["WE KNOW LIFE", "STARTS WITH DNA."]
+DNA_HOLD = 1.5             # s the DNA line stays up once it's typed, before the evidence board
+BOARD_WAIT = 6.0           # s on the pulled-back board before it moves on by itself
+BOARD_CAPTION = "WE'RE PRETTY SURE."
 # the tour of the map, the first time on it: what to light up, and what to say
 TUTORIAL = [
     ("tiles", ("EACH TILE IS A SIMULATION OF ONE", "THEORY OF HOW LIFE BEGINS.")),
     ("move", ("PUSH THE STICK TO FLOAT FROM", "TILE TO TILE. GO ON, TRY IT.")),
     ("labels", ("PRESS THE BUTTON TO JUMP IN. WIN AND", "THE THEORY IS CONFIRMED. LOSE: REFUTED.")),
-    ("files", ("SYSTEM FILES IS THE LAB'S FILE DRAWER.", "SOME OF IT IS LOCKED. LOOK AROUND.")),
+    ("files", ("WAIT... WHAT IS THIS?",)),
     ("exit", ("HOLD DOWN A BUTTON AT ANY TIME", "TO OPEN THE EXIT MENU.")),
 ]
 
@@ -254,7 +260,7 @@ def theories(mute: bool = False) -> list[Theory]:
     ]
 
 
-FILES_BLURB = ("THE LAB'S FILE DRAWER. MOSTLY", "NOTEBOOKS. SOME OF IT IS LOCKED.")
+FILES_BLURB = ("WAIT... WHAT IS THIS?",)
 SPLICER = "05"             # the theory that gives the spirit its body (Spit Kit), played before the map
 AVATAR_FEET = 20           # px below a tile's middle that the new body stands on the map
 VERDICT = {"win": "CONFIRMED", "lose": "REFUTED", None: "UNTESTED", "?": "INCONCLUSIVE"}
@@ -433,6 +439,10 @@ class LifeSim:
             self.typer = Typer([s.format(num=f"{self.visitor:04d}") for s in SIGN_IN_LINES])
         elif phase == "journey":
             self.typer = Typer(JOURNEY_LINES, rate=24, pause=0.5)
+        elif phase == "dnafact":
+            self.typer = Typer(DNA_LINES, rate=24, pause=0.4)
+        elif phase == "board":
+            self.board = Board()
         elif phase == "spirit":                 # after the big bang the spirit comes together
             self.typer = Typer(SPIRIT_LINES, rate=30, pause=0.6)
             self.motes = [[math.cos(a) * r, math.sin(a) * r * 0.6, self.rng.uniform(0.5, 1.0)]
@@ -456,7 +466,7 @@ class LifeSim:
     def _idle_paused(self) -> bool:
         """Times nobody is expected to touch anything: the start screen, the boot
         sequence, loading a tape, a rick roll, or a mini-game's own cut-scene."""
-        if self.phase in ("off", "dive", "journey", "rain", "cosmos", "load"):
+        if self.phase in ("off", "dive", "journey", "dnafact", "rain", "cosmos", "load"):
             return True
         if self.phase == "files":
             return self.term.playing
@@ -625,7 +635,8 @@ class LifeSim:
                 self._go("return")
             return
 
-        if self.phase in ("load", "return", "summon", "journey") or self.phase == "spirit" and self.phase_t > SUMMON_FORM:
+        if self.phase in ("load", "return", "summon", "journey", "dnafact") or \
+                self.phase == "spirit" and self.phase_t > SUMMON_FORM:
             self.typer.update(dt)
 
         if self.phase == "off":
@@ -668,11 +679,19 @@ class LifeSim:
             if inp.action and self.phase_t > SUMMON_FORM:
                 if not self.typer.done:
                     self.typer.finish()
-                else:                               # off to get a body: spit in the jar
-                    self.sim_theory = self.splicer
-                    self.activity("theory_start", theory=self.splicer.code)
-                    self.sim = self.splicer.make()
-                    self._go("sim")
+                else:
+                    self._go("dnafact")
+        elif self.phase == "dnafact":                   # WE KNOW LIFE STARTS WITH DNA.
+            if inp.action and not self.typer.done:
+                self.typer.finish()
+            elif self.typer.done and (inp.action or self.typer.t > self.typer.end + DNA_HOLD):
+                self._go("board")
+        elif self.phase == "board":                     # ...the evidence
+            self.board.update(dt)
+            if inp.action and not self.board.settled:
+                self.board.skip()                       # straight to the whole board
+            elif inp.action or self.board.since_settled > BOARD_WAIT:
+                self._start_splicer()
         elif self.phase == "hub" and self.tutorial is not None:
             self._tutorial(dt, inp)
         elif self.phase == "hub":
@@ -717,6 +736,12 @@ class LifeSim:
             self._draw_journey(screen)
         elif self.phase == "spirit":
             self._draw_spirit_formed(screen)
+        elif self.phase == "dnafact":
+            screen.fill(VOID)
+            self._centre_lines(screen, self.typer, 66, 22, scale=2)
+            screen.blit(self.art.scanlines, (0, 0))
+        elif self.phase == "board":
+            self._draw_board(screen)
         elif self.phase == "files":                       # the file system takes the whole screen
             self.term.draw(screen, self.text, self.time)
         elif self.phase == "hub":
@@ -896,6 +921,23 @@ class LifeSim:
             screen.blit(s, (art.W // 2 - s.get_width() // 2, 162))
         screen.blit(self.art.scanlines, (0, 0))
 
+    def _draw_board(self, screen: pygame.Surface) -> None:
+        """The evidence board, then WE'RE PRETTY SURE. once the camera's pulled back."""
+        self.board.draw(screen)
+        k = min(1.0, self.phase_t / 0.4)
+        if k < 1:                                          # in from black
+            v = int(255 * k)
+            screen.fill((v, v, v), special_flags=pygame.BLEND_MULT)
+        if self.board.settled:
+            s = self.text.get(BOARD_CAPTION, PHOSPHOR, 2, big=True)
+            box = s.get_rect(center=(art.W // 2, art.H - 24)).inflate(16, 10)
+            screen.fill(rgb(CRT_BG), box)
+            pygame.draw.rect(screen, rgb(PHOSPHOR), box, 1)
+            screen.blit(s, (box.x + 8, box.y + 5))
+            if int(self.time * 2) % 2 == 0:
+                p = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
+                screen.blit(p, (art.W - 6 - p.get_width(), art.H - 10))
+
     def _draw_dance(self, screen: pygame.Surface, x: float, y: float, scale: float, t: float) -> None:
         """A little dance, four moves round and round on a beat: sway, hop, spin, sway back."""
         if scale <= 0.05:
@@ -994,6 +1036,13 @@ class LifeSim:
         if self.map.target is not None:
             dx = tile_rect(self.map.target).centerx - self.map.pos[0]
             self.facing = 1 if dx > 0 else -1 if dx < 0 else self.facing
+
+    def _start_splicer(self) -> None:
+        """Off to get a body: spit in the jar."""
+        self.sim_theory = self.splicer
+        self.activity("theory_start", theory=self.splicer.code)
+        self.sim = self.splicer.make()
+        self._go("sim")
 
     def _take_body(self, kit) -> None:
         """Spit Kit's done: keep the creature it spliced to walk the

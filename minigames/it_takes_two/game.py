@@ -97,7 +97,7 @@ ORGANS_OUT = (3.8, 4.4)
 OH_NO = (4.5, 6.1)               # "OH NO! CONTRACEPTIVES!" and the two of them get shoved apart
 SHOVE = (4.5, 4.9)
 EGG_COWER, SPERM_COWER = (40, 92), (280, 92)    # where they hide while the contraception shows off
-CARDS, CARD = 6.1, 1.9           # each contraceptive's ring entrance, one after another
+CARDS, CARD = 6.1, 3.2           # each contraceptive's ring entrance, one after another
 STAGE = (160, 80)                # where it poses in the spotlight
 LINEUP_Y = 156                   # then it joins the line at the bottom
 DRIFT = (CARDS + 4 * CARD + 0.2, CARDS + 4 * CARD + 1.6)   # everyone off to their places as the camera pulls back
@@ -955,7 +955,7 @@ class ItTakesTwo:
                     if surf is name or u > 0.3:
                         self._blit_fade(screen, surf, W / 2, sy, fade)
                 for j, line in enumerate(lines):
-                    if u > 0.55 + j * 0.25:
+                    if u > 0.7 + j * 0.5:
                         self._blit_fade(screen, line, W / 2, 112 + j * 9, fade)
 
     def _blit_fade(self, screen: pygame.Surface, s: pygame.Surface, cx: float, y: float, fade: float) -> None:
