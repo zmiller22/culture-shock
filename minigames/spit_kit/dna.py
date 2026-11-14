@@ -3,6 +3,7 @@ percentages that add up to 100), then splice a Kronenberg out of it, with the
 body parts shared out by percentage, and roll mutations on top.
 
     profile = roll_profile(rng)               # [Strand("banana_dude", 40), ...]
+    profile = survey_profile(answers, rng)    # the same, steered by the behavioral survey
     you = build_you(profile, rng)             # You: base specimen, mutation steps, final specimen
 
 Pure Python, no pygame, so it can run on a worker thread while the screen
@@ -55,6 +56,33 @@ NICK: dict[str, tuple[str, str]] = {
     "stephen_hawking": ("GENIUS", "BIG BRAIN. HUGE BRAIN."),
 }
 
+# The behavioral analysis survey, asked partway through the analysis. The first
+# two answers each pull a species into the visitor (with the reason the report
+# gives); the colour shades the finished creature.
+# (question, [(answer, species, why), ...])
+SURVEY_SPECIES: list[tuple[str, list[tuple[str, str, str]]]] = [
+    ("FAVORITE ORIFICE?", [
+        ("VAGINA", "dominatrix", "FAVORITE ORIFICE: VAGINA. YOU'RE IN CHARGE NOW."),
+        ("BUTTHOLE", "gimp", "FAVORITE ORIFICE: BUTTHOLE. MMPH. NO JUDGMENT."),
+        ("DICK HOLE", "succubus", "FAVORITE ORIFICE: DICK HOLE. SMALL BUT VERY BAD."),
+        ("BUTTON HOLE", "puppet", "FAVORITE ORIFICE: BUTTON HOLE. ALL SEWN UP."),
+        ("BELLYBUTTON", "crawling_baby", "FAVORITE ORIFICE: BELLYBUTTON. STILL ATTACHED."),
+        ("NOSE (HEHE)", "detective", "FAVORITE ORIFICE: NOSE. A NOSE FOR CLUES."),
+        ("I MAKE MY OWN", "cowboy", "MAKES THEIR OWN HOLES. BLAZES A TRAIL."),
+    ]),
+    ("FAVORITE STRING?", [
+        ("YARN", "spider", "FAVORITE STRING: YARN. SPINS A GOOD ONE."),
+        ("PASTA", "stoner", "FAVORITE STRING: PASTA. HAS THE MUNCHIES."),
+        ("DNA (DUH)", "fly_man", "FAVORITE STRING: DNA. A SCIENTIST. SORT OF."),
+        ("THEORY", "stephen_hawking", "FAVORITE STRING: THEORY. BIG BRAIN. HUGE BRAIN."),
+    ]),
+]
+COLORS: list[tuple[str, str]] = [("RED", "#e83b3b"), ("BLUE", "#4a7dff"), ("GREEN", "#39d353"),
+                                 ("YELLOW", "#ffe14d"), ("PURPLE", "#a24bff"), ("PINK", "#ff6fb5")]
+SURVEY: list[tuple[str, list[str]]] = [(q, [a for a, _, _ in opts]) for q, opts in SURVEY_SPECIES] + \
+    [("FAVORITE COLOR?", [name for name, _ in COLORS])]
+DONORS = 4                                 # species in a visitor who took the survey
+
 TINT_WORDS = {"radioactive": "RADIOACTIVE", "cryo": "FROZEN", "ultraviolet": "ULTRAVIOLET"}
 
 
@@ -62,6 +90,7 @@ TINT_WORDS = {"radioactive": "RADIOACTIVE", "cryo": "FROZEN", "ultraviolet": "UL
 class Strand:
     species: str
     pct: int
+    why: str = ""                          # what in the survey put it there, if anything
 
     @property
     def nick(self) -> str:
@@ -69,7 +98,7 @@ class Strand:
 
     @property
     def diagnosis(self) -> str:
-        return NICK[self.species][1]
+        return self.why or NICK[self.species][1]
 
 
 @dataclass
@@ -117,6 +146,32 @@ def roll_profile(rng: random.Random) -> list[Strand]:
     profile = [Strand(sp, sh * STEP) for sp, sh in zip(species, shares)]
     profile.sort(key=lambda s: -s.pct)
     return profile
+
+
+def survey_profile(answers: list[int], rng: random.Random) -> list[Strand]:
+    """DONORS species: the ones the orifice and string answers pick, with the
+    biggest shares, then randoms to fill. `answers` are option indices into SURVEY."""
+    picked: list[Strand] = []
+    for (_, opts), a in zip(SURVEY_SPECIES, answers):
+        _, species, why = opts[a]
+        if all(p.species != species for p in picked):
+            picked.append(Strand(species, 0, why))
+    others = [sp for sp in sorted(NICK) if all(p.species != sp for p in picked)]
+    picked += [Strand(sp, 0) for sp in rng.sample(others, DONORS - len(picked))]
+    units = 100 // STEP
+    shares = [1] * DONORS
+    weights = [3.0 if p.why else rng.random() ** 2 + 0.3 for p in picked]   # the survey ones run deepest
+    for _ in range(units - DONORS):
+        shares[rng.choices(range(DONORS), weights)[0]] += 1
+    for p, sh in zip(picked, shares):
+        p.pct = sh * STEP
+    picked.sort(key=lambda s: -s.pct)
+    return picked
+
+
+def survey_color(answers: list[int]) -> str:
+    """The favourite colour's hex, from the last answer."""
+    return COLORS[answers[2]][1]
 
 
 def _deal_slots(profile: list[Strand], rng: random.Random) -> dict[str, str]:

@@ -30,7 +30,6 @@ GAMES = {
     "02": ("minigames.primordial_soup.game", "PrimordialSoup", 4.0),
     "03": ("minigames.meet_cute.game", "MeetCute", 8.0),
     "04": ("minigames.womb_rave.game", "WombRave", 5.0),
-    "05": ("minigames.spit_kit.game", "SpitKit", 2.0),
 }
 
 

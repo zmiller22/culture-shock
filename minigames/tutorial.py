@@ -1,25 +1,33 @@
 """How-to-play screen shared by every mini-game: the title, a one-line premise,
-then a few pages that each show one rule with a tiny looping demo built from the
-game's own sprites, plus an arcade stick and button that wiggle and press in
-time with it.
+then a few pages that each teach one thing, built from the game's own sprites,
+with an arcade stick and button in a column on the left.
+
+There are two kinds of page:
+
+- A try-it page has a `trial`: a little live sandbox in the box where the player
+  does the thing the caption says (fly the stork, drop a baby...). Doing it
+  flashes NICE! and the next page slides in. Until they touch anything, the
+  stick and button icons act out what to do; after that they mirror the
+  player's own hands. If nobody manages it in TRY_TIME seconds, it moves on
+  anyway, so no one gets stuck.
+- A show-me page has only a looping `demo` (the rules, the win condition).
+  The button turns it, and it turns on its own after `Page.time` seconds,
+  except the last page, where the button starts the round.
 
 A game builds a Tutorial with its pages, calls update/draw while its title
 phase runs, and starts the round once `done` goes True.
 
-    BUTTON        next page; on the last page, start
-    STICK LEFT    back a page
-Pages also turn on their own after `Page.time` seconds, and stop on the last one.
-
 A page's demo draws into a DEMO_W x DEMO_H surface and returns what the controls
 should be doing at that moment: (stick x, stick y, button down), so the stick
-icon moves exactly when the sprite does.
+icon moves exactly when the sprite does. A trial (see `Trial`) draws the same
+way and returns the same hint.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Protocol
 
 import pygame
 
@@ -32,6 +40,9 @@ DEMO_X, DEMO_Y, DEMO_W, DEMO_H = 74, 32, 238, 104
 PAGE_TIME = 4.5                  # s a page shows before turning on its own
 MIN_SHOW = 0.35                  # s before a press counts (so the button that started the game doesn't skip)
 SLIDE = 0.25                     # s for a page to slide in
+TRY_TIME = 15.0                  # s a try-it page waits for the player to manage it before moving on anyway
+CHEER_TIME = 1.1                 # s the NICE! shows before the next page
+HANDS_OFF = 1.5                  # s after the player last touched anything that the icons go back to hinting
 
 Controls = tuple[int, int, bool]
 Demo = Callable[[pygame.Surface, float], "Controls | list[Controls] | None"]   # a list: one per control icon
@@ -43,12 +54,22 @@ STICK_BALL, STICK_BALL_HI = (232, 59, 59), (255, 150, 140)
 BUTTON, BUTTON_HI, BUTTON_DOWN = (255, 225, 77), (255, 248, 190), (190, 150, 30)
 
 
+class Trial(Protocol):
+    """A try-it sandbox: made fresh each time its page opens."""
+    done: bool                                     # True once the player has done the thing
+    cheer: str                                     # what flashes when they do (e.g. "NICE!")
+
+    def update(self, dt: float, inp: Input) -> None: ...
+    def draw(self, s: pygame.Surface, t: float) -> "Controls | list[Controls] | None": ...
+
+
 @dataclass
 class Page:
-    caption: tuple[str, ...]                       # one or two lines under the demo
-    demo: Demo
+    caption: tuple[str, ...]                       # one or two lines under the box
+    demo: Demo | None = None                       # a show-me page: a looping demo
     controls: tuple[str, ...] = ("stick",)         # icons in the left column: "stick", "button", "stick2", "jar"
     time: float = PAGE_TIME
+    trial: Callable[[], Trial] | None = None       # a try-it page: makes the sandbox
 
 
 @dataclass
@@ -63,7 +84,10 @@ class Tutorial:
     t: float = 0.0                                 # s on this page
     time: float = 0.0                              # s since the screen opened
     done: bool = False
-    held_x: int = 0
+    trial: Trial | None = None                     # the live sandbox on a try-it page
+    cheer_t: float | None = None                   # s since they managed it
+    touched: float = -99.0                         # self.time they last touched a control
+    hands: tuple[Input, ...] = ()                  # this tick's input, per player, for the icons
 
     def __post_init__(self) -> None:
         self.canvas = pygame.Surface((DEMO_W, DEMO_H))
@@ -75,6 +99,8 @@ class Tutorial:
         self._labels = {k: text_surface(v, LAB_DIM) for k, v in self.labels.items()}
         self._next = text_surface("BUTTON: NEXT", LAB_DIM)
         self._start = text_surface("PRESS BUTTON TO START", self.accent)
+        self._try = text_surface("YOUR TURN: TRY IT!", self.accent)
+        self._open()
 
     @property
     def last(self) -> bool:
@@ -84,23 +110,53 @@ class Tutorial:
         self.time += dt
         self.t += dt
         pressed = inp.action or any(p.action for p in inp.players)
-        x = inp.x or next((p.x for p in inp.players if p.x), 0)
+        self.hands = inp.players or (inp,)
+        if inp.x or inp.y or inp.held or pressed or any(p.x or p.y or p.action for p in inp.players):
+            self.touched = self.time
+        if self.trial:
+            if self.cheer_t is not None:
+                self.cheer_t += dt
+                if self.cheer_t >= CHEER_TIME:
+                    self._turn()
+                return
+            if self.t > MIN_SHOW:                  # (so the press that turned the page isn't a go)
+                self.trial.update(dt, inp)
+            if self.trial.done:
+                self.cheer_t = 0.0
+            elif self.t >= TRY_TIME:
+                self._turn()
+            return
         if pressed and self.time > MIN_SHOW and self.t > MIN_SHOW:
             if self.last:
                 self.done = True
             else:
-                self._turn(1)
-        elif x < 0 and self.held_x >= 0 and self.page > 0:
-            self._turn(-1)
-        elif x > 0 and self.held_x <= 0 and not self.last:
-            self._turn(1)
+                self._turn()
         elif not self.last and self.t >= self.pages[self.page].time:
-            self._turn(1)
-        self.held_x = x
+            self._turn()
 
-    def _turn(self, step: int) -> None:
-        self.page += step
-        self.t = 0.0
+    def _turn(self) -> None:
+        if self.last:
+            self.done = True
+            return
+        self.page += 1
+        self._open()
+
+    def _open(self) -> None:
+        self.t, self.cheer_t = 0.0, None
+        make = self.pages[self.page].trial
+        self.trial = make() if make else None
+
+    def _icons(self, hint: "Controls | list[Controls] | None", kinds: tuple[str, ...]) -> list[Controls]:
+        """What each control icon shows: the hint, or the player's own hands once they've touched them."""
+        hint = hint or (0, 0, False)
+        hints = hint if isinstance(hint, list) else [hint] * len(kinds)
+        if not self.trial or self.time - self.touched > HANDS_OFF:
+            return hints
+        out = []
+        for i, kind in enumerate(kinds):
+            p = self.hands[min(1 if kind == "stick2" else 0, len(self.hands) - 1)] if self.hands else Input()
+            out.append((0, 0, bool(p.held or p.action)) if kind in ("button", "jar") else (p.x, p.y, False))
+        return out
 
     def draw(self, screen: pygame.Surface) -> None:
         """Over whatever the game drew behind it (its playfield, dimmed)."""
@@ -112,8 +168,13 @@ class Tutorial:
 
         p = self.pages[self.page]
         self.canvas.fill(PANEL)
-        out = p.demo(self.canvas, self.t) or (0, 0, False)
-        controls = out if isinstance(out, list) else [out] * len(p.controls)
+        out = self.trial.draw(self.canvas, self.t) if self.trial else p.demo(self.canvas, self.t)
+        controls = self._icons(out, p.controls)
+        if self.cheer_t is not None:                         # they did it
+            cheer = big(self.trial.cheer, self.accent)
+            k = min(1.0, self.cheer_t / 0.15)
+            img = pygame.transform.scale_by(cheer, 0.6 + 0.4 * k)
+            blit_c(self.canvas, img, DEMO_W / 2, DEMO_H / 2 - 4 * math.sin(self.cheer_t * 8))
         slide = max(0.0, 1 - self.t / SLIDE)
         dx = round(slide * slide * 30)                       # each page slides in from the left
         frame = pygame.Rect(DEMO_X - 2, DEMO_Y - 2, DEMO_W + 4, DEMO_H + 4)
@@ -145,9 +206,17 @@ class Tutorial:
         for i in range(len(self.pages)):
             col = self.accent if i == self.page else "#5a4e7a"
             pygame.draw.rect(screen, col, (8 + i * 7, H - 9, 4, 4))
-        prompt = self._start if self.last else self._next
-        if not self.last or int(self.time * 2.5) % 2 == 0:
+        if self.trial:
+            prompt = self._try if self.cheer_t is None else None
+            blink = True
+        else:
+            prompt = self._start if self.last else self._next
+            blink = self.last
+        if prompt and (not blink or int(self.time * 2.5) % 2 == 0):
             screen.blit(prompt, (W - prompt.get_width() - 6, H - 9))
+        if self.trial and self.cheer_t is None and self.t > TRY_TIME - 5:       # running out: a bar shrinks
+            k = (TRY_TIME - self.t) / 5
+            pygame.draw.rect(screen, "#5a4e7a", (DEMO_X, DEMO_Y + DEMO_H + 2, round(DEMO_W * k), 1))
 
 
 def big(text: str, color: str, scale: int = 2) -> pygame.Surface:

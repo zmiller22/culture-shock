@@ -12,13 +12,16 @@ The round:
     spit      SPIT IN THE JAR. Waits up to SPIT_TIMEOUT s, then gives up (lose)
     got       SAMPLE RECEIVED
     analyze   centrifuge, sequence, cross-reference (button hurries it along)
+    survey    partway through: the behavioral analysis survey (orifice, string,
+              colour). The first two pick species that go into you; the colour
+              is the room you walk out into
     report    YOU ARE 40% DOM, 30% BANANA AND 30% GENIUS
     splice    the donors spin together, you get scanned in, mutations zap on
     reveal    THIS IS YOU. Walk it around; walk out the EXIT to finish (win)
 
 Controls (keyboard, or an arcade stick / gamepad):
-    SPACE / Z / ENTER / button 0    next / hurry / attack (and the spit, with no sensor)
-    STICK / ARROWS                  walk your new body; up jumps
+    SPACE / Z / ENTER / button 0    next / hurry / pick a survey answer / attack (and the spit, with no sensor)
+    STICK / ARROWS                  change a survey answer; walk your new body, up jumps
     ESC / Q                         quit
 """
 
@@ -70,12 +73,15 @@ ANALYSIS = (
     ("SPINNING CENTRIFUGE", 1.6, " OK"),
     ("FILTERING OUT LUNCH", 1.3, " OK"),
     ("EXTRACTING DNA", 1.4, " OK"),
+    (SURVEY_LINE := "BEHAVIORAL ANALYSIS SURVEY", 0.4, " DONE"),
     ("SEQUENCING 3,200,000,000 BASES", 2.6, " OK"),
     ("MATCHING LAB SPECIMENS", 1.9, " OK"),
     ("DELETING EMBARRASSING GENES", 1.3, " OK"),
     ("{n} MATCHES FOUND.", 1.2, ""),
 )
 TYPE_RATE = 40.0
+SURVEY_REPEAT = (0.4, 0.12)  # s before a held stick starts rolling the answers, then s per answer
+ROOM_WASH = 110              # alpha of the favourite colour washed over the room you walk out into
 
 
 def rgb(c: str) -> tuple[int, int, int]:
@@ -107,6 +113,34 @@ def wrap(text: str, width: int) -> list[str]:
         else:
             cur = trial
     return lines + [cur] if cur else lines
+
+
+class Survey:
+    """Three questions; stick up/down rolls the answer, the button locks it in."""
+
+    def __init__(self) -> None:
+        self.q = 0
+        self.picks = [0] * len(dna.SURVEY)
+        self.held_y = 0
+        self.hold_t = 0.0
+        self.done = False
+
+    def update(self, dt: float, inp: Input, pressed: bool) -> None:
+        n = len(dna.SURVEY[self.q][1])
+        if inp.y:
+            if inp.y != self.held_y:
+                self.picks[self.q] = (self.picks[self.q] + inp.y) % n
+                self.hold_t = 0.0
+            else:
+                self.hold_t += dt
+                while self.hold_t > SURVEY_REPEAT[0]:
+                    self.picks[self.q] = (self.picks[self.q] + inp.y) % n
+                    self.hold_t -= SURVEY_REPEAT[1]
+        self.held_y = inp.y
+        if pressed:
+            self.q += 1
+            self.done = self.q == len(dna.SURVEY)
+            self.q = min(self.q, len(dna.SURVEY) - 1)
 
 
 def volume_word(delta: float) -> str:
@@ -217,11 +251,22 @@ class SpitKit:
         self.ax = W / 2
         self.held_y = 0
 
-        # roll the genes now, render on a worker thread while the visitor works up a spit
-        self.profile = dna.roll_profile(self.rng)
+        # the genes get rolled once the survey's answered (or the lab gives up on a spit),
+        # then rendered on a worker thread while the analysis plays out
+        self.survey = Survey()
+        self.color: str | None = None                  # the favourite colour, once they've said
+        self.profile: list[dna.Strand] = []
         self.you: dna.You | None = None
         self._canvases: dict | None = None
         self.sprites: dict | None = None
+
+    def _roll(self, answers: list[int] | None) -> None:
+        """Pick the donors (from the survey answers, or at random) and start rendering."""
+        if answers is None:
+            self.profile = dna.roll_profile(self.rng)
+        else:
+            self.profile = dna.survey_profile(answers, self.rng)
+            self.color = dna.survey_color(answers)
         build_rng = random.Random(self.rng.random())
         threading.Thread(target=self._build, args=(build_rng,), daemon=True).start()
 
@@ -260,7 +305,7 @@ class SpitKit:
     def cutscene(self) -> bool:
         """Nobody's expected to touch the stick: spitting in the jar, then the lab
         reading it. Tells the main game not to ask if anyone's still there."""
-        return self.phase in ("spit", "got", "analyze", "report", "splice")
+        return self.phase in ("spit", "got", "analyze", "report", "splice")     # (not the survey)
 
     def _go(self, phase: str) -> None:
         self.phase, self.phase_t = phase, 0.0
@@ -270,10 +315,15 @@ class SpitKit:
         """(text, start, suffix, work) per line, with the placeholders filled in."""
         out, t = [], 0.0
         for label, work, suffix in ANALYSIS:
-            text = label.format(vol=volume_word(self.delta), n=len(self.profile))
+            text = label.format(vol=volume_word(self.delta), n=len(self.profile) or dna.DONORS)
             out.append((text, t, suffix, work))
             t += len(text) / TYPE_RATE + work + 0.1
         return out
+
+    @property
+    def survey_at(self) -> float:
+        """s into the analysis that the survey comes up."""
+        return next(start for text, start, _, _ in self._analysis() if text == SURVEY_LINE)
 
     @property
     def analysis_time(self) -> float:
@@ -313,9 +363,16 @@ class SpitKit:
         elif self.phase == "analyze":
             if pressed and self.phase_t > 0.5:
                 self.phase_t += 1.2                          # hurry the lab along
-            if self.phase_t > self.analysis_time + 0.6 and self.ready:
+            if not self.survey.done and self.phase_t >= self.survey_at:
+                self._go("survey")
+            elif self.phase_t > self.analysis_time + 0.6 and self.ready:
                 self._surfaces()
                 self._go("report")
+        elif self.phase == "survey":
+            self.survey.update(dt, inp, pressed and self.phase_t > 0.4)
+            if self.survey.done:
+                self._roll(self.survey.picks)
+                self.phase, self.phase_t = "analyze", self.survey_at
         elif self.phase == "report":
             done_at = self.report_time + 1.5
             if pressed and self.phase_t > 0.4:
@@ -345,6 +402,7 @@ class SpitKit:
             self._go("got")
         elif self.phase_t > SPIT_TIMEOUT:
             self.result = "lose"
+            self._roll(None)                                 # no spit, no survey: the lab makes something up
             self._go("nospit")
         if int(self.phase_t / 3.2) != int((self.phase_t - dt) / 3.2):
             self.taunt = (self.taunt + 1) % len(TAUNTS)
@@ -491,6 +549,37 @@ class SpitKit:
         label = txt(f"SEQUENCING {int(shown * 100)}%", PHOS)
         blit_c(screen, label, W / 2, y0 + 4)
 
+    def _draw_survey(self, screen: pygame.Surface) -> None:
+        sv = self.survey
+        panel = pygame.Rect(6, 6, W - 12, H - 12)
+        pygame.draw.rect(screen, (20, 12, 28), panel.inflate(4, 4))
+        pygame.draw.rect(screen, rgb(PHOS_BG), panel)
+        screen.blit(txt(f"DNA ANALYSIS - SAMPLE NO. {self.sample_no}", PHOS_DIM), (panel.x + 4, panel.y + 4))
+        pygame.draw.line(screen, rgb(PHOS_DIM), (panel.x + 4, panel.y + 12), (panel.right - 5, panel.y + 12))
+        blit_c(screen, txt("TO IMPROVE OUR ANALYSIS, PLEASE COMPLETE", PHOS), W / 2, 25)
+        blit_c(screen, txt("THIS BEHAVIORAL ANALYSIS SURVEY.", PHOS), W / 2, 33)
+        bob = int(self.time * 4) % 2
+        for i, (question, options) in enumerate(dna.SURVEY):
+            y = 52 + i * 34
+            here, answered = i == sv.q and not sv.done, i < sv.q or sv.done
+            screen.blit(txt(f"{i + 1}. {question}", PHOS if here or answered else PHOS_DIM), (20, y + 3))
+            box = pygame.Rect(150, y - 4, 150, 22)
+            if here:
+                pygame.draw.rect(screen, rgb(PHOS), box, 1)
+                for k in range(4):                        # arrows: up and down roll the answer
+                    pygame.draw.rect(screen, rgb(PHOS), (box.centerx - k, box.y - 6 - bob + k, 2 * k + 1, 1))
+                    pygame.draw.rect(screen, rgb(PHOS), (box.centerx - k, box.bottom + 5 + bob - k, 2 * k + 1, 1))
+            if here or answered:
+                answer = options[sv.picks[i]]
+                col = PHOS
+                if i == 2:                                # the colour question shows the colour
+                    col = dna.COLORS[sv.picks[i]][1]
+                blit_c(screen, txt(answer, col, 2), box.centerx, box.centery)
+            else:
+                blit_c(screen, txt("...", PHOS_DIM, 2), box.centerx, box.centery)
+        if int(self.time * 2.5) % 2 == 0 or not self.phase_t > 3:
+            blit_c(screen, txt("STICK UP / DOWN: CHANGE ANSWER    BUTTON: SELECT", PHOS), W / 2, H - 14)
+
     def _draw_report(self, screen: pygame.Surface) -> None:
         sp, t = self._surfaces(), self.phase_t
         blit_c(screen, txt("GENETIC REPORT", ACCENT, 2), W / 2, 12)
@@ -577,7 +666,6 @@ class SpitKit:
             sy = y + h - shown
             if k < 1:
                 pygame.draw.line(screen, rgb(PHOS), (x - 6, sy), (x + img.get_width() + 6, sy), 2)
-            self._part_labels(screen, k, x, y, img.get_width())
             blit_c(screen, txt("ASSEMBLING YOU", ACCENT, 2), W / 2, 12)
             return
         t -= SCAN_TIME
@@ -597,7 +685,6 @@ class SpitKit:
                 img = img.copy()
                 img.fill((255, 255, 255), special_flags=pygame.BLEND_RGB_MAX)
         screen.blit(img, (x, y))
-        self._part_labels(screen, 1.0, x, y, img.get_width())
         if i:
             pop = min(1.0, u / 0.2)
             head = txt("MUTATION!", "#ff6a6a", 2)
@@ -606,27 +693,13 @@ class SpitKit:
         else:
             blit_c(screen, txt("ASSEMBLING YOU", ACCENT, 2), W / 2, 12)
 
-    def _part_labels(self, screen: pygame.Surface, k: float, x: float, y: float, w: int) -> None:
-        """Which donor each part came from, labelled as the scan passes it."""
-        you = self.you
-        rows = (("legs", 0.25, -1, 0.82), ("torso", 0.5, 1, 0.6), ("back_arm", 0.62, -1, 0.55),
-                ("front_arm", 0.62, 1, 0.45), ("head", 0.85, -1, 0.3))
-        h = SIZE * SCALE
-        for slot, at, side, fy in rows:
-            if k < at:
-                continue
-            label = txt(f"{dna.PART_NAMES[slot]}: {you.donor_of(slot)}", LAB_TEXT if side < 0 else SPIT_COL)
-            ly = y + h * fy
-            if side < 0:
-                lx = x + 6 - 8 - label.get_width()
-                pygame.draw.line(screen, rgb(LAB_DIM), (lx + label.get_width() + 2, ly + 2), (x + w * 0.4, ly + 2))
-            else:
-                lx = x + w - 6 + 8
-                pygame.draw.line(screen, rgb(LAB_DIM), (x + w * 0.6, ly + 2), (lx - 2, ly + 2))
-            screen.blit(label, (lx, ly))
-
     def _draw_reveal(self, screen: pygame.Surface) -> None:
         sp, a, you = self._surfaces(), self.actor, self.you
+        if self.color:                                       # the room comes up in their favourite colour
+            wash = pygame.Surface((W, H))
+            wash.fill(rgb(self.color))
+            wash.set_alpha(ROOM_WASH)
+            screen.blit(wash, (0, 0))
         # the exit
         door = pygame.Rect(W - 34, FLOOR_Y - 62, 30, 62)
         pygame.draw.rect(screen, (20, 12, 28), door.inflate(4, 4))
@@ -639,15 +712,32 @@ class SpitKit:
 
         frames = sp["final"][a.state][a.facing]
         img = frames[min(a.frame, len(frames) - 1)]
-        screen.blit(img, (round(self.ax - img.get_width() / 2), FLOOR_Y + 2 - img.get_height() - round(a.height)))
+        top = FLOOR_Y + 2 - img.get_height() - round(a.height)
+        screen.blit(img, (round(self.ax - img.get_width() / 2), top))
+        if self.color and self.phase_t > 0.6:
+            self._bubble(screen, "NICE COLOR CHOICE!", self.ax, top + 14)
 
         blit_c(screen, txt("THIS IS YOU.", ACCENT, 2), W / 2, 12)
         blit_c(screen, txt(f"SPECIMEN: {you.name}", LAB_TEXT), W / 2, 27)
         for j, line in enumerate(wrap(dna.sentence(self.profile), 300)):
-            blit_c(screen, txt(line, LAB_DIM), W / 2, 37 + j * 8)
+            blit_c(screen, txt(line, LAB_TEXT), W / 2, 37 + j * 8)       # (bright: the room may be any colour)
         if self.phase_t > 1.5:
             hint = txt("STICK: WALK  UP: JUMP  BUTTON: ATTACK", LAB_DIM)
             blit_c(screen, hint, W / 2, H - 7)
+
+    def _bubble(self, screen: pygame.Surface, text: str, x: float, y: float) -> None:
+        """A speech bubble whose tail points down at (x, y)."""
+        label = txt(text, "#1b1430")
+        w, h = label.get_width() + 10, 13
+        bx = round(max(4, min(W - 4 - w, x - w / 2)))
+        by = round(y - 6 - h + 2 * math.sin(self.time * 3))
+        tip = (round(x), by + h + 5)
+        pygame.draw.polygon(screen, (20, 12, 28), [(tip[0] - 4, by + h - 1), (tip[0] + 4, by + h - 1), tip])
+        pygame.draw.rect(screen, (20, 12, 28), (bx - 1, by - 1, w + 2, h + 2), border_radius=4)
+        pygame.draw.rect(screen, (250, 246, 230), (bx, by, w, h), border_radius=3)
+        pygame.draw.polygon(screen, (250, 246, 230), [(tip[0] - 3, by + h - 1), (tip[0] + 3, by + h - 1),
+                                                      (tip[0], tip[1] - 1)])
+        screen.blit(label, (bx + 5, by + 4))
 
     def _draw_nospit(self, screen: pygame.Surface) -> None:
         draw_jar(screen, 70, FLOOR_Y, 0.0, self.time)
@@ -667,6 +757,9 @@ def autopilot(game: SpitKit) -> Input:
         press = game.phase_t > 1.5 and tick % 20 == 0
     if game.phase == "analyze":
         press = False
+    if game.phase == "survey":
+        roll = tick % 20 == 10 and game.phase_t < 2 + 2 * game.survey.q
+        return Input(y=1 if roll else 0, action=press and not roll, players=(Input(action=press),))
     return Input(action=press, players=(Input(action=press),))
 
 

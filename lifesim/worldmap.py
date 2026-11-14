@@ -1,4 +1,4 @@
-"""The theory map: where the spirit goes once it has formed.
+"""The theory map: where the visitor's new body goes once Spit Kit has spliced it.
 
 Every theory of life is a tile in a grid, playing a little looping clip of its
 simulation (baked by tools/make_map_previews.py), in the order life supposedly
@@ -28,10 +28,13 @@ PREVIEW_FRAMES = 24             # a 4 s clip
 SPEED = 260.0                   # px/s the spirit floats between tiles
 VOID = (4, 6, 14)
 
-COLS = 3
-GRID_X, GRID_Y, GAP_X, GAP_Y = 66, 22, 4, 15
+COLS = 2
+GRID_Y, GAP_X, GAP_Y = 22, 8, 15
+FILES_W, FILES_GAP = 54, 12
+# the files tile and the grid, centred together
+GRID_X = (320 - (FILES_W + FILES_GAP + COLS * TILE_W + (COLS - 1) * GAP_X)) // 2 + FILES_W + FILES_GAP
 FILES = -1                      # the SYSTEM FILES tile; theories are 0, 1, 2...
-FILES_RECT = pygame.Rect(6, GRID_Y, 54, 2 * TILE_H + GAP_Y)
+FILES_RECT = pygame.Rect(GRID_X - FILES_GAP - FILES_W, GRID_Y, FILES_W, 2 * TILE_H + GAP_Y)
 
 
 def rgb(c: str) -> tuple[int, int, int]:

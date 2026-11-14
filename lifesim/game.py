@@ -8,7 +8,9 @@ life begins. Push the button to boot it: the camera dives into the CRT, the
 lab welcomes you as its next visitor, and you sign in with a 1-4 letter name,
 arcade high-score style. Then the genesis program runs: code pours down the
 screen and it zooms out from the Earth to the edge of everything (see
-intro.py). Then you're on the theory map (see worldmap.py): every theory is a tile playing a
+intro.py), where you form as a spirit. To get a body you spit in the jar
+(Spit Kit, theory SPLICER): it reads your DNA, asks a behavioral survey, and
+splices you a creature. That creature walks the theory map (see worldmap.py): every theory is a tile playing a
 clip of its simulation, joined by paths you float along. Pick one, get
 incarnated into it, and see whether it holds up. Every mini-game is one
 simulation.
@@ -48,8 +50,8 @@ from typing import Callable
 import pygame
 
 from minigames.shell import Input, MiniGame, run
-from sprites.canvas import Canvas, hex_to_rgba, mix
-from sprites.font import BIG_H, big_width, draw_big_text, text_width
+from sprites.canvas import Canvas, hex_to_rgba
+from sprites.font import BIG_H, big_width, draw_big_text
 from sprites.viewer import text_surface, to_surface
 
 from . import art
@@ -57,7 +59,7 @@ from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT, SCREEN
 from .activity import ActivityLog, enabled_by_env
 from .files import FileTerminal
 from .intro import Cosmos, Rain
-from .worldmap import FILES, FILES_RECT, TILE_H, TILE_W, VOID, WorldMap, tile_at, tile_rect
+from .worldmap import COLS, FILES, FILES_RECT, TILE_H, TILE_W, VOID, WorldMap, tile_at, tile_rect
 
 # -- tuning ------------------------------------------------------------------------
 TYPE_RATE = 70.0           # characters/s the terminal types at
@@ -253,6 +255,8 @@ def theories(mute: bool = False) -> list[Theory]:
 
 
 FILES_BLURB = ("THE LAB'S FILE DRAWER. MOSTLY", "NOTEBOOKS. SOME OF IT IS LOCKED.")
+SPLICER = "05"             # the theory that gives the spirit its body (Spit Kit), played before the map
+AVATAR_FEET = 20           # px below a tile's middle that the new body stands on the map
 VERDICT = {"win": "CONFIRMED", "lose": "REFUTED", None: "UNTESTED", "?": "INCONCLUSIVE"}
 
 
@@ -363,7 +367,12 @@ class LifeSim:
         self.art = _ART
         self.text = Glyphs()
         self.rng = random.Random(seed)
-        self.theories = theories(mute)
+        every = theories(mute)
+        # the genetic code isn't a tile: it's how the spirit gets a body, straight after it forms
+        self.splicer = next(t for t in every if t.code == SPLICER)
+        self.theories = [t for t in every if t is not self.splicer]
+        self.avatar: dict[str, dict[int, list[pygame.Surface]]] | None = None   # the body they got, for the map
+        self.facing = 1
         self.results: dict[str, list[str]] = {t.code: [] for t in self.theories}
         self.map = WorldMap([t.code for t in self.theories])
         self.result: str | None = None
@@ -402,6 +411,7 @@ class LifeSim:
         self.armed = True                       # False: opened by a held button, waiting for it to let go
         self.press: float | None = None         # s the button's been down on a menu
         self.long_press: float | None = None    # s the button's been down anywhere else (since it went down)
+        self.hold_exit = skip_boot              # holding anywhere only exits once they've reached the map
         self._go("hub" if skip_boot else "off")
 
     @property
@@ -526,10 +536,10 @@ class LifeSim:
         return min(1.0, (self.press - 0.15) / (MENU_HOLD - 0.15))
 
     def _long_hold(self, dt: float, inp: Input) -> bool:
-        """Off the menus, holding the button down for HOLD_ANYWHERE brings the
-        countdown up, whatever's going on: the intro, a cut-scene, a mini-game.
+        """Off the menus, once they've reached the map, holding the button down for
+        HOLD_ANYWHERE brings the countdown up, whatever's going on: a cut-scene, a mini-game.
         True means it just came up. The game still sees the button as usual."""
-        if self.phase == "off" or self.press is not None or self.countdown is not None:
+        if not self.hold_exit or self.press is not None or self.countdown is not None:
             self.long_press = None
             return False
         if inp.action:
@@ -602,7 +612,9 @@ class LifeSim:
 
         if self.phase == "sim":
             self.sim.update(dt, inp)
-            if self.sim.done:
+            if self.sim.done and self.sim_theory is self.splicer:
+                self._take_body(self.sim)
+            elif self.sim.done:
                 res = self.sim.result or "?"
                 self.results[self.sim_theory.code].append(res)
                 self.activity("theory_end", theory=self.sim_theory.code, result=res)
@@ -656,13 +668,15 @@ class LifeSim:
             if inp.action and self.phase_t > SUMMON_FORM:
                 if not self.typer.done:
                     self.typer.finish()
-                else:
-                    self.tutorial = 0               # first time on the map: show them round it
-                    self._go("hub")
+                else:                               # off to get a body: spit in the jar
+                    self.sim_theory = self.splicer
+                    self.activity("theory_start", theory=self.splicer.code)
+                    self.sim = self.splicer.make()
+                    self._go("sim")
         elif self.phase == "hub" and self.tutorial is not None:
             self._tutorial(dt, inp)
         elif self.phase == "hub":
-            self.map.update(dt, inp)
+            self._walk(dt, inp)
             if inp.action and self.phase_t > 0.2 and not self.map.moving:
                 if self.sel == FILES:
                     self.term.open()
@@ -936,7 +950,7 @@ class LifeSim:
             col = PHOSPHOR if v == VERDICT["win"] else PHOSPHOR_DIM if self.results[t.code] else PHOSPHOR_FAINT
             s = self.text.get(f"{t.code} {v}", col)
             screen.blit(s, (x + TILE_W // 2 - s.get_width() // 2, y + TILE_H + 3))
-        for i in range(len(self.theories), -(-len(self.theories) // 3) * 3):
+        for i in range(len(self.theories), -(-len(self.theories) // COLS) * COLS):
             m.draw_empty(screen, i)
         m.draw_files(screen, self.time, lit=self.sel == FILES and not m.moving)
         for i, word in enumerate(("SYSTEM", "FILES")):
@@ -966,17 +980,55 @@ class LifeSim:
         if self.phase == "hub" and self.tutorial is not None:
             self._draw_tutorial(screen)
         if self.phase == "hub":
-            self._draw_spirit(screen, *m.pos, 1.0)
+            x, y = m.pos
+            self._draw_body(screen, x, y + AVATAR_FEET, "walk" if m.moving else "idle")
         k = min(1.0, self.phase_t / MAP_FADE) if self.phase == "hub" and self.tutorial == 0 else 1.0
         if k < 1:                                        # fading in from the void
             v = int(255 * k)
             screen.fill((v, v, v), special_flags=pygame.BLEND_MULT)
 
     # -- the tour of the map ------------------------------------------------------------
+    def _walk(self, dt: float, inp: Input) -> None:
+        """Move on the map, turning the body to face where it's going."""
+        self.map.update(dt, inp)
+        if self.map.target is not None:
+            dx = tile_rect(self.map.target).centerx - self.map.pos[0]
+            self.facing = 1 if dx > 0 else -1 if dx < 0 else self.facing
+
+    def _take_body(self, kit) -> None:
+        """Spit Kit's done: keep the creature it spliced to walk the
+        map, and on to the map, with the tour."""
+        self.activity("theory_end", theory=self.splicer.code, result=kit.result or "?")
+        canvases = getattr(kit, "_canvases", None)
+        if canvases:
+            self.avatar = {}
+            for anim, frames in canvases["final"].items():
+                right = [to_surface(f) for f in frames]
+                self.avatar[anim] = {1: right, -1: [pygame.transform.flip(img, True, False) for img in right]}
+        self.sim = None
+        self.tutorial = 0                       # first time on the map: show them round it
+        self.hold_exit = True                   # from here on, holding the button anywhere exits
+        self._go("hub")
+
+    def _draw_body(self, screen: pygame.Surface, x: float, feet: float, anim: str, scale: float = 1.0) -> None:
+        """Their spliced body standing on (x, feet), or the spirit if there isn't one (--skip-boot)."""
+        if not self.avatar:
+            self._draw_spirit(screen, x, feet - AVATAR_FEET, scale)
+            return
+        frames = self.avatar.get(anim, self.avatar["idle"])[self.facing]
+        img = frames[int(self.time * 8) % len(frames)]
+        if scale != 1.0:
+            img = pygame.transform.scale_by(img, scale)
+        px, py = round(x - img.get_width() / 2), round(feet - img.get_height())
+        ink = pygame.mask.from_surface(img).to_surface(setcolor=(8, 6, 16, 255), unsetcolor=(0, 0, 0, 0))
+        for ox, oy in ((-1, 0), (1, 0), (0, -1), (0, 1)):     # a dark outline, so it reads over the busy tiles
+            screen.blit(ink, (px + ox, py + oy))
+        screen.blit(img, (px, py))
+
     def _tutorial(self, dt: float, inp: Input) -> None:
         what, _ = TUTORIAL[self.tutorial]
         if what == "move":                                 # this page lets them try the stick
-            self.map.update(dt, inp)
+            self._walk(dt, inp)
         if inp.action and self.phase_t > 0.4 and not self.map.moving:
             self.tutorial += 1
             self.phase_t = MAP_FADE                        # (no fade between pages)
@@ -1020,15 +1072,15 @@ class LifeSim:
             screen.blit(s, (box.right - 4 - s.get_width(), box.bottom - 7))
 
     def _draw_load(self, screen: pygame.Surface) -> None:
-        """The spirit dives into the tile, the tile grows to fill the screen, then it switches off."""
-        t = self.theories[self.sel]
+        """The body dives into the tile, the tile grows to fill the screen, then it switches off."""
         self._draw_map(screen, info=False)
         tx, ty = tile_at(self.sel)
         cx, cy = tx + TILE_W / 2, ty + TILE_H / 2
         k = min(1.0, self.phase_t / LOAD_DIVE)
         if k < 1:                                        # spiral in, shrinking away
             ang, r = k * 3 * math.tau, 14 * (1 - k)
-            self._draw_spirit(screen, cx + math.cos(ang) * r, cy + math.sin(ang) * r * 0.6, 1.0 - k)
+            self._draw_body(screen, cx + math.cos(ang) * r, cy + AVATAR_FEET * (1 - k) + math.sin(ang) * r * 0.6,
+                            "jump", 1.0 - k)
         g = max(0.0, min(1.0, (self.phase_t - LOAD_DIVE) / (LOAD_TIME - LOAD_DIVE - 0.4)))
         g = g * g * (3 - 2 * g)
         if g > 0:
@@ -1065,7 +1117,7 @@ class LifeSim:
             if int(self.time * 2) % 2 == 0:
                 s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
                 screen.blit(s, (art.W // 2 - s.get_width() // 2, 160))
-            self._draw_spirit(screen, art.W - 30, 140, 2.0)
+            self._draw_body(screen, art.W - 40, 172, "idle", 2.0)
         if self.phase_t < CRT_ON_TIME:
             self._squash(screen, 1.0 - self.phase_t / CRT_ON_TIME)
 
