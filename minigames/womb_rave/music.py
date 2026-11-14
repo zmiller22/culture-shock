@@ -37,9 +37,9 @@ BAR_START = [0.0]                # song time each bar starts (plus the end of th
 for _bpm in BAR_BPM:
     BAR_START.append(BAR_START[-1] + 240 / _bpm)
 SONG_LEN = BAR_START[-1]
-# Bar index each trimester starts on (shown in the HUD), and a cue shown when a section starts.
-TRIMESTERS = (1, 7, 15)
-CUES = {1: "FIRST TRIMESTER", 7: "SECOND TRIMESTER", 11: "CONTRACTIONS!", 13: "THIRD TRIMESTER", 19: "PUSH!"}
+# How close she is, by the bar it starts on (shown in the HUD), and a cue shown when a section starts.
+STAGES = {1: "FOREPLAY", 7: "WARMING UP", 13: "GETTING CLOSE", 19: "ALMOST THERE"}
+CUES = {**STAGES, 11: "CONTRACTIONS!", 19: "PUSH!"}
 
 # Rhythm per kind of bar: (eighth-note position 0..7, what's there).
 #   d = one stick direction   w = a contraction growl in the music (no note)

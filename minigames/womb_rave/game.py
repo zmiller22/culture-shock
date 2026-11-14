@@ -15,7 +15,7 @@ come at the membrane around the sac along four lanes, each a part of the womb:
     DOWN           sperm swimming up from the cervix
 Every hit makes the dancer move.
 
-Make it to the end of the song (three trimesters and the PUSH) and you're born.
+Make it to the end of the song (all the way from foreplay to the PUSH) and you're born.
 Miss too many and your vitals run out: the womb evicts you.
 """
 
@@ -416,9 +416,15 @@ class WombRave:
         return music.SONG[music.bar_at(self.song_t)]
 
     @property
-    def trimester(self) -> int:
+    def stage(self) -> str:
+        """How close she is, for the HUD."""
         bar = music.bar_at(self.song_t)
-        return sum(bar >= b for b in music.TRIMESTERS)
+        return next((name for b, name in reversed(music.STAGES.items()) if bar >= b), "COUNT-IN")
+
+    @property
+    def how_close(self) -> int:
+        """Percent of the way there."""
+        return round(100 * max(0.0, min(1.0, self.song_t / SONG_LEN)))
 
     @property
     def accuracy(self) -> float:
@@ -516,7 +522,7 @@ class WombRave:
         elif self.phase_t >= PICK_TIME:
             self.popups.clear()
             if self.howto is None:
-                self.howto = tutorial.make(self.art, self._frame)
+                self.howto = tutorial.make(self.art, self._frame, heckle=self._heckle)
                 self._enter_phase("howto")
             else:
                 self._enter_phase("walk")
@@ -1077,8 +1083,7 @@ class WombRave:
             col = "#ff4a6a" if not low or int(self.time * 6) % 2 else "#ffffff"
             pygame.draw.rect(screen, rgb(col), (16, 6, round(60 * self.life / LIFE_MAX), 4))
             screen.blit(text_surface("VITALS", LAB_DIM), (16, 13))
-            tri = ("FIRST", "SECOND", "THIRD")[max(0, self.trimester - 1)] if self.song_t >= music.BAR_START[1] else "COUNT-IN"
-            s = text_surface(f"{tri} TRIMESTER" if self.song_t >= music.BAR_START[1] else tri, LAB_TEXT)
+            s = text_surface(self.stage, LAB_TEXT)
             screen.blit(s, (W - s.get_width() - 5, 5))
             s = text_surface(f"SCORE {self.score}", LAB_DIM)
             screen.blit(s, (W - s.get_width() - 5, 13))
@@ -1097,9 +1102,8 @@ class WombRave:
             self._banner(screen, "BORN TO DANCE", [f"GRADE {self.grade}   {round(self.accuracy * 100)}% IN SYNC",
                                                    f"SCORE {self.score}   MAX COMBO {self.max_combo}", "PRESS BUTTON"])
         elif self.phase == "lost":
-            tri = ("FIRST", "SECOND", "THIRD")[max(0, self.trimester - 1)]
             self._banner(screen, "EVICTED", ["THE WOMB DIDN'T FEEL YOUR GROOVE",
-                                             f"YOU MADE IT TO THE {tri} TRIMESTER", "PRESS BUTTON"])
+                                             f"SHE WAS {self.how_close}% OF THE WAY THERE", "PRESS BUTTON"])
 
     def _draw_fade(self, screen: pygame.Surface) -> None:
         alpha = 0
