@@ -325,7 +325,7 @@ def theories(mute: bool = False) -> list[Theory]:
 
     def spit(prev=None):
         from minigames.spit_kit.game import SpitKit
-        return SpitKit(show_title=prev is None)
+        return SpitKit()                        # no how-to: the spit screen says what to do
 
     def bear(prev=None):
         from minigames.build_a_bear.game import BuildABear

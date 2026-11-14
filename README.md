@@ -588,7 +588,7 @@ python -m minigames.womb_rave --demo                   # the computer plays
 
 You spit in a real jar next to the cabinet, and the mainframe reads your DNA.
 
-After the how-to pages the screen says SPIT IN THE JAR and points at the real
+There are no how-to pages: the screen says SPIT IN THE JAR and points at the real
 one. The jar sits on the HX711 load cell, and a live SALIVA SENSOR bar shows
 what the scale feels. One spit (a step up in weight that settles) and you get
 SAMPLE RECEIVED, with the volume rated from A DRIBBLE to FRANKLY ALARMING. Then

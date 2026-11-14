@@ -7,8 +7,7 @@ The jar next to the cabinet sits on an HX711 load cell (see jar.py). A spit is
 a step up in weight that settles. Without the sensor (on a laptop), the button
 is the spit.
 
-The round:
-    title     how-to pages
+The round (no how-to pages: the spit screen says what to do):
     spit      SPIT IN THE JAR. After MALFUNCTION_AFTER s with no spit, holding the
               button goes ahead on DNA from a shed hair instead (the fallback for
               a sensor that isn't working). Waits up to SPIT_TIMEOUT s, then
@@ -48,7 +47,7 @@ from sprites.rig import SIZE, poses
 from sprites.viewer import H, W, Actor, text_surface, to_surface
 
 from ..shell import PROMPT, Input, prompt_text, run
-from . import dna, tutorial
+from . import dna
 from .jar import get_jar
 
 # -- tuning ------------------------------------------------------------------------
@@ -277,7 +276,7 @@ _ART: Art | None = None
 class SpitKit:
     title = "SPIT KIT"
 
-    def __init__(self, seed: int | None = None, show_title: bool = True) -> None:
+    def __init__(self, seed: int | None = None) -> None:
         global _ART
         _ART = _ART or Art()
         self.art = _ART
@@ -285,8 +284,7 @@ class SpitKit:
         self.result: str | None = None
         self.done = False
         self.time = 0.0
-        self.phase, self.phase_t = ("title" if show_title else "spit"), 0.0
-        self.howto = tutorial.make()
+        self.phase, self.phase_t = "spit", 0.0
         self.jar = get_jar()
         self.jar.poll()                                  # drop anything from before this round
         self.sample_no = self.rng.randrange(1000, 9999)
@@ -396,12 +394,7 @@ class SpitKit:
         events = self.jar.poll()
         pressed = inp.action or any(p.action for p in inp.players)
 
-        if self.phase == "title":
-            self.howto.update(dt, inp)
-            if self.howto.done:
-                self.jar.poll()
-                self._go("spit")
-        elif self.phase == "spit":
+        if self.phase == "spit":
             self._update_spit(dt, inp, pressed, events)
         elif self.phase == "got":
             for d in self.splash:
@@ -497,9 +490,6 @@ class SpitKit:
         if self.phase in ("report", "splice"):
             screen.blit(self.art.shade, (0, 0))              # the lab fades back so the specimens stand out
         getattr(self, f"_draw_{self.phase}")(screen)
-
-    def _draw_title(self, screen: pygame.Surface) -> None:
-        self.howto.draw(screen)
 
     def _draw_spit(self, screen: pygame.Surface) -> None:
         jar, t = self.jar, self.time
@@ -869,11 +859,10 @@ def main() -> None:
     ap.add_argument("--fullscreen", action="store_true")
     ap.add_argument("--demo", action="store_true", help="let the computer play (keyboard spit)")
     ap.add_argument("--seed", type=int, help="same seed, same DNA")
-    ap.add_argument("--skip-title", action="store_true")
     ap.add_argument("--ticks", type=int, help="quit after this many frames (testing)")
     ap.add_argument("--screenshot", help="save the last frame here (with --ticks)")
     args = ap.parse_args()
-    run(lambda: SpitKit(seed=args.seed, show_title=not args.skip_title), "Spit Kit", scale=args.scale,
+    run(lambda: SpitKit(seed=args.seed), "Spit Kit", scale=args.scale,
         fullscreen=args.fullscreen, autopilot=autopilot if args.demo else None,
         max_ticks=args.ticks, screenshot=args.screenshot)
 
