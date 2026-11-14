@@ -1,5 +1,5 @@
-"""How-to-play screen shared by every mini-game: the title, a one-line premise,
-then a few pages that each teach one thing, built from the game's own sprites,
+"""How-to-play screen shared by every mini-game: an optional intro (the game's
+theory typed out big on its own screen, see `Intro`), then the title over a few pages that each teach one thing, built from the game's own sprites,
 with an arcade stick and button in a column on the left.
 
 There are two kinds of page:
@@ -43,6 +43,9 @@ SLIDE = 0.25                     # s for a page to slide in
 TRY_TIME = 15.0                  # s a try-it page waits for the player to manage it before moving on anyway
 CHEER_TIME = 1.1                 # s the NICE! shows before the next page
 HANDS_OFF = 1.5                  # s after the player last touched anything that the icons go back to hinting
+INTRO_TYPE = 0.05                # s per letter as the intro line types out
+INTRO_HOLD = 1.8                 # s it stays up once it's all there
+INTRO_FADE = 0.4                 # s fading in from, and out to, the dark
 
 Controls = tuple[int, int, bool]
 Demo = Callable[[pygame.Surface, float], "Controls | list[Controls] | None"]   # a list: one per control icon
@@ -74,14 +77,72 @@ class Page:
                                                    # before the prompt shows), so nobody skips it by accident
 
 
+class Intro:
+    """The game's theory, typed out big over a heartbeat on a dark screen, then faded out.
+    The button can't skip it until the whole line is there."""
+
+    def __init__(self, text: str, accent: str) -> None:
+        self.accent, self.t, self.done = accent, 0.0, False
+        self.lines = [text]
+        words = text.split()
+        if outlined(text, accent).get_width() > W - 40 and len(words) > 1:   # two lines: after a full stop
+            fits = [i for i in range(1, len(words))                         # if one fits, else most even
+                    if max(outlined(" ".join(part), accent).get_width() for part in (words[:i], words[i:])) <= W - 16]
+            cut = min(fits or range(1, len(words)), key=lambda i: (not words[i - 1].endswith("."),
+                      abs(len(" ".join(words[:i])) - len(" ".join(words[i:])))))
+            self.lines = [" ".join(words[:cut]), " ".join(words[cut:])]
+        self.chars = sum(len(line) for line in self.lines) + len(self.lines) - 1
+        self.typed_at = INTRO_FADE + self.chars * INTRO_TYPE
+        self.length = self.typed_at + INTRO_HOLD + INTRO_FADE
+        self.ring = pygame.Color(PANEL).lerp(pygame.Color(accent), 0.18)
+        self.shade = pygame.Surface((W, H))
+        self.shade.fill(INK)
+        self._typed: tuple[int, list] | None = None   # letters typed, and each line's (width, height, typed bit)
+
+    def update(self, dt: float, inp: Input) -> None:
+        self.t += dt
+        pressed = inp.action or any(p.action for p in inp.players)
+        if self.t >= self.length or (pressed and self.t > self.typed_at + 0.3):
+            self.done = True
+
+    def draw(self, screen: pygame.Surface) -> None:
+        t = self.t
+        screen.fill(INK)
+        pulse = (1 - (t * 2) % 1) ** 3                 # the heartbeat, 120 BPM
+        for i in range(6, 0, -1):
+            r = i * 22 + pulse * 5 + (t * 12) % 22
+            pygame.draw.ellipse(screen, self.ring, (W // 2 - r * 1.6, H // 2 - r * 0.9, r * 3.2, r * 1.8), 2)
+        n = max(0, min(self.chars, int((t - INTRO_FADE) / INTRO_TYPE)))
+        if n and (self._typed is None or self._typed[0] != n):
+            imgs, left = [], n                         # type into each line where it'll end up, so nothing jumps
+            for line in self.lines:
+                full = outlined(line, self.accent)
+                part = outlined(line[:left], self.accent) if left > 0 else None
+                imgs.append((full.get_width(), full.get_height(), part))
+                left -= len(line) + 1
+            self._typed = (n, imgs)
+        if n:
+            gap = 4
+            y = H // 2 - (sum(h for _, h, _ in self._typed[1]) + gap * (len(self.lines) - 1)) // 2
+            for w_full, h, part in self._typed[1]:
+                if part:
+                    screen.blit(part, (W // 2 - w_full // 2, y))
+                y += h + gap
+        dark = max(1 - t / INTRO_FADE, (t - (self.length - INTRO_FADE)) / INTRO_FADE)
+        if dark > 0:
+            self.shade.set_alpha(round(255 * min(1.0, dark)))
+            screen.blit(self.shade, (0, 0))
+
+
 @dataclass
 class Tutorial:
     title: str
-    premise: str                                   # the theory, in one line ("" for none)
+    premise: str                                   # the theory, in one line under the title ("" for none)
     pages: list[Page]
     labels: dict[str, str] = field(default_factory=lambda: {"stick": "STICK", "button": "BUTTON",
                                                             "stick2": "STICK 2", "jar": "SPIT JAR"})
     accent: str = "#ffe14d"
+    intro: str = ""                                # the theory, typed out on its own screen before the pages
     page: int = 0
     t: float = 0.0                                 # s on this page
     time: float = 0.0                              # s since the screen opened
@@ -102,6 +163,7 @@ class Tutorial:
         self._next = text_surface("BUTTON: NEXT", LAB_DIM)
         self._start = text_surface("PRESS BUTTON TO START", self.accent)
         self._try = text_surface("YOUR TURN: TRY IT!", self.accent)
+        self._intro = Intro(self.intro, self.accent) if self.intro else None
         self._open()
 
     @property
@@ -109,6 +171,11 @@ class Tutorial:
         return self.page == len(self.pages) - 1
 
     def update(self, dt: float, inp: Input) -> None:
+        if self._intro:                            # the intro first; the pages start fresh after it
+            self._intro.update(dt, inp)
+            if self._intro.done:
+                self._intro = None
+            return
         self.time += dt
         self.t += dt
         pressed = inp.action or any(p.action for p in inp.players)
@@ -162,6 +229,9 @@ class Tutorial:
 
     def draw(self, screen: pygame.Surface) -> None:
         """Over whatever the game drew behind it (its playfield, dimmed)."""
+        if self._intro:
+            self._intro.draw(screen)
+            return
         screen.blit(self.shade, (0, 0))
         drop = max(0.0, 1 - self.time / 0.4)                 # the title drops in when the screen opens
         bounce = round(-24 * drop * drop + 2 * math.sin(self.time * 3))
@@ -225,6 +295,18 @@ class Tutorial:
 def big(text: str, color: str, scale: int = 2) -> pygame.Surface:
     s = text_surface(text, color)
     return pygame.transform.scale(s, (s.get_width() * scale, s.get_height() * scale))
+
+
+def outlined(text: str, color: str, scale: int = 2) -> pygame.Surface:
+    """Big text with a dark outline."""
+    fg, bg = big(text, color, scale), big(text, "#140c1c", scale)
+    o = max(1, scale // 2)
+    out = pygame.Surface((fg.get_width() + 2 * o, fg.get_height() + 2 * o), pygame.SRCALPHA)
+    for dx in (-o, 0, o):
+        for dy in (-o, 0, o):
+            out.blit(bg, (o + dx, o + dy))
+    out.blit(fg, (o, o))
+    return out
 
 
 def draw_stick(screen: pygame.Surface, cx: int, cy: int, sx: int, sy: int) -> None:

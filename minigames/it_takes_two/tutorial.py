@@ -422,7 +422,7 @@ def make(a) -> Tutorial:
 
     both = ("stick", "stick2")
     return Tutorial(
-        "IT TAKES TWO", "LIFE STARTS WHEN TWO CELLS FALL IN LOVE.",
+        "IT TAKES TWO", "",
         [
             Page(("FIND EACH OTHER!",), controls=both, trial=Swim),
             Page(("EAT 4 NUTRIENTS TO GET FERTILE",), controls=both, trial=Feast),
@@ -432,6 +432,7 @@ def make(a) -> Tutorial:
         ],
         labels={"stick": "P1 EGG", "stick2": "P2 SPERM"},
         accent="#ff6a8a",
+        intro="LIFE STARTS WHEN TWO CELLS FALL IN LOVE.",
     )
 
 

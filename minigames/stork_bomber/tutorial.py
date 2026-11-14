@@ -149,7 +149,7 @@ def make(a, need: int, babies: int) -> Tutorial:
             return 1 if loop(t, 2.0) < 0.5 else 0, 0, 0.5 <= loop(t, 2.0) < 0.62
 
     return Tutorial(
-        "STORK BOMBER", "BABIES ARRIVE BY AIR. YOU ARE THE AIR.",
+        "STORK BOMBER", "",
         [
             Page(("MOVE THE STICK TO FLY THE STORK",), trial=Flight),
             Page(("PRESS THE BUTTON TO DROP THE BABY. IT KEEPS", "YOUR SPEED, SO LET GO EARLY. HIT THE TARGET!"),
@@ -157,4 +157,5 @@ def make(a, need: int, babies: int) -> Tutorial:
             Page((f"DELIVER {need} OF {babies} TO WIN. OUTFLY THE", "SPAGHETTI MONSTER OR IT STEALS THE BABY"),
                  chase),
         ],
+        intro="BABIES ARRIVE BY AIR. YOU ARE THE AIR.",
     )

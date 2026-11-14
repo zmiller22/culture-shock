@@ -395,7 +395,7 @@ def make(a, need: int, time_limit: float) -> Tutorial:
             self.c.state, self.held = "held", self.c.kind
 
     return Tutorial(
-        "PRIMORDIAL SOUP", "LIFE STARTED IN A WARM BROTH. COOK SOME UP.",
+        "PRIMORDIAL SOUP", "",
         [
             Page(("MOVE THE STICK TO RUN AROUND", "WALK TO THE POT TO CONTINUE"), trial=Run),
             Page(("GET CLOSE AND PRESS THE BUTTON", "TO POUNCE ON A CRITTER"), controls=("stick", "button"),
@@ -405,4 +405,5 @@ def make(a, need: int, time_limit: float) -> Tutorial:
             Page((f"GET {need} IN THE SOUP IN {int(time_limit)} SECONDS.", "DODGE THE TOOLS FLYING OFF THE WALL!"),
                  dodge),
         ],
+        intro="LIFE STARTED IN A WARM BROTH. COOK SOME UP.",
     )

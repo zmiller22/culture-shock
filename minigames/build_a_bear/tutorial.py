@@ -420,4 +420,5 @@ def make(a) -> Tutorial:
             Page(("ALL 5 ON? BUTTON AT THE SWITCH.",), controls=("stick", "button"), trial=Switch),
         ],
         accent=GREEN,
+        intro="SPARKS WILL FLY",
     )

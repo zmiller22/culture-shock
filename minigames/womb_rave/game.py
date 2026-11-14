@@ -37,6 +37,7 @@ from sprites.rig import GROUND, SIZE
 from sprites.viewer import H, W, Loaded, text_surface, to_surface
 
 from ..shell import Input, run
+from ..tutorial import Intro
 from . import art, music, tutorial
 from .art import CX, CY, MEM_RX, MEM_RY, RECEPTOR, SAC_RX, SAC_RY
 from .music import BEAT, SONG_LEN
@@ -327,7 +328,8 @@ class WombRave:
 
         self.result: str | None = None
         self.done = False
-        self.phase = "select" if show_title else "walk"
+        self.phase = "intro" if show_title else "walk"
+        self.intro = Intro("LIFE STARTS WHEN YOU ARE FEELING THE RHYTHM.", art.F["hi"])
         self.phase_t = 0.0
         self.howto: tutorial.Tutorial | None = None    # how to play, shown once after the first pick
         self.time = 0.0
@@ -443,7 +445,11 @@ class WombRave:
         self.audio.tick()
         self._update_fx(dt)
 
-        if self.phase == "select":
+        if self.phase == "intro":
+            self.intro.update(dt, inp)
+            if self.intro.done:
+                self._enter_phase("select")
+        elif self.phase == "select":
             self._update_select(dt, inp)
         elif self.phase == "howto":
             self.howto.update(dt, inp)
@@ -712,6 +718,9 @@ class WombRave:
 
     # -- draw -------------------------------------------------------------------
     def draw(self, screen: pygame.Surface) -> None:
+        if self.phase == "intro":
+            self.intro.draw(screen)
+            return
         if self.phase == "select":
             self._draw_select(screen)
         elif self.phase == "howto":
@@ -1143,7 +1152,7 @@ def autopilot(game: WombRave) -> Input:
         inp.x = 1 if int(game.time * 10) % 2 else 0
         return inp
     if game.phase != "dance":
-        inp.action = game.phase in ("select", "howto", "won", "lost") and game.phase_t > 1.2 or \
+        inp.action = game.phase in ("intro", "select", "howto", "won", "lost") and game.phase_t > 1.2 or \
             game.phase == "rejected" and game.phase_t > REJECT_LINE_TIME * len(REJECT_LINES) + 0.5
         return inp
     now = game.song_t
