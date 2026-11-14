@@ -26,6 +26,7 @@ import math
 import random
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import pygame
 
@@ -103,6 +104,12 @@ STREAK_LINES = (
 CLIMAX_LINES = ("OH OH OH YES!", "EARTH. MOVED.", "THE BIG O-VULATION!", "CLIMAX!", "WAS IT GOOD FOR YOU?")
 BREAK_LINES = ("IT HAPPENS TO EVERYONE", "TOO SOON?", "AWKWARD...", "WE CAN CUDDLE", "IS IT IN?")
 BREAK_AT = 16                  # a combo at least this long breaking gets a line too
+SOUNDS = Path(__file__).resolve().parents[2] / "assets" / "sounds"
+VOICE_FILES = ("bad_1.mp3", "bad_2.mp3", "bad_3.mp3")   # voice lines for when you're doing badly
+SLUMP_MISSES = 3               # misses in a row that set one off
+VOICE_COOLDOWN = 6.0           # s at least between voice lines
+VOICE_VOLUME = 1.0
+VOICE_DUCK = 0.4               # the song drops to this much of its volume while a voice line plays
 SHOUT_TIME = 1.4               # s a FASTER! / HARDER! shout stays up
 CALLOUT_TIME = 1.7             # s a streak line stays up
 CELLS = 26
@@ -209,6 +216,8 @@ class Audio:
         self.ok = False
         self.song_chan: pygame.mixer.Channel | None = None
         self.lobby_chan: pygame.mixer.Channel | None = None
+        self.voices: list[pygame.mixer.Sound] = []
+        self.voice_chan: pygame.mixer.Channel | None = None
         if mute:
             return
         try:
@@ -222,7 +231,14 @@ class Audio:
             self.fx["miss"].set_volume(VOLUME * 0.5)
             self.ok = True
         except pygame.error:
-            pass
+            return
+        for name in VOICE_FILES:                       # optional: the game's fine without them
+            try:
+                snd = pygame.mixer.Sound(file=str(SOUNDS / name))
+            except (pygame.error, FileNotFoundError):
+                continue
+            snd.set_volume(VOICE_VOLUME)
+            self.voices.append(snd)
 
     def play_lobby(self) -> None:
         if self.ok and not (self.lobby_chan and self.lobby_chan.get_busy()):
@@ -236,6 +252,8 @@ class Audio:
     def play_song(self) -> None:
         if self.ok:
             self.song_chan = self.song.play()
+            if self.song_chan:
+                self.song_chan.set_volume(VOICE_DUCK if self.talking() else 1.0)
 
     def playing(self) -> bool:
         return bool(self.song_chan and self.song_chan.get_busy())
@@ -250,6 +268,25 @@ class Audio:
     def play(self, name: str) -> None:
         if self.ok:
             self.fx[name].play()
+
+    def talking(self) -> bool:
+        return bool(self.voice_chan and self.voice_chan.get_busy())
+
+    def say(self, i: int) -> bool:
+        """Play voice line i, ducking the song under it. False if there's none or one's already going."""
+        if not self.voices or self.talking():
+            return False
+        self.voice_chan = self.voices[i % len(self.voices)].play()
+        if self.voice_chan and self.song_chan:
+            self.song_chan.set_volume(VOICE_DUCK)
+        return bool(self.voice_chan)
+
+    def tick(self) -> None:
+        """Bring the song back up once a voice line has finished."""
+        if self.voice_chan and not self.voice_chan.get_busy():
+            self.voice_chan = None
+            if self.song_chan and self.song_chan.get_sound() is self.song:
+                self.song_chan.set_volume(1.0)
 
 
 _ART: Art | None = None
@@ -318,6 +355,10 @@ class WombRave:
         self.life = LIFE_START
         self.score = 0
         self.combo = self.max_combo = 0
+        self.misses = 0                                # misses in a row
+        self.voice_bag: list[int] = []                 # voice lines left before they reshuffle
+        self.last_voice = -VOICE_COOLDOWN
+        self.last_line = -1
         self.tally = {g: 0 for g in ACCURACY}
         self.judged: tuple[str, float] | None = None   # last judgment and when
         self.flash: dict[str, float] = {}              # lane -> time it was last hit
@@ -392,6 +433,7 @@ class WombRave:
     def update(self, dt: float, inp: Input) -> None:
         self.time += dt
         self.phase_t += dt
+        self.audio.tick()
         self._update_fx(dt)
 
         if self.phase == "select":
@@ -570,10 +612,14 @@ class WombRave:
                 self._callout(self.rng.choice(BREAK_LINES), "#9cc4f0")
                 self.audio.play("moan_aww")
             self.combo = 0
+            self.misses += 1
             self.life = max(0.0, self.life - LIFE_MISS)
             self.move = (DANCE_MOVES["miss"][0], self.time)
             self.audio.play("miss")
+            if self.misses >= SLUMP_MISSES and self.life > 0:
+                self._heckle()
             return
+        self.misses = 0
         self.combo += 1
         self.max_combo = max(self.max_combo, self.combo)
         if self.combo % CLIMAX_EVERY == 0:
@@ -597,6 +643,19 @@ class WombRave:
         if grade == "perfect" and self.rng.random() < 0.3:
             rx, ry = RECEPTOR[n.lane] if n.lane != "B" else (CX, CY + MEM_RY)
             self._popup(self.rng.choice(HIT_LINES[n.lane]), rx, ry + 8, LAB_DIM, life=0.6)
+
+    def _heckle(self) -> None:
+        """You're in a slump: someone lets you know about it."""
+        if self.time - self.last_voice < VOICE_COOLDOWN or not self.audio.voices:
+            return
+        if not self.voice_bag:
+            self.voice_bag = list(range(len(self.audio.voices)))
+            self.rng.shuffle(self.voice_bag)
+            if len(self.voice_bag) > 1 and self.voice_bag[-1] == self.last_line:   # never the same one twice running
+                self.voice_bag.insert(0, self.voice_bag.pop())
+        if self.audio.say(self.voice_bag[-1]):
+            self.last_line = self.voice_bag.pop()
+            self.last_voice = self.time
 
     def _dance(self, lane: str) -> None:
         anim, _ = DANCE_MOVES[lane]
