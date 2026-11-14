@@ -131,8 +131,15 @@ switches off into that simulation. Each simulation is one of the mini-games:
 
 When the simulation ends you're disincarnated back into the terminal, which
 prints the result: win and the theory is CONFIRMED, lose and it's REFUTED. Then
-you choose PLAY AGAIN (straight back into the same simulation) or EXPLORE OTHER
-THEORIES (back to the map). The menu keeps score. Confirm them all and the machine is not sure
+you choose PLAY AGAIN (straight back into the same simulation, skipping its
+how-to) or EXPLORE OTHER THEORIES (back to the map). Every theory you've played
+is stamped CONFIRMED or REFUTED on its tile, so a returning visitor can see what
+they've done.
+
+Each simulation scores points, and your total is your best score on each theory,
+added up. When a visit ends the HIGH SCORES rank everyone by theories explored
+(played, won or lost), then by total points. They're kept in
+`~/.life_lab/scores.txt` (set `LIFE_LAB_SCORES` to move it). Confirm them all and the machine is not sure
 what to make of it.
 
 ### The file drawer

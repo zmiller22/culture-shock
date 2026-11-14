@@ -372,6 +372,8 @@ class ItTakesTwo:
         self.meet_at = (0.0, 0.0)
         self.result: str | None = None
         self.done = False
+        if not show_title:                            # playing again: no prelude, entrances or how-to
+            self._end_intro()
 
     # -- helpers -------------------------------------------------------------------
     @property

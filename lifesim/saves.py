@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 PLAYERS_DIR = Path(os.environ.get("LIFE_LAB_PLAYERS", Path.home() / ".life_lab" / "players"))
@@ -25,7 +25,7 @@ class Save:
     visitor: int
     results: dict[str, list[str]] = field(default_factory=dict)   # theory code -> every result, in order
     frontier_shown: bool = False
-    confirmed_at: float = 0.0       # s of play when they confirmed their latest new theory
+    best: dict[str, int] = field(default_factory=dict)            # theory code -> best points on it
     played: float = 0.0             # s of play so far, over every visit
     frames: dict[str, int] = field(default_factory=dict)          # animation -> frames in its strip
 
@@ -48,7 +48,8 @@ def names(root: Path = PLAYERS_DIR) -> set[str]:
 def load(name: str, root: Path = PLAYERS_DIR) -> Save | None:
     try:
         data = json.loads((_dir(name, root) / "state.json").read_text())
-        return Save(**data)
+        known = {f.name for f in fields(Save)}
+        return Save(**{k: v for k, v in data.items() if k in known})   # (older saves had other fields)
     except (OSError, ValueError, TypeError):
         return None
 

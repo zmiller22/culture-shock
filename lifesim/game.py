@@ -286,7 +286,7 @@ class Theory:
     game: str                   # the mini-game's own name, on its map tile
     blurb: tuple[str, str]
     players: str
-    make: Callable[[], MiniGame]
+    make: Callable[..., MiniGame]   # make(prev): prev is the round just played, for PLAY AGAIN (no how-to)
     autopilot: Callable[[MiniGame], Input]
     quips: dict[str, str]
 
@@ -294,29 +294,31 @@ class Theory:
 def theories(mute: bool = False) -> list[Theory]:
     """The simulations on the tape library, in the order life supposedly happens.
     Imports are lazy so the mainframe boots before the mini-games load."""
-    def stork():
+    # each takes the round just played when they PLAY AGAIN: then there's no title or how-to
+    def stork(prev=None):
         from minigames.stork_bomber.game import StorkBomber
-        return StorkBomber()
+        return StorkBomber(show_title=prev is None)
 
-    def soup():
+    def soup(prev=None):
         from minigames.primordial_soup.game import PrimordialSoup
-        return PrimordialSoup()
+        return PrimordialSoup(show_title=prev is None)
 
-    def meet():
+    def meet(prev=None):
         from minigames.it_takes_two.game import ItTakesTwo
-        return ItTakesTwo()
+        return ItTakesTwo(show_title=prev is None)
 
-    def womb():
+    def womb(prev=None):
         from minigames.womb_rave.game import WombRave
-        return WombRave(mute=mute)
+        dancer = prev.cast[prev.pick] if prev is not None and not prev.rejected else None   # the same dancer again
+        return WombRave(character=dancer, show_title=prev is None, mute=mute)
 
-    def spit():
+    def spit(prev=None):
         from minigames.spit_kit.game import SpitKit
-        return SpitKit()
+        return SpitKit(show_title=prev is None)
 
-    def bear():
+    def bear(prev=None):
         from minigames.build_a_bear.game import BuildABear
-        return BuildABear()
+        return BuildABear(show_title=prev is None)
 
     def pilot(module: str):
         def go(game):
@@ -492,7 +494,10 @@ class LifeSim:
         self.visitor = next_visitor()
         self.name = "ANON"                      # until they sign in (--skip-boot never asks)
         self.signed_in = False
-        self.confirmed_at = 0.0                 # s of play (over every visit) when they confirmed their latest new theory
+        self.best: dict[str, int] = {}          # theory code -> their best points on it (the total is the high score)
+        self.last_points = 0                    # points from the simulation that just ended
+        self.prev_sim: MiniGame | None = None   # the round that just ended, while its verdict is up
+        self.replay = False                     # PLAY AGAIN: the next load skips the how-to
         self.time_base = 0.0                    # s of play on earlier visits, for a visitor who's come back
         self.has_save = False                   # they've got a body, so there's a game to save (see saves.py)
         self.saved_frames: dict[str, int] = {}  # what's in the saved body's strips
@@ -564,7 +569,8 @@ class LifeSim:
         elif phase == "return":
             theory, res = self.last
             lines = [f"SIMULATION {theory.code} ENDED.", f"VISITOR {self.name} DISINCARNATED.", "",
-                     f"RESULT: THEORY {VERDICT.get(res, VERDICT['?'])}", theory.quips.get(res, "THE DATA ARE A MESS."), ""]
+                     f"RESULT: THEORY {VERDICT.get(res, VERDICT['?'])}", theory.quips.get(res, "THE DATA ARE A MESS."),
+                     f"POINTS: {self.last_points}   BEST: {self.best.get(theory.code, 0)}   TOTAL: {self.points}", ""]
             tested = [t for t in self.theories if self.results[t.code]]
             confirmed = [t for t in self.theories if "win" in self.results[t.code]]
             if len(confirmed) == len(self.theories):
@@ -751,15 +757,24 @@ class LifeSim:
     def confirmed(self) -> int:
         return sum("win" in r for r in self.results.values())
 
+    @property
+    def explored(self) -> int:
+        return sum(bool(r) for r in self.results.values())
+
+    @property
+    def points(self) -> int:
+        return sum(self.best.values())
+
     def my_score(self) -> scores.Score:
-        return scores.Score(self.visitor, self.name, self.confirmed, round(self.confirmed_at))
+        return scores.Score(self.visitor, self.name, self.explored, self.points, self.confirmed)
 
     def _save_game(self, avatar=None) -> None:
         """Their saved game, so they can come back to it under the same name. Only once they've got a body."""
         if not (self.record and self.signed_in and self.has_save):
             return
-        state = saves.Save(self.name, self.visitor, {k: list(v) for k, v in self.results.items()},
-                           self.frontier_shown, self.confirmed_at, self.time_base + self.time, dict(self.saved_frames))
+        state = saves.Save(self.name, self.visitor, results={k: list(v) for k, v in self.results.items()},
+                           frontier_shown=self.frontier_shown, best=dict(self.best),
+                           played=self.time_base + self.time, frames=dict(self.saved_frames))
         saves.save(state, avatar)                     # with a body, this fills in state.frames
         self.saved_frames = state.frames
 
@@ -769,7 +784,7 @@ class LifeSim:
         for code in self.results:
             self.results[code] = list(save.results.get(code, []))
         self.frontier_shown = save.frontier_shown
-        self.confirmed_at = save.confirmed_at
+        self.best = {code: pts for code, pts in save.best.items() if code in self.results}
         self.time_base = save.played - self.time      # so time_base + self.time carries on from where they were
         self.saved_frames = dict(save.frames)
         frames = saves.load_avatar(save)
@@ -855,12 +870,13 @@ class LifeSim:
                 self._take_body(self.sim)
             elif self.sim.done:
                 res = self.sim.result or "?"
-                if res == "win" and "win" not in self.results[self.sim_theory.code]:
-                    self.confirmed_at = self.time_base + self.time   # a new theory confirmed: the high-score clock
-                self.results[self.sim_theory.code].append(res)
-                self.activity("theory_end", theory=self.sim_theory.code, result=res, secs=self._sim_secs())
+                code = self.sim_theory.code
+                self.results[code].append(res)
+                self.last_points = max(0, int(getattr(self.sim, "score", 0) or 0))
+                self.best[code] = max(self.best.get(code, 0), self.last_points)
+                self.activity("theory_end", theory=code, result=res, secs=self._sim_secs(), points=self.last_points)
                 self.last = (self.sim_theory, res)
-                self.sim = None
+                self.prev_sim, self.sim = self.sim, None
                 self._save_game()
                 if pygame.mixer.get_init():
                     pygame.mixer.fadeout(300)     # the womb rave leaves its lobby music on
@@ -946,7 +962,9 @@ class LifeSim:
                 self.sim_theory = self.theories[self.sel]
                 self.activity("theory_start", theory=self.sim_theory.code)
                 self.sim_started = self.time
-                self.sim = self.sim_theory.make()
+                prev = self.prev_sim if self.replay and self.prev_sim is not None else None
+                self.sim = self.sim_theory.make(prev) if prev is not None else self.sim_theory.make()
+                self.prev_sim, self.replay = None, False
                 self._go("sim")
         elif self.phase == "return":
             y = inp.y or inp.x or next((p.y or p.x for p in inp.players if p.y or p.x), 0)
@@ -973,13 +991,16 @@ class LifeSim:
         self.activity("return_choice", option=option, theory=self.last[0].code)
         self.map.place(self.theories.index(self.last[0]))
         if option == "PLAY AGAIN":
+            self.replay = True                  # same simulation, no how-to this time
             self._go("load")
         elif all(self.results.values()) and not self.frontier_shown:   # every theory tested
+            self.prev_sim = None
             self.frontier_shown = True
             self._save_game()
             self.activity("frontier")
             self._go("frontier")
         else:
+            self.prev_sim = None
             self._go("hub")
 
     # -- drawing -----------------------------------------------------------------------
@@ -1305,10 +1326,23 @@ class LifeSim:
         if self.phase == "hub":
             x, y = m.pos
             self._draw_body(screen, x, y + AVATAR_FEET, "walk" if m.moving else "idle")
+        for i, t in enumerate(self.theories):            # played: CONFIRMED or REFUTED stamped over the preview
+            if self.results[t.code]:                     # (on top of the body, so it's never hidden)
+                v = self._verdict(t)
+                self._stamp(screen, tile_at(i)[0] + TILE_W // 2, tile_at(i)[1] + 4, v, lit=v == VERDICT["win"])
         k = min(1.0, self.phase_t / MAP_FADE) if self.phase == "hub" and self.tutorial == 0 else 1.0
         if k < 1:                                        # fading in from the void
             v = int(255 * k)
             screen.fill((v, v, v), special_flags=pygame.BLEND_MULT)
+
+    def _stamp(self, screen: pygame.Surface, cx: int, top: int, word: str, lit: bool) -> None:
+        """A verdict across the top of a tile: lit for CONFIRMED, dark with a frame for the rest."""
+        s = self.text.get(word, CRT_BG if lit else PHOSPHOR, big=True)
+        box = pygame.Rect(0, top, s.get_width() + 6, 11)
+        box.centerx = cx
+        screen.fill(rgb(PHOSPHOR if lit else CRT_BG), box)
+        pygame.draw.rect(screen, rgb(CRT_BG if lit else PHOSPHOR), box, 1)
+        screen.blit(s, (box.x + 3, box.y + 2))
 
     # -- the tour of the map ------------------------------------------------------------
     def _walk(self, dt: float, inp: Input) -> None:
@@ -1587,11 +1621,10 @@ class LifeSim:
             y = 21 + i * 9
             crt.blit(self.text.get(f"{i + 1}.", PHOSPHOR_DIM), (18, y))
             crt.blit(self.text.get(sc.name, PHOSPHOR), (32, y))
-            r = self.text.get(f"{sc.confirmed}/{len(self.theories)}", PHOSPHOR)
-            crt.blit(r, (sw - 52 - r.get_width(), y))
-            if sc.confirmed:
-                t = self.text.get(scores.clock(sc.secs), PHOSPHOR_DIM)
-                crt.blit(t, (sw - 18 - t.get_width(), y))
+            r = self.text.get(f"{sc.explored}/{len(self.theories)}", PHOSPHOR)      # theories explored
+            crt.blit(r, (sw - 62 - r.get_width(), y))
+            t = self.text.get(f"{sc.points} PTS", PHOSPHOR_DIM)
+            crt.blit(t, (sw - 18 - t.get_width(), y))
         if int(self.time * 2) % 2 == 0:
             s = self.text.get("PUSH TO BOOT UP", PHOSPHOR)
             crt.blit(s, (sw // 2 - s.get_width() // 2, 95))
@@ -1604,9 +1637,9 @@ class LifeSim:
         rank = next((i for i, sc in enumerate(self.scores) if sc.visitor == self.visitor), None)
         title = self.text.get("HIGH SCORES", PHOSPHOR, 2, big=True)
         screen.blit(title, (art.W // 2 - title.get_width() // 2, 19))
-        cols = (70, 92, 196, 250)                            # rank, name, confirmed, time
+        cols = (70, 92, 160, 230)                            # rank, name, explored, points
         y = 40
-        for label, x in zip(("", "NAME", "CONFIRMED", "TIME"), cols):
+        for label, x in zip(("", "NAME", "EXPLORED", "POINTS"), cols):
             screen.blit(self.text.get(label, PHOSPHOR_DIM), (x, y))
         shown = list(enumerate(self.scores[:SCORE_ROWS]))
         if rank is not None and rank >= SCORE_ROWS:          # not in the top: their row at the bottom
@@ -1617,11 +1650,11 @@ class LifeSim:
             if me:
                 screen.fill(rgb(PHOSPHOR_DIM if int(self.time * 3) % 3 else PHOSPHOR_FAINT), (64, y - 2, 214, 10))
             for text, x in ((f"{i + 1}.", cols[0]), (sc.name, cols[1]),
-                            (f"{sc.confirmed} OF {len(self.theories)}", cols[2]),
-                            (scores.clock(sc.secs) if sc.confirmed else "-", cols[3])):
+                            (f"{sc.explored} OF {len(self.theories)}", cols[2]),
+                            (str(sc.points), cols[3])):
                 screen.blit(self.text.get(text, PHOSPHOR, big=True), (x, y))
-        msg = (f"YOU CONFIRMED {mine.confirmed} OF {len(self.theories)} THEORIES." if mine.confirmed
-               else "NO THEORIES CONFIRMED. THE LAB IS DISAPPOINTED.")
+        msg = (f"YOU EXPLORED {mine.explored} OF {len(self.theories)} THEORIES: {mine.points} POINTS." if mine.explored
+               else "NO THEORIES EXPLORED. THE LAB IS DISAPPOINTED.")
         s = self.text.get(msg, PHOSPHOR, big=True)
         screen.blit(s, (art.W // 2 - s.get_width() // 2, 158))
         if self.phase_t > 1.0 and int(self.time * 2) % 2 == 0:

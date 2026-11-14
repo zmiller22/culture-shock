@@ -72,6 +72,7 @@ HOP_DOWN = 18                   # px in front of the slab it lands
 CALM_GROAN, CALM_CLUNK, CALM_BANNER = 0.6, 1.5, 3.4
 
 STORM_TIME = 60.0               # s of lightning left; counts down only while you're walking the lab
+POINTS_PART, POINTS_SEC = 200, 20        # for the lab's high scores: per part sewn on, per second of storm left
 KNOCK_T = 0.9                   # s knocked silly
 SAFE_T = 1.6                    # s of blinking after, when nothing can knock you again
 KNOCK_SPEED = 130               # px/s you get shoved
@@ -319,6 +320,11 @@ class BuildABear:
         self.storm_in = self.rng.uniform(2, 6)
         self.storm = 0.0                              # window lightning
         self.rise = 0.0                               # where the creature is, once it's up: 0 on the slab .. 1 on the floor
+
+    @property
+    def score(self) -> int:
+        """Points for the lab's high scores: every part on the slab, plus the storm left on a win."""
+        return len(self.built) * POINTS_PART + (int(self.clock) * POINTS_SEC if self.result == "win" else 0)
 
     # -- helpers ----------------------------------------------------------------------
     def _blocked(self, x: float, y: float, r: float = FEET_R) -> bool:

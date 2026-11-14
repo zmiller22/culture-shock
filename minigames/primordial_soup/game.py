@@ -37,6 +37,7 @@ from . import art, people, tutorial
 
 NEED = 4                        # critters in the soup to bring it to life
 TIME_LIMIT = 45.0               # seconds before the diners lose patience
+POINTS_CRITTER, POINTS_SEC = 300, 20     # for the lab's high scores: per critter souped, per second to spare
 
 # the room (floor coordinates are where feet touch)
 X_MIN, X_MAX = art.WALL_L + 8, art.WALL_R - 8
@@ -445,6 +446,11 @@ class PrimordialSoup:
                                  self.rng.uniform(60, 160), life=3.0))
 
     # -- update ------------------------------------------------------------------------
+    @property
+    def score(self) -> int:
+        """Points for the lab's high scores: every critter in the soup, plus the time to spare on a win."""
+        return self.in_soup * POINTS_CRITTER + (int(self.clock) * POINTS_SEC if self.result == "win" else 0)
+
     def update(self, dt: float, inp: Input) -> None:
         self.time += dt
         self.phase_t += dt
