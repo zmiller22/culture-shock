@@ -6,9 +6,8 @@ import math
 
 import pygame
 
-from sprites.palette import LAB_DIM, LAB_TEXT
+from sprites.palette import LAB_DIM
 from sprites.rig import GROUND, SIZE
-from sprites.viewer import text_surface
 
 from ..tutorial import DEMO_H, DEMO_W, Page, Tutorial, caption, loop
 from . import art
@@ -58,40 +57,32 @@ def make(a) -> Tutorial:
             s.blit(img, (142 - img.get_width() // 2 + jig, FLOOR - img.get_height() + 1))
         return [(stick[0], stick[1], False), (0, 0, btn)]
 
-    # 2. the slab and the menu
-    rows = ["HEAD", "LEFT ARM", "RIGHT ARM", "LEFT LEG", "RIGHT LEG"]
+    # 2. the sewing screen: move the part round the body, button sews it on
+    from .game import draw_body
+    held = ("arm", "teddy")
+    path = ["HEAD", "LEFT ARM", "RIGHT ARM"]                    # where the part hovers, in turn
 
-    def slab(s: pygame.Surface, t: float):
-        floor(s)
+    def sew(s: pygame.Surface, t: float):
+        s.fill((16, 12, 30))
         t = loop(t, 5.0) * 5.0
-        sx = 30
-        sy = FLOOR - a.slab.get_height() - 6
-        s.blit(a.slab, (sx, sy))
-        built = {k: v for k, v in DEMO_BODY.items() if k != "RIGHT ARM" or t > 3.4}
-        _, lying, _ = a.creature(built)
-        cx, cy = sx + a.slab.get_width() // 2, sy + 1 + art.SLAB_DEPTH // 2
-        s.blit(lying, (cx - lying.get_width() // 2, cy - lying.get_height() // 2))
-        s.blit(a.straps, (sx, sy))
-        doc(s, 128 if t > 3.4 else 128, "carry_idle" if t < 3.4 else "idle", int(t * 4) % 4, -1,
-            ("arm", "teddy") if t < 3.4 else None)
-        stick, btn = (0, 0), False
-        if 0.6 < t < 3.4:                                                   # the menu
-            sel = min(2, int((t - 1.0) / 0.6)) if t > 1.0 else 0
-            mx, my = 140, 6
-            pygame.draw.rect(s, (20, 15, 38), (mx, my, 94, 62))
-            pygame.draw.rect(s, (90, 78, 130), (mx, my, 94, 62), 1)
-            s.blit(text_surface("WHERE DOES IT GO?", "#ffd93a"), (mx + 4, my + 4))
-            for i, row in enumerate(rows):
-                y = my + 14 + i * 9
-                if i == sel:
-                    pygame.draw.rect(s, (60, 50, 100), (mx + 2, y - 2, 90, 9))
-                s.blit(text_surface(row, LAB_TEXT if i == sel else LAB_DIM), (mx + 8, y))
-            if 1.0 < t < 2.2 and (t - 1.0) % 0.6 < 0.25:
-                stick = (0, 1)
-            btn = 2.8 < t < 3.1
-        elif t >= 3.4 and t < 4.4:
-            caption(s, "STITCH STITCH!", 128, 22)
-        return [(stick[0], stick[1], False), (0, 0, btn)]
+        pygame.draw.rect(s, (40, 32, 70), (34, 4, 70, 96))
+        step = min(len(path) - 1, int(t / 1.0))
+        sewn = t > 3.4
+        body = {k: v for k, v in DEMO_BODY.items() if k not in ("RIGHT ARM", "HEAD")}
+        if sewn:
+            body["RIGHT ARM"] = held
+        draw_body(s, a, 43, 14, 1, body, None if sewn else held, path[step], t)
+        img = a.upright(*held)
+        s.blit(pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2)), (126, 14))
+        caption(s, "TEDDY ARM", 186, 18)
+        if sewn:
+            caption(s, "STITCH STITCH!", 170, 52, "#d4ff7a")
+        else:
+            caption(s, "GOES ON THE", 186, 32, LAB_DIM)
+            caption(s, path[step], 186, 40, "#d4ff7a")
+        moving = 0.7 < t % 1.0 < 0.95 and t < 2.0
+        stick = (0, 1) if moving and step == 0 else (1, 0) if moving else (0, 0)
+        return [(stick[0], stick[1], False), (0, 0, 3.0 < t < 3.35)]
 
     # 3. throw the switch
     standing, lying, foot = a.creature(DEMO_BODY)
@@ -133,7 +124,7 @@ def make(a) -> Tutorial:
         pages=[
             Page(("GRAB TOY PARTS OFF THE FLOOR.", "BUTTON PICKS UP. BUTTON AGAIN DROPS."), grab,
                  ("stick", "button"), time=6.0),
-            Page(("TAKE THEM TO THE SLAB AND PRESS BUTTON.", "PICK WHERE EACH ONE GOES."), slab,
+            Page(("TAKE THEM TO THE SLAB AND PRESS BUTTON.", "MOVE THE PART ROUND THE BODY. BUTTON SEWS."), sew,
                  ("stick", "button"), time=7.0),
             Page(("HEAD, TWO ARMS, TWO LEGS ON?", "THROW THE SWITCH!"), switch, ("button",), time=6.0),
         ],

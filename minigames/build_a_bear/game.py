@@ -3,15 +3,15 @@
     python -m minigames.build_a_bear [--fullscreen] [--scale 4] [--demo] [--skip-title]
 
 Controls (keyboard, or an arcade stick / gamepad):
-    ARROWS              walk around the lab / move through the menu     stick
+    ARROWS              walk around the lab / move the part round the body   stick
     SPACE / Z / ENTER   pick up / drop / use the slab / pull the switch  button 0
     ESC / Q             quit
 
 Toy parts lie all over the castle lab: teddy bears, porcelain dolls, bunnies,
 sock monkeys, a plush octopus. Pick one up, carry it to the slab and press the
-button: a menu asks where it goes. Anything goes anywhere (a tentacle can be a
-head, if you like), and putting a part where one already is knocks the old one
-off. Once every slot is filled (a head, two arms, two legs), walk over to the big
+button: the sewing screen shows the body from the front, and the stick moves the
+part round it to the slot you want. Anything goes anywhere (a tentacle can be a
+head, if you like), and sewing a part where one already is rips the old one off. Once every slot is filled (a head, two arms, two legs), walk over to the big
 knife switch on the wall and throw it. Lightning, smoke, and it's alive.
 
 There's no way to lose yet: this is the building half. What winning and losing
@@ -105,16 +105,24 @@ class Part:
         return art.PART_NAMES[(self.kind, self.fam)]
 
 
+NEVER = "NEVER MIND"
+# The sewing screen: the stick moves the part round the body the way the slots sit on it.
+NAV = {
+    "HEAD": {(0, 1): "LEFT ARM", (-1, 0): "LEFT ARM", (1, 0): "RIGHT ARM"},
+    "LEFT ARM": {(1, 0): "RIGHT ARM", (0, -1): "HEAD", (0, 1): "LEFT LEG"},
+    "RIGHT ARM": {(-1, 0): "LEFT ARM", (0, -1): "HEAD", (0, 1): "RIGHT LEG", (1, 0): NEVER},
+    "LEFT LEG": {(1, 0): "RIGHT LEG", (0, -1): "LEFT ARM", (0, 1): NEVER},
+    "RIGHT LEG": {(-1, 0): "LEFT LEG", (0, -1): "RIGHT ARM", (0, 1): NEVER, (1, 0): NEVER},
+    NEVER: {(0, -1): "RIGHT LEG", (-1, 0): "RIGHT LEG"},
+}
+
+
 @dataclass
 class Menu:
-    """Where does it go? The slots, then NEVER MIND."""
-    i: int = 0
-    prev_y: int = 0
+    """The sewing screen: which slot the held part is hovering over."""
+    sel: str = "HEAD"
+    prev: tuple[int, int] = (0, 0)
     t: float = 0.0
-
-    @property
-    def choices(self) -> int:
-        return NEED + 1
 
 
 def big_text(text: str, color: str, scale: int = 2) -> pygame.Surface:
@@ -154,6 +162,32 @@ class Art:
         self.smoke = [to_surface(art.smoke(f)) for f in range(4)]
         self.star = to_surface(art.star())
         self._creature: dict[tuple, tuple[pygame.Surface, pygame.Surface, int]] = {}
+        self._scaled: dict[tuple, pygame.Surface] = {}
+        self._placed: dict[tuple, list[tuple[int, int]]] = {}
+        self._upright: dict[tuple, pygame.Surface] = {}
+        self.ghost_pts = {slot: self.placed_pts(slot, art.SLOT_KIND[slot], "teddy") for slot in SLOTS}
+
+    def placed_pts(self, slot: str, kind: str, fam: str) -> list[tuple[int, int]]:
+        """The outline of a part sewn into a slot, in creature coordinates, in order round its edge."""
+        key = (slot, kind, fam)
+        if key not in self._placed:
+            img, x, y = art.place(slot, kind, fam)
+            pts = pygame.mask.from_surface(to_surface(img)).outline()
+            self._placed[key] = [(px + x, py + y) for px, py in pts]
+        return self._placed[key]
+
+    def creature_scaled(self, parts: dict, scale: int) -> pygame.Surface:
+        key = (tuple(sorted(parts.items())), scale)
+        if key not in self._scaled:
+            img = self.creature(parts)[0]
+            self._scaled[key] = pygame.transform.scale(img, (img.get_width() * scale, img.get_height() * scale))
+        return self._scaled[key]
+
+    def upright(self, kind: str, fam: str) -> pygame.Surface:
+        """A part standing the right way up, the way it'd go on."""
+        if (kind, fam) not in self._upright:
+            self._upright[(kind, fam)] = to_surface(art.part(kind, fam))
+        return self._upright[(kind, fam)]
 
     def creature(self, parts: dict[str, tuple[str, str]]) -> tuple[pygame.Surface, pygame.Surface, int]:
         """(standing, lying on its back, row its feet touch when standing)."""
@@ -336,7 +370,9 @@ class BuildABear:
         """The one button: pick up, drop, use the slab or the switch, depending."""
         if self.held:
             if self.at_slab:
-                self.menu = Menu()
+                kind = self.held.kind
+                empty = [s for s in SLOTS if s not in self.built]
+                self.menu = Menu(next((s for s in empty if art.SLOT_KIND[s] == kind), empty[0] if empty else "HEAD"))
                 self.vx = self.vy = 0.0
             elif self.at_lever:
                 self._popup("HANDS FULL!", self.x, self.y - 54, LAB_DIM, life=0.8)
@@ -379,13 +415,21 @@ class BuildABear:
         m = self.menu
         m.t += dt
         self.vx = self.vy = 0.0
-        if inp.y and not m.prev_y:
-            m.i = (m.i + inp.y) % m.choices
-        m.prev_y = inp.y
+        stick = (inp.x, inp.y)
+        if stick != (0, 0) and stick != m.prev:
+            # a fresh push: across if the stick just went across, otherwise up/down
+            moves = [(inp.x, 0)] if inp.x and inp.x != m.prev[0] else []
+            moves += [(0, inp.y)] if inp.y else []
+            moves += [(inp.x, 0)] if inp.x and not moves else []
+            for move in moves:
+                if move in NAV[m.sel]:
+                    m.sel = NAV[m.sel][move]
+                    break
+        m.prev = stick
         if inp.action and m.t > 0.15:
             self.menu = None
-            if m.i < NEED:
-                self._place(SLOTS[m.i])
+            if m.sel != NEVER:
+                self._place(m.sel)
 
     def _place(self, slot: str) -> None:
         p = self.held
@@ -709,38 +753,58 @@ class BuildABear:
                                                   f"AND A {names[4]}.", "", "PRESS BUTTON"])
 
     def _draw_menu(self, screen: pygame.Surface) -> None:
+        """The sewing screen: the body from the front at double size, with the held
+        part hovering over the chosen slot, and what it means down the right."""
         m = self.menu
-        x0, y0, w, h = 40, 6, 240, 92
-        panel = pygame.Surface((w, h), pygame.SRCALPHA)
-        panel.fill((20, 15, 38, 235))
-        screen.blit(panel, (x0, y0))
-        pygame.draw.rect(screen, (90, 78, 130), (x0, y0, w, h), 1)
-        title = text_surface(f"WHERE DOES THE {self.held.name} GO?", "#ffd93a")
-        screen.blit(title, (x0 + 6, y0 + 5))
-        for i in range(m.choices):
-            y = y0 + 17 + i * 11
-            sel = i == m.i
-            if sel:
-                pygame.draw.rect(screen, (60, 50, 100), (x0 + 3, y - 2, 164, 9))
-                if int(self.time * 4) % 2:
-                    pygame.draw.polygon(screen, hex_to_rgba("#ffd93a"), [(x0 + 5, y), (x0 + 5, y + 4), (x0 + 7, y + 2)])
-            if i < NEED:
-                slot = SLOTS[i]
-                screen.blit(text_surface(slot, LAB_TEXT if sel else LAB_DIM), (x0 + 10, y))
-                there = self.built.get(slot)
-                screen.blit(text_surface(there.name if there else "---", "#ff9ab8" if there else LAB_DIM),
-                            (x0 + 62, y))
+        held = (self.held.kind, self.held.fam)
+        panel = pygame.Surface((W - 12, H - 8), pygame.SRCALPHA)
+        panel.fill((16, 12, 30, 252))
+        screen.blit(panel, (6, 4))
+        pygame.draw.rect(screen, (90, 78, 130), (6, 4, W - 12, H - 8), 1)
+        pygame.draw.rect(screen, (40, 32, 70), (12, 10, 124, 160))                # the cutting mat
+        for gx in range(12, 136, 12):
+            pygame.draw.line(screen, (52, 42, 88), (gx, 10), (gx, 169))
+        for gy in range(10, 170, 12):
+            pygame.draw.line(screen, (52, 42, 88), (12, gy), (135, gy))
+        draw_body(screen, self.art, 22, 12, 2, self.body(), held, m.sel, self.time)
+
+        cx = 146
+        screen.blit(text_surface("SEW IT ON WHERE?", "#ffd93a"), (cx, 12))
+        box = pygame.Rect(cx, 22, 44, 56)                                          # the part in hand
+        pygame.draw.rect(screen, (40, 32, 70), box)
+        pygame.draw.rect(screen, (90, 78, 130), box, 1)
+        img = self.art.upright(*held)
+        img = pygame.transform.scale(img, (img.get_width() * 2, img.get_height() * 2))
+        screen.blit(img, (box.centerx - img.get_width() // 2, box.centery - img.get_height() // 2))
+        screen.blit(text_surface(self.held.name, LAB_TEXT), (cx + 50, 26))
+        if m.sel == NEVER:
+            screen.blit(text_surface("PUT IT BACK DOWN", LAB_DIM), (cx + 50, 38))
+        else:
+            screen.blit(text_surface("GOES ON THE", LAB_DIM), (cx + 50, 38))
+            screen.blit(big_text(m.sel, "#d4ff7a"), (cx + 50, 46))
+            there = self.built.get(m.sel)
+            if there:
+                screen.blit(text_surface("RIPS OFF THE", "#ff9ab8"), (cx + 50, 62))
+                screen.blit(text_surface(there.name, "#ff9ab8"), (cx + 50, 69))
             else:
-                screen.blit(text_surface("NEVER MIND", LAB_TEXT if sel else LAB_DIM), (x0 + 10, y))
-        body = self.body()                                                 # preview, with the part blinking in
-        if m.i < NEED and int(self.time * 4) % 4:
-            body[SLOTS[m.i]] = (self.held.kind, self.held.fam)
-        standing, _, foot = self.art.creature(body)
-        bx = x0 + w - art.MW - 6
-        by = y0 + h - 4 - foot
-        screen.set_clip(pygame.Rect(x0 + 1, y0 + 1, w - 2, h - 2))
-        screen.blit(standing, (bx, by))
-        screen.set_clip(None)
+                screen.blit(text_surface("EMPTY SLOT", LAB_DIM), (cx + 50, 62))
+            if art.SLOT_KIND[m.sel] != self.held.kind:
+                screen.blit(text_surface("(BOLD CHOICE)", "#f0d27a"), (cx, 84))
+        n = len(self.built)
+        screen.blit(text_surface(f"SEWN ON {n}/{NEED}", "#d4ff7a" if n == NEED else LAB_DIM), (cx, 100))
+        for i, slot in enumerate(SLOTS):                                           # a little checklist
+            done = slot in self.built
+            col = "#d4ff7a" if done else LAB_DIM
+            y = 110 + i * 7
+            pygame.draw.rect(screen, hex_to_rgba(col), (cx + 4, y, 5, 5), 0 if done else 1)
+            screen.blit(text_surface(slot, col), (cx + 12, y))
+        nb = pygame.Rect(cx + 96, 132, 58, 14)                                    # NEVER MIND
+        sel = m.sel == NEVER
+        pygame.draw.rect(screen, (90, 70, 150) if sel else (40, 32, 70), nb)
+        pygame.draw.rect(screen, hex_to_rgba("#ffd93a") if sel and int(self.time * 4) % 2 else (90, 78, 130), nb, 1)
+        label = text_surface(NEVER, LAB_TEXT if sel else LAB_DIM)
+        screen.blit(label, (nb.centerx - label.get_width() // 2, nb.y + 5))
+        screen.blit(text_surface("STICK: MOVE IT  BUTTON: SEW", LAB_DIM), (cx, 160))
 
     def _banner(self, screen: pygame.Surface, title: str, lines: list[str]) -> None:
         shade = pygame.Surface((W, 30 + 9 * len(lines)), pygame.SRCALPHA)
@@ -753,6 +817,35 @@ class BuildABear:
             if line:
                 s = text_surface(line, LAB_DIM if line != "PRESS BUTTON" else LAB_TEXT)
                 screen.blit(s, (W // 2 - s.get_width() // 2, top + 25 + i * 9))
+
+
+def draw_body(screen: pygame.Surface, a: "Art", ox: int, oy: int, scale: int, body: dict, held: tuple | None,
+              sel: str, t: float) -> None:
+    """The body from the front, `scale` times size, its top-left at (ox, oy): sewn-on
+    parts solid, empty slots as faint dotted outlines with a pulsing marker, and the
+    held part sewn into `sel` with a glowing edge. Shared with the how-to page."""
+    preview = dict(body)
+    if held and sel in SLOTS:
+        preview[sel] = held
+    dim = (130, 112, 190)
+    for slot in SLOTS:                                                         # where parts could go
+        if slot not in preview:
+            for k, (x, y) in enumerate(a.ghost_pts[slot]):
+                if k % 2 == 0:
+                    screen.fill(dim, (ox + x * scale, oy + y * scale, scale, scale))
+    screen.blit(a.creature_scaled(preview, scale), (ox, oy))
+    for slot in SLOTS:
+        if slot not in preview:
+            sx, sy = art.SLOT_AT[slot]
+            r = 2 + int(t * 4) % 2
+            col = hex_to_rgba("#8a7ac8")
+            px, py = ox + sx * scale, oy + sy * scale
+            pygame.draw.line(screen, col, (px - r, py), (px + r, py))
+            pygame.draw.line(screen, col, (px, py - r), (px, py + r))
+    if held and sel in SLOTS:                                                  # glowing edge round the new part
+        col = hex_to_rgba("#ffd93a" if int(t * 6) % 2 else "#fff27a")
+        for x, y in a.placed_pts(sel, *held):
+            screen.fill(col, (ox + x * scale, oy + y * scale, scale, scale))
 
 
 CELL = 4                        # autopilot's path grid
@@ -805,11 +898,23 @@ def autopilot(game: BuildABear) -> Input:
         inp.action = game.phase in ("title", "won") and game.phase_t > 1.5 and tick % 30 == 0
         return inp
     if game.menu:
-        want = next((i for i, s in enumerate(SLOTS) if s not in game.built and art.SLOT_KIND[s] == game.held.kind),
-                    next((i for i, s in enumerate(SLOTS) if s not in game.built), NEED))
-        if game.menu.i != want:
-            inp.y = (1 if want > game.menu.i else -1) if tick % 2 else 0
-        else:
+        want = next((s for s in SLOTS if s not in game.built and art.SLOT_KIND[s] == game.held.kind),
+                    next((s for s in SLOTS if s not in game.built), NEVER))
+        if game.menu.sel != want and tick % 4 == 0:                        # one push toward it, along the NAV graph
+            seen, frontier = {game.menu.sel: None}, [game.menu.sel]
+            while frontier and want not in seen:
+                nxt = []
+                for here in frontier:
+                    for move, there in NAV[here].items():
+                        if there not in seen:
+                            seen[there] = (here, move)
+                            nxt.append(there)
+                frontier = nxt
+            step = want
+            while seen[step][0] != game.menu.sel:
+                step = seen[step][0]
+            inp.x, inp.y = seen[step][1]
+        elif game.menu.sel == want:
             inp.action = tick % 6 == 0
         return inp
     if game.complete and game.held:                                         # spare part: put it down
