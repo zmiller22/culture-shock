@@ -1,39 +1,48 @@
-"""The lab's activity log: what each visitor got up to, one JSON line per event.
+"""The lab's play log: what each visitor got up to, one CSV row per event.
 
-It's OFF until you switch it on, either with `--log-activity` or by setting
-LIFE_LAB_ACTIVITY=1. When it's on, events go to ~/.life_lab/activity.jsonl (next
-to the visitor log; override with LIFE_LAB_ACTIVITY_LOG). Demos and --ticks
-test runs never write to it.
+It's ON whenever the main game is really being played (demos and --ticks test
+runs never write to it). Turn it off with `--no-log` or LIFE_LAB_ACTIVITY=0.
+Rows go into the repo, in play_log/<machine>.csv, one file per machine so the
+cabinet's log and test runs on a laptop never mix (or clash in git). Override
+the path with LIFE_LAB_ACTIVITY_LOG. After an event, commit and push the
+cabinet's file and read it anywhere.
 
-Each line looks like
+Columns:
 
-    {"t": "2026-11-13T15:02:11", "session": "a1b2c3", "visitor": 12, "name": "ZACH",
-     "event": "file_open", "file": "NOTEBOOK_001.TXT", "via": "list"}
+    time, session, visitor, name, event, theory, game, result, file, code, secs, detail
+
+`session` is one visitor's go, from the start screen back to it. Anything an
+event says that doesn't have its own column lands in `detail` as key=value.
 
 Events:
-    session_start / session_end    the game opened / closed (session_end has "secs")
+    session_start / session_end    a visitor's go started / ended (session_end has secs)
     sign_in                        the visitor typed their name
+    theory_start / theory_end      a game was picked / ended. theory_end has result
+                                   (win, lose, quit = left from the exit menu) and secs played
+    tutorial_done                  finished the tour of the map
+    frontier                       every theory tested: the CONGRATULATIONS! screen (XXX IS THE ANSWER)
     files_open / files_close       C:/> FILES opened / backed out of
-    file_open                      a file was opened. "via": list, code or next (the button a message ends on)
-    code                           a password was typed into UNLOCK.EXE. "result": granted, denied, ooh or trip
-    ooh_end                        the OOH sequence ended (or they backed out of it): "secs" in
-    roll_end                       a rick roll finished. "bailed": true if they skipped out early
-    theory_start / theory_end      a simulation was picked / ended (theory_end has "result")
-    frontier                       every theory tested: the CONGRATULATIONS! screen (OOH IS THE ANSWER)
-    idle_prompt                    nobody touched anything for a while: the countdown came up ("phase")
-    idle_continue                  someone tapped to carry on
-    idle_exit                      back to the start screen. "why": hold (held the button) or timeout
+    file_open                      a file was opened. detail via=list, code or next
+    code                           a password typed into UNLOCK.EXE. result: granted, denied, ooh or trip
+    ooh_end                        the OOH sequence ended (or they backed out of it), secs in
+    roll_end                       a rick roll finished. detail bailed=True if they skipped out early
+    idle_prompt                    the exit menu came up. detail via=idle, hold or exit_tile
+    menu_choice                    something was picked on the exit menu (detail option=...)
+    idle_continue                  carried on from the exit menu
+    idle_exit                      back to the start screen. detail why=timeout, hold, idle or exit_tile
 
-To read it back as a per-visitor summary (files opened and how many times, codes
-tried, theories played):
+To read it back as a summary (games played and how they went, files opened,
+codes tried, and every visitor's go):
 
-    python -m lifesim.activity [path]
+    python -m lifesim.activity [file.csv ...]      (default: every file in play_log/)
 """
 
 from __future__ import annotations
 
-import json
+import csv
 import os
+import re
+import socket
 import sys
 import time
 import uuid
@@ -41,91 +50,145 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 
-LOG_PATH = Path(os.environ.get("LIFE_LAB_ACTIVITY_LOG", Path.home() / ".life_lab" / "activity.jsonl"))
+LOG_DIR = Path(__file__).resolve().parent.parent / "play_log"
+COLUMNS = ["time", "session", "visitor", "name", "event", "theory", "game", "result", "file", "code", "secs", "detail"]
 
 
-def enabled_by_env() -> bool:
-    return os.environ.get("LIFE_LAB_ACTIVITY", "").lower() in ("1", "true", "yes", "on")
+def machine() -> str:
+    """A short, file-safe name for this machine."""
+    name = socket.gethostname().split(".")[0].lower()
+    return re.sub(r"[^a-z0-9_-]+", "-", name).strip("-") or "machine"
+
+
+def default_path() -> Path:
+    override = os.environ.get("LIFE_LAB_ACTIVITY_LOG")
+    return Path(override) if override else LOG_DIR / f"{machine()}.csv"
+
+
+def disabled_by_env() -> bool:
+    return os.environ.get("LIFE_LAB_ACTIVITY", "").lower() in ("0", "false", "no", "off")
 
 
 class ActivityLog:
-    """Appends events for one play session. A disabled log takes the same calls and does nothing."""
+    """Appends events for one visitor's go. A disabled log takes the same calls and does nothing.
+    `games` maps a theory code to its game's name, so rows say STORK BOMBER, not just 01."""
 
-    def __init__(self, enabled: bool = False, path: Path = LOG_PATH, visitor: int = 0, name: str = "ANON") -> None:
+    def __init__(self, enabled: bool = True, path: Path | None = None, visitor: int = 0, name: str = "ANON",
+                 games: dict[str, str] | None = None) -> None:
         self.enabled = enabled
-        self.path = path
+        self.path = path or default_path()
         self.visitor = visitor
         self.name = name
+        self.games = games or {}
         self.session = uuid.uuid4().hex[:6]
         self.started = time.monotonic()
+        self.closed = False
 
     def __call__(self, event: str, **data) -> None:
         if not self.enabled:
             return
-        row = {"t": datetime.now().isoformat(timespec="seconds"), "session": self.session,
-               "visitor": self.visitor, "name": self.name, "event": event, **data}
+        row = {"time": datetime.now().isoformat(timespec="seconds"), "session": self.session,
+               "visitor": self.visitor, "name": self.name, "event": event}
+        theory = data.pop("theory", None)
+        if theory is not None:
+            row["theory"] = theory
+            row["game"] = self.games.get(theory, "")
+        for key in ("result", "file", "code", "secs"):
+            if key in data:
+                row[key] = data.pop(key)
+        row["detail"] = " ".join(f"{k}={v}" for k, v in data.items())
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a") as f:
-                f.write(json.dumps(row) + "\n")
+            new = not self.path.exists() or self.path.stat().st_size == 0
+            with self.path.open("a", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=COLUMNS)
+                if new:
+                    w.writeheader()
+                w.writerow(row)
         except OSError:
             self.enabled = False                      # a read-only cabinet still plays; stop trying
 
     def close(self) -> None:
-        self("session_end", secs=round(time.monotonic() - self.started))
+        if not self.closed:
+            self.closed = True
+            self("session_end", secs=round(time.monotonic() - self.started))
 
 
 # -- reading it back ------------------------------------------------------------------
-def load(path: Path = LOG_PATH) -> list[dict]:
+def load(paths: list[Path]) -> list[dict]:
     rows = []
-    try:
-        for line in path.read_text().splitlines():
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
-    except OSError:
-        pass
+    for path in paths:
+        try:
+            with path.open(newline="") as f:
+                rows += list(csv.DictReader(f))
+        except OSError:
+            pass
     return rows
 
 
 def report(rows: list[dict]) -> str:
-    """A plain-text summary: every visitor's files, codes and theories, then lab-wide file totals."""
+    """A plain-text overview: games and how they went, files, codes, then every visitor's go."""
     if not rows:
         return "No activity logged."
-    by_session: dict[str, list[dict]] = defaultdict(list)
+    sessions: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
-        by_session[r["session"]].append(r)
-    totals: Counter[str] = Counter()
-    readers: dict[str, set[str]] = defaultdict(set)
-    out = []
-    for evs in by_session.values():
-        last = evs[-1]
-        who = f"VISITOR {last['visitor']:04d} {last['name']}"
-        out.append(f"{who}  (session {last['session']}, {evs[0]['t']})")
-        files = Counter(e["file"] for e in evs if e["event"] == "file_open")
-        for name, n in files.most_common():
-            out.append(f"    {n:3d}x  {name}")
-            totals[name] += n
-            readers[name].add(e_key(last))
-        codes = [f"{e['code']}:{e['result']}" for e in evs if e["event"] == "code"]
-        if codes:
-            out.append("    codes: " + " ".join(codes))
-        played = [f"{e['theory']}:{e.get('result', '?')}" for e in evs if e["event"] == "theory_end"]
-        if played:
-            out.append("    theories: " + " ".join(played))
-        if not files and not codes and not played:
-            out.append("    (nothing opened)")
+        sessions[r["session"]].append(r)
+    signed_in = sum(any(e["event"] == "sign_in" for e in evs) for evs in sessions.values())
+    out = [f"{len(sessions)} visits ({signed_in} signed in), {rows[0]['time']} to {rows[-1]['time']}", ""]
+
+    out.append("GAMES PLAYED")
+    played: dict[str, Counter[str]] = defaultdict(Counter)
+    secs: Counter[str] = Counter()
+    for r in rows:
+        if r["event"] == "theory_end":
+            game = r["game"] or r["theory"]
+            played[game][r["result"] or "?"] += 1
+            secs[game] += int(float(r["secs"] or 0))
+    for game, results in sorted(played.items(), key=lambda kv: -sum(kv[1].values())):
+        n = sum(results.values())
+        how = ", ".join(f"{k} {v}" for k, v in results.most_common())
+        out.append(f"    {n:3d}x  {game:<16} {how}   (avg {secs[game] // n}s)")
+    out.append("")
+
+    out.append("FILES OPENED")
+    files = Counter(r["file"] for r in rows if r["event"] == "file_open")
+    for name, n in files.most_common():
+        out.append(f"    {n:3d}x  {name}")
+    opened = sum(r["event"] == "files_open" for r in rows)
+    out.append(f"    (the file system was opened {opened} times)")
+    out.append("")
+
+    codes = Counter(f"{r['code']} ({r['result']})" for r in rows if r["event"] == "code")
+    if codes:
+        out.append("CODES TRIED")
+        for code, n in codes.most_common():
+            out.append(f"    {n:3d}x  {code}")
         out.append("")
-    out.append("ALL VISITORS")
-    for name, n in totals.most_common():
-        out.append(f"    {n:3d}x  {name}  ({len(readers[name])} visitor{'s' * (len(readers[name]) != 1)})")
+
+    other = Counter(r["event"] for r in rows if r["event"] in ("frontier", "ooh_end", "roll_end", "tutorial_done"))
+    exits = Counter(dict(kv.split("=", 1) for kv in r["detail"].split() if "=" in kv).get("why", "?")
+                    for r in rows if r["event"] == "idle_exit")
+    out.append("OTHER")
+    for ev, n in other.most_common():
+        out.append(f"    {n:3d}x  {ev}")
+    for why, n in exits.most_common():
+        out.append(f"    {n:3d}x  back to the start screen ({why})")
+    out.append("")
+
+    out.append("EVERY VISIT")
+    for evs in sessions.values():
+        last = evs[-1]
+        games = [f"{e['game'] or e['theory']}:{e['result']}" for e in evs if e["event"] == "theory_end"]
+        opened = [e["file"] for e in evs if e["event"] == "file_open"]
+        line = f"    {evs[0]['time']}  VISITOR {int(last['visitor'] or 0):04d} {last['name']:<5}"
+        if games:
+            line += "  games: " + " ".join(games)
+        if opened:
+            line += "  files: " + " ".join(opened)
+        out.append(line)
     return "\n".join(out)
 
 
-def e_key(e: dict) -> str:
-    return f"{e['visitor']}:{e['name']}:{e['session']}"
-
-
 if __name__ == "__main__":
-    print(report(load(Path(sys.argv[1]) if len(sys.argv) > 1 else LOG_PATH)))
+    paths = [Path(p) for p in sys.argv[1:]] or sorted(LOG_DIR.glob("*.csv"))
+    print(report(load(paths)))

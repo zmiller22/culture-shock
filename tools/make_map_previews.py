@@ -28,8 +28,9 @@ DT = 1 / 60
 GAMES = {
     "01": ("minigames.stork_bomber.game", "StorkBomber", 3.0),
     "02": ("minigames.primordial_soup.game", "PrimordialSoup", 4.0),
-    "03": ("minigames.it_takes_two.game", "ItTakesTwo", 25.3),
+    "03": ("minigames.it_takes_two.game", "ItTakesTwo", 24.6),
     "04": ("minigames.womb_rave.game", "WombRave", 5.0),
+    "06": ("minigames.build_a_bear.game", "BuildABear", 3.0),
 }
 
 

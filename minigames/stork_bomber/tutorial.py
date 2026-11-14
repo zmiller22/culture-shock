@@ -157,5 +157,5 @@ def make(a, need: int, babies: int) -> Tutorial:
             Page((f"DELIVER {need} OF {babies} TO WIN. OUTFLY THE", "SPAGHETTI MONSTER OR IT STEALS THE BABY"),
                  chase),
         ],
-        intro="BABIES ARRIVE BY AIR. YOU ARE THE AIR.",
+        intro="OUTSIDE MATERIALS INDICATE STORKS ARE INVOLVED IN CONCEPTION. YOU ARE THE STORK.",
     )

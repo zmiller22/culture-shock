@@ -91,6 +91,14 @@ class Intro:
             cut = min(fits or range(1, len(words)), key=lambda i: (not words[i - 1].endswith("."),
                       abs(len(" ".join(words[:i])) - len(" ".join(words[i:])))))
             self.lines = [" ".join(words[:cut]), " ".join(words[cut:])]
+            if not fits:                                                     # too long for two: wrap it,
+                self.lines = []                                              # a new line for each sentence
+                for word in words:
+                    trial = f"{self.lines[-1]} {word}" if self.lines and not self.lines[-1].endswith(".") else None
+                    if trial and outlined(trial, accent).get_width() <= W - 16:
+                        self.lines[-1] = trial
+                    else:
+                        self.lines.append(word)
         self.chars = sum(len(line) for line in self.lines) + len(self.lines) - 1
         self.typed_at = INTRO_FADE + self.chars * INTRO_TYPE
         self.length = self.typed_at + INTRO_HOLD + INTRO_FADE

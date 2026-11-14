@@ -8,8 +8,7 @@ life begins. Push the button to boot it: the camera dives into the CRT, the
 lab welcomes you as its next visitor, and you sign in with a 1-4 letter name,
 arcade high-score style. Then the genesis program runs: code pours down the
 screen and it zooms out from the Earth to the edge of everything (see
-intro.py), where you form as a spirit. WE KNOW LIFE STARTS WITH DNA, says the
-lab's evidence board (board.py), so to get a body you spit in the jar
+intro.py), where you form as a spirit. WE KNOW LIFE STARTS WITH DNA, so to get a body you spit in the jar
 (Spit Kit, theory SPLICER): it reads your DNA, asks a behavioral survey, and
 splices you a creature. That creature walks the theory map (see worldmap.py): every theory is a tile playing a
 clip of its simulation, joined by paths you float along. Pick one, get
@@ -25,19 +24,21 @@ Controls (keyboard, or an arcade stick / gamepad):
 Leave it alone for IDLE_PROMPT s (outside the boot sequence and cut-scenes), or
 hold the button on a menu (the map or the file listing) for MENU_HOLD s, or
 anywhere else, mini-games included, for HOLD_ANYWHERE s, and the game freezes
-under a STILL THERE? countdown. Any button or the stick carries on;
-holding the button, or letting it run out, goes back to the start screen for
-the next visitor. Because of the hold, menus act when the button is let go.
+under the exit menu (STILL THERE? when it came up by itself): CONTINUE,
+RETURN TO THEORY MENU (once they've reached the map) and EXIT TO START SCREEN.
+The stick picks one and holding the button for SELECT_HOLD s takes it. A
+countdown runs underneath, and letting it run out goes back to the start
+screen for the next visitor. Because of the hold, menus act when the button
+is let go.
 
 Win a simulation and the theory is CONFIRMED; lose and it's REFUTED. The
 terminal keeps score for the session. Test every theory and the lab says
-CONGRATULATIONS! and lets slip that OOH IS THE ANSWER: typed into UNLOCK.EXE in
-the file system, it plays the OOH sequence (see ooh.py).
+CONGRATULATIONS! and lets slip that XXX IS THE ANSWER: typed into UNLOCK.EXE in
+the file system, it plays the OOH sequence (see ooh.py). OOH, the old answer, still works too.
 
-EXIT, down the right of the map, asks ARE YOU SURE YOU WANT TO EXIT? and holding
-the button goes back to the start screen for the next visitor.
+EXIT, down the right of the map, opens the same exit menu.
 
-SYSTEM FILES, down the left of the map, opens the lab's
+SYSTEM FILES, in the grid after the last theory, opens the lab's
 file drawer (see files.py): notebooks, photos of experiments gone wrong, and
 locked files whose 3-letter codes are hidden around the room.
 """
@@ -62,11 +63,12 @@ from sprites.viewer import text_surface, to_surface
 
 from . import art
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT, SCREEN
-from .activity import ActivityLog, enabled_by_env
+from . import scores
+from .activity import ActivityLog, disabled_by_env
 from .files import FileTerminal
-from .board import Board
 from .intro import Cosmos, Rain
-from .worldmap import COLS, EXIT, EXIT_RECT, FILES, FILES_RECT, TILE_H, TILE_W, VOID, WorldMap, tile_at, tile_rect
+from . import worldmap
+from .worldmap import COLS, EXIT, EXIT_RECT, FILES, TILE_H, TILE_W, VOID, WorldMap, tile_at, tile_rect
 
 # -- tuning ------------------------------------------------------------------------
 TYPE_RATE = 70.0           # characters/s the terminal types at
@@ -76,6 +78,10 @@ NAME_LEN = 4               # letters in a visitor's name, like an arcade high sc
 NAME_HOLD = 0.8            # s of holding the button that signs off a name shorter than NAME_LEN
 NAME_REPEAT = (0.4, 0.09)  # s before a held stick starts repeating, then s per letter
 NAME_TIMEOUT = 40.0        # s of nobody touching anything before it signs them in as is
+NAME_TAKEN_TIME = 1.8      # s NAME TAKEN stays up when they pick a name someone already has
+SCORES_TIME = 8.0          # s of HIGH SCORES when a visit ends, before the next visitor's start screen
+ATTRACT = (8.0, 6.0)       # s of PUSH TO BOOT UP, then s of HIGH SCORES, round and round on the start screen
+SCORE_ROWS = 10            # rows on the high score table
 BUTTON_PRESS = 0.35        # s the boot button stays down before the code rain starts
 ENTER_TIME = 1.1           # s to dive into the CRT after the boot button
 RAIN_TIME = 1.6            # s of code rain as the genesis program starts, before the zoom out
@@ -88,9 +94,8 @@ CRT_OFF_TIME = 0.35
 CRT_ON_TIME = 0.35
 IDLE_PROMPT = 20.0         # s of nobody touching anything before the "still there?" countdown
 IDLE_COUNTDOWN = 60        # s it counts down from before it goes back to the start screen
-HOLD_TO_EXIT = 1.5         # s of holding the button on the countdown to go back to the start screen
+SELECT_HOLD = 1.0          # s of holding the button on the exit menu to take the option
 MENU_HOLD = 0.8            # s of holding the button on a menu to bring the countdown up (menus act on release)
-LEAVE_HOLD = 1.5           # s of holding the button on the EXIT tile's ARE YOU SURE? to leave
 HOLD_ANYWHERE = 2.5        # s of holding the button anywhere else, mini-games too, to bring the countdown up
 REEL_IDLE, REEL_FAST = 90.0, 900.0      # degrees/s
 DIVE = (SCREEN[0], SCREEN[1] + 7, SCREEN[2], SCREEN[2] * 9 // 16)     # the part of the glass the camera dives into
@@ -101,12 +106,10 @@ JOURNEY_LINES = ["OUR JOURNEY STARTS", "AT THE VERY BEGINNING..."]
 JOURNEY_TIME = 4.0         # s on the journey screen before the genesis program runs (the button skips it)
 SPIRIT_LINES = ["YOU ARE A SPIRIT!", "BUT HOW DO YOU", "BECOME A LIFE?"]
 DNA_LINES = ["WE KNOW LIFE", "STARTS WITH DNA."]
-DNA_HOLD = 1.5             # s the DNA line stays up once it's typed, before the evidence board
-BOARD_WAIT = 6.0           # s on the pulled-back board before it moves on by itself
-BOARD_CAPTION = "WE'RE PRETTY SURE."
+DNA_HOLD = 1.5             # s the DNA line stays up once it's typed, before the Spit Kit
 # once every theory's been tested: the lab's thanks, and the answer to type into UNLOCK.EXE (see ooh.py)
 FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF OUR KNOWLEDGE.", "",
-                  "WHAT YOU LEARNED...", "OOH IS THE ANSWER.", "",
+                  "WHAT YOU LEARNED...", "XXX IS THE ANSWER.", "",
                   "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
 # the tour of the map, the first time on it: what to light up, and what to say
 TUTORIAL = [
@@ -127,6 +130,15 @@ def next_visitor() -> int:
         return 1
 
 
+def taken_names() -> set[str]:
+    """Every name already in the visitor log: nobody gets to sign in as someone else."""
+    try:
+        words = VISITOR_LOG.read_text().split()
+        return set(words[1::2])
+    except OSError:
+        return set()
+
+
 def sign_in(num: int, name: str) -> None:
     try:
         VISITOR_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -144,7 +156,9 @@ class NameEntry:
 
     LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
 
-    def __init__(self) -> None:
+    def __init__(self, taken: set[str] | None = None) -> None:
+        self.taken = taken or set()                   # names already signed in: these get NAME TAKEN
+        self.taken_t = 0.0                            # s left on NAME TAKEN
         self.name = ""
         self.cur = 0                                  # index into LETTERS
         self.done = False
@@ -170,6 +184,7 @@ class NameEntry:
     def update(self, dt: float, inp: Input) -> None:
         if self.done:
             return
+        self.taken_t = max(0.0, self.taken_t - dt)
         self.idle += dt
         dirs = (inp.x, inp.y)
         if dirs != (0, 0) or inp.action or inp.held:
@@ -197,17 +212,28 @@ class NameEntry:
             if inp.held:
                 self.press += dt
                 if self.press >= NAME_HOLD and self.name:
-                    self.done = True                  # held down: that's the name
+                    if self.name in self.taken:       # someone has it: pick another
+                        self.taken_t = NAME_TAKEN_TIME
+                        self.press = None
+                    else:
+                        self.done = True              # held down: that's the name
             else:                                     # let go quickly: a tap, lock the letter
                 if self.press < NAME_HOLD:
                     self.lock()
                 self.press = None
         if self.idle > NAME_TIMEOUT:
             self.name = self.name or "GHST"
+            rng = random.Random()
+            while self.name in self.taken:            # nobody's here to pick another, so make one up
+                self.name = "".join(rng.choice(self.LETTERS) for _ in range(NAME_LEN))
             self.done = True
 
     def lock(self) -> None:
         self.name += self.letter
+        if len(self.name) == NAME_LEN and self.name in self.taken:
+            self.name = self.name[:-1]                # someone has it: that last letter doesn't go in
+            self.taken_t = NAME_TAKEN_TIME
+            return
         self.done = len(self.name) == NAME_LEN        # otherwise the next slot starts on the same letter
 
 
@@ -215,6 +241,7 @@ class NameEntry:
 class Theory:
     code: str
     name: str
+    game: str                   # the mini-game's own name, on its map tile
     blurb: tuple[str, str]
     players: str
     make: Callable[[], MiniGame]
@@ -245,6 +272,10 @@ def theories(mute: bool = False) -> list[Theory]:
         from minigames.spit_kit.game import SpitKit
         return SpitKit()
 
+    def bear():
+        from minigames.build_a_bear.game import BuildABear
+        return BuildABear()
+
     def pilot(module: str):
         def go(game):
             import importlib
@@ -252,21 +283,24 @@ def theories(mute: bool = False) -> list[Theory]:
         return go
 
     return [
-        Theory("01", "THE STORK HYPOTHESIS", ("BABIES ARE DELIVERED BY AIR", "BY A LARGE BIRD. TEST DELIVERY."),
+        Theory("01", "THE STORK HYPOTHESIS", "STORK BOMBER", ("BABIES ARE DELIVERED BY AIR", "BY A LARGE BIRD. TEST DELIVERY."),
                "1P", stork, pilot("minigames.stork_bomber.game"),
                {"win": "BIRD CONFIRMED. NOTIFY THE PRESS.", "lose": "NO BIRD. WHERE DO BABIES COME FROM?"}),
-        Theory("02", "PRIMORDIAL SOUP", ("LIFE BEGAN IN A WARM BROTH", "OF CHEMICALS. COOK SOME UP."),
+        Theory("02", "PRIMORDIAL SOUP", "PRIMORDIAL SOUP", ("LIFE BEGAN IN A WARM BROTH", "OF CHEMICALS. COOK SOME UP."),
                "1P", soup, pilot("minigames.primordial_soup.game"),
                {"win": "THE SOUP IS ALIVE. IT ATE THE CHEF.", "lose": "SOUP COLD. DINERS ANGRY."}),
-        Theory("03", "IT TAKES TWO", ("LIFE STARTS WHEN TWO CELLS", "FALL IN LOVE. 2 SPIRITS NEEDED."),
+        Theory("03", "IT TAKES TWO", "IT TAKES TWO", ("LIFE STARTS WHEN TWO CELLS", "FALL IN LOVE. 2 SPIRITS NEEDED."),
                "2P", meet, pilot("minigames.it_takes_two.game"),
                {"win": "THEY MET. IT WAS ADORABLE.", "lose": "THEY NEVER MET. TRY AGAIN NEXT MONTH."}),
-        Theory("04", "THE WOMB RAVE", ("LIFE IS A NINE MONTH PARTY", "IN A VERY SMALL CLUB."),
+        Theory("04", "THE WOMB RAVE", "WOMB RAVE", ("LIFE IS A NINE MONTH PARTY", "IN A VERY SMALL CLUB."),
                "1P", womb, pilot("minigames.womb_rave.game"),
                {"win": "BIRTH ACHIEVED. VIBES IMMACULATE.", "lose": "EVICTED. THE BOUNCER WAS THE CERVIX."}),
-        Theory("05", "THE GENETIC CODE", ("LIFE IS A RECIPE IN YOUR SPIT.", "THE JAR WILL READ YOURS."),
+        Theory("05", "THE GENETIC CODE", "SPIT KIT", ("LIFE IS A RECIPE IN YOUR SPIT.", "THE JAR WILL READ YOURS."),
                "1P", spit, pilot("minigames.spit_kit.game"),
                {"win": "YOU ARE MOSTLY SOMEONE ELSE.", "lose": "NO SPIT. NO SCIENCE."}),
+        Theory("06", "SPARK OF LIFE", "BUILD-A-BEAR", ("A BOLT OF LIGHTNING BRINGS DEAD", "MATTER TO LIFE. SEW, THEN ZAP."),
+               "1P", bear, pilot("minigames.build_a_bear.game"),
+               {"win": "IT'S ALIVE! IT WANTS A HUG.", "lose": "NO LIGHTNING. JUST A SAD TOY."}),
     ]
 
 
@@ -378,7 +412,7 @@ class LifeSim:
     title = "THEORIES OF LIFE"
 
     def __init__(self, skip_boot: bool = False, mute: bool = False, seed: int | None = None,
-                 record: bool = True, log_activity: bool = False, idle_exit: bool = True,
+                 record: bool = True, log_activity: bool = True, idle_exit: bool = True,
                  played_all: bool = False) -> None:
         global _ART
         _ART = _ART or Art()
@@ -415,25 +449,37 @@ class LifeSim:
         self.record = record                    # write visitors to the log (not in demos and tests)
         self.visitor = next_visitor()
         self.name = "ANON"                      # until they sign in (--skip-boot never asks)
+        self.signed_in = False
+        self.confirmed_at = 0.0                 # self.time when they confirmed their latest new theory
+        self.score_saved = False
+        self.scores = scores.ranked(scores.load())
         self.entry: NameEntry | None = None
         self.tutorial: int | None = None        # the page of the map tour showing, if it's on
-        # what each visitor does (files opened, codes, theories). Off unless asked for, never in demos/tests
-        self.activity = ActivityLog(enabled=record and (log_activity or enabled_by_env()),
-                                    visitor=self.visitor, name=self.name)
+        # what each visitor does (games played, files opened, codes): play_log/<machine>.csv.
+        # On unless turned off, never in demos/tests
+        self.activity = ActivityLog(enabled=record and log_activity and not disabled_by_env(),
+                                    visitor=self.visitor, name=self.name,
+                                    games={t.code: t.game for t in every})
+        self.sim_started = 0.0                  # self.time when the current simulation started, for theory_end
         self.activity("session_start", skip_boot=skip_boot)
         atexit.register(self.activity.close)
+        atexit.register(self._save_score)       # quit with ESC: the visit still counts
         self.term = FileTerminal(mute, log=self.activity)
         # the "still there?" countdown: see _idle()
         self.idle_exit = idle_exit
         self.idle = 0.0                         # s since anyone touched anything
         self.countdown: float | None = None     # s left on the countdown while it's up
-        self.hold: float | None = None          # s the button has been held on the countdown
+        self.hold: float | None = None          # s the button has been held on the exit menu
+        self.menu_sel = 0                       # which exit menu option is picked
+        self.menu_y = 0                         # the stick last tick, so a held stick moves one option
+        self.prompt_via = "idle"                # what brought the exit menu up: idle, hold or exit_tile
         self.swallow = False                    # eat input after the countdown until hands are off
         self.armed = True                       # False: opened by a held button, waiting for it to let go
         self.press: float | None = None         # s the button's been down on a menu
         self.long_press: float | None = None    # s the button's been down anywhere else (since it went down)
-        self.leave_hold: float | None = None    # s the button's been held on the EXIT tile's ARE YOU SURE?
         self.hold_exit = skip_boot              # holding anywhere only exits once they've reached the map
+        if skip_boot:
+            self._random_avatar()
         if skip_boot and played_all:            # straight to the CONGRATULATIONS! screen
             self.frontier_shown = True
             self._go("frontier")
@@ -461,8 +507,6 @@ class LifeSim:
             self.typer = Typer(JOURNEY_LINES, rate=24, pause=0.5)
         elif phase == "dnafact":
             self.typer = Typer(DNA_LINES, rate=24, pause=0.4)
-        elif phase == "board":
-            self.board = Board()
         elif phase == "spirit":                 # after the big bang the spirit comes together
             self.typer = Typer(SPIRIT_LINES, rate=30, pause=0.6)
             self.motes = [[math.cos(a) * r, math.sin(a) * r * 0.6, self.rng.uniform(0.5, 1.0)]
@@ -511,26 +555,69 @@ class LifeSim:
             self._open_prompt("idle")
             return True
         self.countdown -= dt
+        opts = self.menu_options()
+        y = inp.y or next((p.y for p in inp.players if p.y), 0)
         if not self.armed:                   # brought up by holding the button: let go first
             self.armed = not inp.held
-        elif self.hold is not None:
+        elif self.hold is not None:          # holding: a bar fills up to taking the option
             if inp.held:
                 self.hold += dt
-                if self.hold >= HOLD_TO_EXIT:
-                    self._back_to_start("hold")
-            else:                            # a tap: carry on
-                self._dismiss()
+                if self.hold >= SELECT_HOLD:
+                    self._choose(opts[self.menu_sel])
+                    return True
+            else:                            # let go too soon: nothing happens
+                self.hold = None
         elif inp.action:
             self.hold = 0.0
-        elif touched:
-            self._dismiss()
+        elif y and not self.menu_y:          # the stick: up and down the options, one per push
+            self.menu_sel = max(0, min(len(opts) - 1, self.menu_sel + y))
+        if touched:                          # someone's here: the countdown starts over
+            self.countdown = float(IDLE_COUNTDOWN)
+        self.menu_y = y
         if self.countdown is not None and self.countdown <= 0:
             self._back_to_start("timeout")
         return True
 
+    def menu_options(self) -> list[str]:
+        """The exit menu. No theory menu to go back to until they've reached the map."""
+        if self.hold_exit:
+            return ["CONTINUE", "RETURN TO THEORY MENU", "EXIT TO START SCREEN"]
+        return ["CONTINUE", "EXIT TO START SCREEN"]
+
+    def _choose(self, option: str) -> None:
+        self.activity("menu_choice", option=option, phase=self.phase, via=self.prompt_via)
+        if option == "CONTINUE":
+            self._dismiss()
+        elif option == "RETURN TO THEORY MENU":
+            self._to_theory_menu()
+        else:
+            self._back_to_start(self.prompt_via)
+
+    def _to_theory_menu(self) -> None:
+        """Back to the map from wherever they are. A simulation they walk out of isn't scored."""
+        if self.phase == "sim" and self.sim is not None:
+            self.activity("theory_end", theory=self.sim_theory.code, result="quit", secs=self._sim_secs())
+            if self.sim_theory is not self.splicer:
+                self.map.place(self.theories.index(self.sim_theory))
+            self.sim = None
+        elif self.phase == "files":
+            self.term.media.stop()
+            self.activity("files_close")
+        if pygame.mixer.get_init():              # whatever was playing stays behind
+            pygame.mixer.unpause()
+            pygame.mixer.music.unpause()
+            pygame.mixer.stop()
+            pygame.mixer.music.stop()
+        self.countdown = self.hold = None
+        self.idle = 0.0
+        self.swallow = True                      # the hold that picked it isn't for the map
+        self._go("hub")
+
     def _open_prompt(self, via: str) -> None:
         self.countdown, self.hold = float(IDLE_COUNTDOWN), None
         self.armed = via != "hold"
+        self.prompt_via, self.menu_sel = via, 0
+        self.menu_y = 1                          # a stick already held doesn't move it straight away
         self.press = None
         self.term.hold_k = 0.0
         self.activity("idle_prompt", phase=self.phase, via=via)
@@ -571,7 +658,7 @@ class LifeSim:
         """Off the menus, once they've reached the map, holding the button down for
         HOLD_ANYWHERE brings the countdown up, whatever's going on: a cut-scene, a mini-game.
         True means it just came up. The game still sees the button as usual."""
-        if not self.hold_exit or self.press is not None or self.countdown is not None or self.phase == "leave":
+        if not self.hold_exit or self.press is not None or self.countdown is not None:
             self.long_press = None
             return False
         if inp.action:
@@ -608,21 +695,62 @@ class LifeSim:
             pygame.mixer.unpause()
             pygame.mixer.music.unpause()
 
+    def _sim_secs(self) -> int:
+        return round(self.time - self.sim_started)
+
+    @property
+    def confirmed(self) -> int:
+        return sum("win" in r for r in self.results.values())
+
+    def my_score(self) -> scores.Score:
+        return scores.Score(self.visitor, self.name, self.confirmed, round(self.confirmed_at))
+
+    def _save_score(self) -> None:
+        """Once per visit, and only for a visitor who signed in."""
+        if self.signed_in and not self.score_saved:
+            self.score_saved = True
+            if self.record:
+                scores.save(self.my_score())
+            self.scores = scores.ranked([s for s in self.scores if s.visitor != self.visitor] + [self.my_score()])
+
     def _back_to_start(self, why: str) -> None:
-        """Back to the PUSH TO BOOT UP screen for the next visitor: the shell
-        starts a fresh LifeSim when this one says it's done."""
+        """Back to the PUSH TO BOOT UP screen for the next visitor, by way of the
+        high scores if they signed in: the shell starts a fresh LifeSim when this
+        one says it's done."""
         self.activity("idle_exit", why=why, phase=self.phase)
-        self.activity.close()
-        atexit.unregister(self.activity.close)
+        self._save_score()
+        if self.signed_in and self.phase != "scores":
+            if self.phase == "files":
+                self.term.media.stop()
+            self._silence()
+            self.countdown = None
+            self.sim = None
+            self._go("scores")
+            return
+        self._finish()
+
+    def _silence(self) -> None:
         if pygame.mixer.get_init():              # unpause first so the next visitor's sound isn't stuck paused
             pygame.mixer.unpause()
             pygame.mixer.music.unpause()
             pygame.mixer.stop()
             pygame.mixer.music.stop()
+
+    def _finish(self) -> None:
+        self.activity.close()
+        atexit.unregister(self.activity.close)
+        atexit.unregister(self._save_score)
+        self._silence()
         self.countdown = None
         self.done = True
 
     def update(self, dt: float, inp: Input) -> None:
+        if self.phase == "scores":              # the visit's over: HIGH SCORES, then the next visitor
+            self.time += dt
+            self.phase_t += dt
+            if self.phase_t > SCORES_TIME or (inp.action and self.phase_t > 1.0):
+                self._finish()
+            return
         if self.idle_exit:
             if self._idle(dt, inp):
                 return
@@ -648,8 +776,10 @@ class LifeSim:
                 self._take_body(self.sim)
             elif self.sim.done:
                 res = self.sim.result or "?"
+                if res == "win" and "win" not in self.results[self.sim_theory.code]:
+                    self.confirmed_at = self.time       # a new theory confirmed: the clock for the high scores
                 self.results[self.sim_theory.code].append(res)
-                self.activity("theory_end", theory=self.sim_theory.code, result=res)
+                self.activity("theory_end", theory=self.sim_theory.code, result=res, secs=self._sim_secs())
                 self.last = (self.sim_theory, res)
                 self.sim = None
                 if pygame.mixer.get_init():
@@ -686,6 +816,7 @@ class LifeSim:
                 self.entry.update(dt, inp)
                 if self.entry.done:
                     self.name = self.activity.name = self.entry.name
+                    self.signed_in = True
                     if self.record:
                         sign_in(self.visitor, self.name)
                     self.activity("sign_in")
@@ -693,7 +824,7 @@ class LifeSim:
             elif inp.action and not self.typer.done:
                 self.typer.finish()
             if not self.entry and self.typer.done and self.typer.t > self.typer.end + 0.3:
-                self.entry = NameEntry()
+                self.entry = NameEntry(taken_names())
         elif self.phase == "journey":
             if self.phase_t > JOURNEY_TIME or inp.action and self.phase_t > 0.5:
                 self._go("rain")                    # the genesis program runs
@@ -707,12 +838,6 @@ class LifeSim:
             if inp.action and not self.typer.done:
                 self.typer.finish()
             elif self.typer.done and (inp.action or self.typer.t > self.typer.end + DNA_HOLD):
-                self._go("board")
-        elif self.phase == "board":                     # ...the evidence
-            self.board.update(dt)
-            if inp.action and not self.board.settled:
-                self.board.skip()                       # straight to the whole board
-            elif inp.action or self.board.since_settled > BOARD_WAIT:
                 self._start_splicer()
         elif self.phase == "hub" and self.tutorial is not None:
             self._tutorial(dt, inp)
@@ -724,22 +849,9 @@ class LifeSim:
                     self.activity("files_open")
                     self._go("files")
                 elif self.sel == EXIT:
-                    self.leave_hold = None
-                    self._go("leave")
+                    self._open_prompt("exit_tile")
                 else:
                     self._go("load")
-        elif self.phase == "leave":                     # ARE YOU SURE YOU WANT TO EXIT?
-            if inp.action:
-                self.leave_hold = 0.0
-            elif self.leave_hold is not None:
-                if inp.held:
-                    self.leave_hold += dt
-                    if self.leave_hold >= LEAVE_HOLD:
-                        self._back_to_start("exit_tile")
-                else:
-                    self.leave_hold = None              # let go too soon: still here
-            if (inp.x or inp.y) and self.leave_hold is None:
-                self._go("hub")                         # the stick: stay
         elif self.phase == "files":
             self.term.update(dt, inp)
             if self.term.closed:
@@ -749,6 +861,7 @@ class LifeSim:
             if self.phase_t > LOAD_TIME + CRT_OFF_TIME + 0.2:
                 self.sim_theory = self.theories[self.sel]
                 self.activity("theory_start", theory=self.sim_theory.code)
+                self.sim_started = self.time
                 self.sim = self.sim_theory.make()
                 self._go("sim")
         elif self.phase == "return":
@@ -762,7 +875,7 @@ class LifeSim:
                 else:
                     self.map.place(self.theories.index(self.last[0]))
                     self._go("hub")
-        elif self.phase == "frontier":                  # CONGRATULATIONS! ... OOH IS THE ANSWER.
+        elif self.phase == "frontier":                  # CONGRATULATIONS! ... XXX IS THE ANSWER.
             if inp.action and self.phase_t > 0.5:
                 if not self.typer.done:
                     self.typer.finish()
@@ -773,6 +886,9 @@ class LifeSim:
 
     # -- drawing -----------------------------------------------------------------------
     def draw(self, screen: pygame.Surface) -> None:
+        if self.phase == "scores":
+            self._draw_scores(screen)
+            return
         if self.phase == "sim":
             self.sim.draw(screen)
         elif self.phase == "cosmos":
@@ -789,14 +905,10 @@ class LifeSim:
             screen.fill(VOID)
             self._centre_lines(screen, self.typer, 66, 22, scale=2)
             screen.blit(self.art.scanlines, (0, 0))
-        elif self.phase == "board":
-            self._draw_board(screen)
         elif self.phase == "files":                       # the file system takes the whole screen
             self.term.draw(screen, self.text, self.time)
         elif self.phase == "hub":
             self._draw_map(screen)
-        elif self.phase == "leave":
-            self._draw_leave(screen)
         elif self.phase == "load":
             self._draw_load(screen)
         elif self.phase == "return":
@@ -821,10 +933,11 @@ class LifeSim:
             self._draw_long_hold(screen)
 
     def _draw_countdown(self, screen: pygame.Surface) -> None:
-        """STILL THERE? over whatever was on screen, frozen and dimmed."""
+        """The exit menu over whatever was on screen, frozen and dimmed."""
         screen.fill((90, 90, 90), special_flags=pygame.BLEND_MULT)
+        opts = self.menu_options()
         cx = art.W // 2
-        pw, ph = 200, 92
+        pw, ph = 200, 64 + 14 * len(opts)
         px, py = cx - pw // 2, art.H // 2 - ph // 2
         screen.fill(rgb(CRT_BG), (px, py, pw, ph))
         pygame.draw.rect(screen, rgb(PHOSPHOR), (px, py, pw, ph), 1)
@@ -833,20 +946,28 @@ class LifeSim:
         def centre(s: pygame.Surface, y: int) -> None:
             screen.blit(s, (cx - s.get_width() // 2, y))
 
-        centre(self.text.get("STILL THERE?", PHOSPHOR, big=True), py + 6)
-        left = max(0, math.ceil(self.countdown))
-        centre(self.text.get(str(left), PHOSPHOR, 2, big=True), py + 17)
-        # the seconds drain away along a bar
+        centre(self.text.get("STILL THERE?" if self.prompt_via == "idle" else "EXIT MENU", PHOSPHOR, 2, big=True), py + 6)
+        # the options: the picked one on a lit bar, filling brighter while the button's held
         bw = pw - 24
-        screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, py + 37, bw, 3))
-        screen.fill(rgb(PHOSPHOR), (px + 12, py + 37, int(bw * self.countdown / IDLE_COUNTDOWN), 3))
-        centre(self.text.get("PRESS ANY BUTTON TO CONTINUE", PHOSPHOR, big=True), py + 47)
-        centre(self.text.get("HOLD THE BUTTON TO RETURN", PHOSPHOR, big=True), py + 60)
-        centre(self.text.get("TO THE START SCREEN", PHOSPHOR, big=True), py + 70)
-        if self.hold is not None:                   # holding: a bar fills up to the exit
-            k = min(1.0, self.hold / HOLD_TO_EXIT)
-            screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, py + 82, bw, 4))
-            screen.fill(rgb(PHOSPHOR), (px + 12, py + 82, int(bw * k), 4))
+        y = py + 28
+        for i, opt in enumerate(opts):
+            row = pygame.Rect(px + 12, y, bw, 12)
+            if i == self.menu_sel:
+                screen.fill(rgb(PHOSPHOR_DIM), row)
+                if self.hold is not None:
+                    screen.fill(rgb(PHOSPHOR), (row.x, row.y, int(bw * min(1.0, self.hold / SELECT_HOLD)), row.h))
+                s = self.text.get(opt, CRT_BG, big=True)
+            else:
+                s = self.text.get(opt, PHOSPHOR, big=True)
+            centre(s, y + 3)
+            y += 14
+        # the seconds drain away along a bar
+        left = max(0, math.ceil(self.countdown))
+        y += 4
+        screen.fill(rgb(PHOSPHOR_FAINT), (px + 12, y, bw, 2))
+        screen.fill(rgb(PHOSPHOR), (px + 12, y, int(bw * self.countdown / IDLE_COUNTDOWN), 2))
+        centre(self.text.get(f"BACK TO THE START SCREEN IN {left}", PHOSPHOR), y + 5)
+        centre(self.text.get("STICK: CHOOSE   HOLD BUTTON: SELECT", PHOSPHOR), y + 14)
 
     def overlay(self, window: pygame.Surface) -> None:
         """Called by the shell after scaling, on the real window: the rick roll plays here, at full res."""
@@ -936,7 +1057,11 @@ class LifeSim:
                     screen.fill(hi, (mx - k, top + 25 + bob - k, 2 * k + 1, 1))
         lines = ["STICK UP / DOWN: CHANGE THE LETTER", "BUTTON: SELECT LETTER",
                  "HOLD BUTTON DOWN WHEN DONE"]
+        if e.taken_t > 0:                                  # that name's someone else's
+            lines[0] = "NAME TAKEN! TRY ANOTHER" if int(self.time * 6) % 2 == 0 else ""
         for i, line in enumerate(lines):
+            if not line:
+                continue
             s = self.text.get(line, PHOSPHOR_DIM if i == 2 and not e.name else PHOSPHOR, big=True)
             x, y = cx - s.get_width() // 2, top + 38 + i * 10
             screen.blit(s, (x, y))
@@ -973,23 +1098,6 @@ class LifeSim:
             s = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
             screen.blit(s, (art.W // 2 - s.get_width() // 2, 162))
         screen.blit(self.art.scanlines, (0, 0))
-
-    def _draw_board(self, screen: pygame.Surface) -> None:
-        """The evidence board, then WE'RE PRETTY SURE. once the camera's pulled back."""
-        self.board.draw(screen)
-        k = min(1.0, self.phase_t / 0.4)
-        if k < 1:                                          # in from black
-            v = int(255 * k)
-            screen.fill((v, v, v), special_flags=pygame.BLEND_MULT)
-        if self.board.settled:
-            s = self.text.get(BOARD_CAPTION, PHOSPHOR, 2, big=True)
-            box = s.get_rect(center=(art.W // 2, art.H - 24)).inflate(16, 10)
-            screen.fill(rgb(CRT_BG), box)
-            pygame.draw.rect(screen, rgb(PHOSPHOR), box, 1)
-            screen.blit(s, (box.x + 8, box.y + 5))
-            if int(self.time * 2) % 2 == 0:
-                p = self.text.get("PRESS BUTTON", PHOSPHOR, big=True)
-                screen.blit(p, (art.W - 6 - p.get_width(), art.H - 10))
 
     def _draw_dance(self, screen: pygame.Surface, x: float, y: float, scale: float, t: float) -> None:
         """A little dance, four moves round and round on a beat: sway, hop, spin, sway back."""
@@ -1043,14 +1151,15 @@ class LifeSim:
             x, y = tile_at(i)
             v = self._verdict(t)
             col = PHOSPHOR if v == VERDICT["win"] else PHOSPHOR_DIM if self.results[t.code] else PHOSPHOR_FAINT
-            s = self.text.get(f"{t.code} {v}", col)
+            s = self.text.get(t.game, col)
             screen.blit(s, (x + TILE_W // 2 - s.get_width() // 2, y + TILE_H + 3))
-        for i in range(len(self.theories), -(-len(self.theories) // COLS) * COLS):
+        slots = worldmap.FILES_SLOT + 1                  # the theories, then SYSTEM FILES
+        for i in range(slots, -(-slots // COLS) * COLS):
             m.draw_empty(screen, i)
         m.draw_files(screen, self.time, lit=self.sel == FILES and not m.moving)
-        for i, word in enumerate(("SYSTEM", "FILES")):
-            s = self.text.get(word, PHOSPHOR if self.sel == FILES else PHOSPHOR_DIM, big=True)
-            screen.blit(s, (FILES_RECT.centerx - s.get_width() // 2, FILES_RECT.top + 56 + i * 10))
+        fr = tile_rect(FILES)
+        s = self.text.get("SYSTEM FILES", PHOSPHOR if self.sel == FILES else PHOSPHOR_FAINT)
+        screen.blit(s, (fr.centerx - s.get_width() // 2, fr.bottom + 3))
         m.draw_exit(screen, self.time, lit=self.sel == EXIT and not m.moving)
         s = self.text.get("EXIT", PHOSPHOR if self.sel == EXIT else PHOSPHOR_DIM, big=True)
         screen.blit(s, (EXIT_RECT.centerx - s.get_width() // 2, EXIT_RECT.top + 61))
@@ -1062,7 +1171,8 @@ class LifeSim:
                 title, blurb, tag = "EXIT", EXIT_BLURB, ""
             else:
                 t = self.theories[self.sel]
-                title, blurb, tag = t.name, t.blurb, ("2 PLAYERS   " if t.players == "2P" else "") + f"TAPE {t.code}"
+                tag = ("2 PLAYERS   " if t.players == "2P" else "") + f"{self._verdict(t)}   TAPE {t.code}"
+                title, blurb = t.name, t.blurb
             screen.blit(self.text.get(title, PHOSPHOR, big=True), (6, 139))
             s = self.text.get(tag, PHOSPHOR_DIM)
             screen.blit(s, (sw - 6 - s.get_width(), 140))
@@ -1087,28 +1197,6 @@ class LifeSim:
             v = int(255 * k)
             screen.fill((v, v, v), special_flags=pygame.BLEND_MULT)
 
-    def _draw_leave(self, screen: pygame.Surface) -> None:
-        """ARE YOU SURE YOU WANT TO EXIT? over the map, with a bar while the button's held."""
-        self._draw_map(screen, info=False)
-        screen.fill((80, 80, 80), special_flags=pygame.BLEND_MULT)
-        box = pygame.Rect(art.W // 2 - 120, art.H // 2 - 40, 240, 80)
-        screen.fill(rgb(CRT_BG), box)
-        pygame.draw.rect(screen, rgb(PHOSPHOR), box, 1)
-        pygame.draw.rect(screen, rgb(PHOSPHOR_FAINT), box.inflate(-4, -4), 1)
-
-        def centre(s: pygame.Surface, y: int) -> None:
-            screen.blit(s, (box.centerx - s.get_width() // 2, y))
-
-        centre(self.text.get("ARE YOU SURE YOU", PHOSPHOR, 2, big=True), box.y + 8)
-        centre(self.text.get("WANT TO EXIT?", PHOSPHOR, 2, big=True), box.y + 26)
-        k = min(1.0, (self.leave_hold or 0.0) / LEAVE_HOLD)
-        if int(self.time * 2.5) % 2 == 0 or k > 0:
-            centre(self.text.get("HOLD ANY BUTTON TO EXIT", PHOSPHOR, big=True), box.y + 48)
-        bw = box.w - 40
-        screen.fill(rgb(PHOSPHOR_FAINT), (box.x + 20, box.y + 59, bw, 3))
-        screen.fill(rgb("#eaffea"), (box.x + 20, box.y + 59, int(bw * k), 3))
-        centre(self.text.get("STICK: STAY", PHOSPHOR_DIM), box.y + 68)
-
     # -- the tour of the map ------------------------------------------------------------
     def _walk(self, dt: float, inp: Input) -> None:
         """Move on the map, turning the body to face where it's going."""
@@ -1121,26 +1209,39 @@ class LifeSim:
         """Off to get a body: spit in the jar."""
         self.sim_theory = self.splicer
         self.activity("theory_start", theory=self.splicer.code)
+        self.sim_started = self.time
         self.sim = self.splicer.make()
         self._go("sim")
 
     def _take_body(self, kit) -> None:
         """Spit Kit's done: keep the creature it spliced to walk the
         map, and on to the map, with the tour."""
-        self.activity("theory_end", theory=self.splicer.code, result=kit.result or "?")
+        self.activity("theory_end", theory=self.splicer.code, result=kit.result or "?", secs=self._sim_secs())
         canvases = getattr(kit, "_canvases", None)
         if canvases:
-            self.avatar = {}
-            for anim, frames in canvases["final"].items():
-                right = [to_surface(f) for f in frames]
-                self.avatar[anim] = {1: right, -1: [pygame.transform.flip(img, True, False) for img in right]}
+            self._set_avatar(canvases["final"])
         self.sim = None
         self.tutorial = 0                       # first time on the map: show them round it
         self.hold_exit = True                   # from here on, holding the button anywhere exits
         self._go("hub")
 
+    def _set_avatar(self, frames: dict) -> None:
+        """The body that walks the map, from its canvases (anim -> frames, facing right)."""
+        self.avatar = {}
+        for anim, canvases in frames.items():
+            right = [to_surface(f) for f in canvases]
+            self.avatar[anim] = {1: right, -1: [pygame.transform.flip(img, True, False) for img in right]}
+
+    def _random_avatar(self) -> None:
+        """--skip-boot misses Spit Kit, so splice them a body at random instead."""
+        from minigames.spit_kit import dna
+        from sprites.characters import from_specimen
+        rng = random.Random(self.rng.random())
+        you = dna.build_you(dna.roll_profile(rng), rng, number=rng.randrange(1000, 9999))
+        self._set_avatar(from_specimen(you.final).all_frames())
+
     def _draw_body(self, screen: pygame.Surface, x: float, feet: float, anim: str, scale: float = 1.0) -> None:
-        """Their spliced body standing on (x, feet), or the spirit if there isn't one (--skip-boot)."""
+        """Their spliced body standing on (x, feet), or the spirit if there isn't one yet."""
         if not self.avatar:
             self._draw_spirit(screen, x, feet - AVATAR_FEET, scale)
             return
@@ -1171,13 +1272,13 @@ class LifeSim:
         if what == "tiles":
             return [grid.inflate(6, 6)]
         if what == "move":
-            return [grid.union(FILES_RECT).union(EXIT_RECT).inflate(6, 6)]
+            return [grid.union(tile_rect(FILES)).union(EXIT_RECT).inflate(6, 6)]
         if what == "labels":
             return [pygame.Rect(tile_at(i)[0] - 2, tile_at(i)[1] + TILE_H + 1, TILE_W + 4, 9) for i in range(n)] + \
                 [tile_rect(self.sel).inflate(6, 6)] * (self.sel >= 0)
         if what == "exit":
             return [EXIT_RECT.inflate(6, 6), pygame.Rect(art.W - 52, 166, 48, 11)]
-        return [FILES_RECT.inflate(6, 6)]
+        return [tile_rect(FILES).inflate(6, 6)]
 
     def _draw_tutorial(self, screen: pygame.Surface) -> None:
         """Dim everything but what this page is about, and say what it is."""
@@ -1251,7 +1352,7 @@ class LifeSim:
             self._squash(screen, 1.0 - self.phase_t / CRT_ON_TIME)
 
     def _draw_frontier(self, screen: pygame.Surface) -> None:
-        """Every theory tested: CONGRATULATIONS!, big, then the hint about OOH."""
+        """Every theory tested: CONGRATULATIONS!, big, then the hint about XXX."""
         self._draw_void(screen)
         self._header(screen, "PROGRAM: RESEARCH EXPLORATION")
         for i, line in enumerate(self.typer.visible()):
@@ -1330,6 +1431,9 @@ class LifeSim:
         crt.blit(img, (x - img.get_width() / 2, y + bob - img.get_height() / 2))
 
     def _crt_off(self, crt: pygame.Surface) -> None:
+        if self.pushed is None and self.scores and self.phase_t % sum(ATTRACT) > ATTRACT[0]:
+            self._crt_scores(crt)                   # nobody's pushed it yet: the high scores, now and then
+            return
         sw = SCREEN[2]
         for word, y in (("LIFE LAB", 10), ("MAINFRAME", 29)):
             s = self.text.get(word, PHOSPHOR, 3)
@@ -1348,6 +1452,58 @@ class LifeSim:
         crt.blit(label, (sw // 2 - label.get_width() // 2, by + bh // 2 - 2))
         s = self.text.get("WELCOME TO THE LIFE LAB!", PHOSPHOR_DIM)
         crt.blit(s, (sw // 2 - s.get_width() // 2, 92))
+
+    def _crt_scores(self, crt: pygame.Surface) -> None:
+        """HIGH SCORES on the mainframe's own screen, small, for the start screen."""
+        sw = SCREEN[2]
+        s = self.text.get("HIGH SCORES", PHOSPHOR, big=True)
+        crt.blit(s, (sw // 2 - s.get_width() // 2, 6))
+        crt.fill(rgb(PHOSPHOR_DIM), (16, 16, sw - 32, 1))
+        for i, sc in enumerate(self.scores[:8]):
+            y = 21 + i * 9
+            crt.blit(self.text.get(f"{i + 1}.", PHOSPHOR_DIM), (18, y))
+            crt.blit(self.text.get(sc.name, PHOSPHOR), (32, y))
+            r = self.text.get(f"{sc.confirmed}/{len(self.theories)}", PHOSPHOR)
+            crt.blit(r, (sw - 52 - r.get_width(), y))
+            if sc.confirmed:
+                t = self.text.get(scores.clock(sc.secs), PHOSPHOR_DIM)
+                crt.blit(t, (sw - 18 - t.get_width(), y))
+        if int(self.time * 2) % 2 == 0:
+            s = self.text.get("PUSH TO BOOT UP", PHOSPHOR)
+            crt.blit(s, (sw // 2 - s.get_width() // 2, 95))
+
+    def _draw_scores(self, screen: pygame.Surface) -> None:
+        """When a visit ends: HIGH SCORES, full screen, their own row lit up."""
+        screen.fill(rgb(CRT_BG))
+        self._header(screen, f"VISITOR {self.visitor:04d} {self.name}")
+        mine = self.my_score()
+        rank = next((i for i, sc in enumerate(self.scores) if sc.visitor == self.visitor), None)
+        title = self.text.get("HIGH SCORES", PHOSPHOR, 2, big=True)
+        screen.blit(title, (art.W // 2 - title.get_width() // 2, 19))
+        cols = (70, 92, 196, 250)                            # rank, name, confirmed, time
+        y = 40
+        for label, x in zip(("", "NAME", "CONFIRMED", "TIME"), cols):
+            screen.blit(self.text.get(label, PHOSPHOR_DIM), (x, y))
+        shown = list(enumerate(self.scores[:SCORE_ROWS]))
+        if rank is not None and rank >= SCORE_ROWS:          # not in the top: their row at the bottom
+            shown[-1] = (rank, self.scores[rank])
+        for row, (i, sc) in enumerate(shown):
+            y = 50 + row * 10
+            me = sc.visitor == self.visitor
+            if me:
+                screen.fill(rgb(PHOSPHOR_DIM if int(self.time * 3) % 3 else PHOSPHOR_FAINT), (64, y - 2, 214, 10))
+            for text, x in ((f"{i + 1}.", cols[0]), (sc.name, cols[1]),
+                            (f"{sc.confirmed} OF {len(self.theories)}", cols[2]),
+                            (scores.clock(sc.secs) if sc.confirmed else "-", cols[3])):
+                screen.blit(self.text.get(text, PHOSPHOR, big=True), (x, y))
+        msg = (f"YOU CONFIRMED {mine.confirmed} OF {len(self.theories)} THEORIES." if mine.confirmed
+               else "NO THEORIES CONFIRMED. THE LAB IS DISAPPOINTED.")
+        s = self.text.get(msg, PHOSPHOR, big=True)
+        screen.blit(s, (art.W // 2 - s.get_width() // 2, 158))
+        if self.phase_t > 1.0 and int(self.time * 2) % 2 == 0:
+            p = self.text.get("THANKS FOR VISITING THE LIFE LAB", PHOSPHOR_DIM)
+            screen.blit(p, (art.W // 2 - p.get_width() // 2, 170))
+        screen.blit(self.art.scanlines, (0, 0))
 
     def _crt_dive(self, crt: pygame.Surface) -> None:
         crt.fill(VOID)                              # the sign-in screen, before anything's on it
@@ -1396,13 +1552,22 @@ def main() -> None:
                          "CONGRATULATIONS! screen; otherwise it comes up after the next result")
     ap.add_argument("--ticks", type=int, help="quit after this many frames (testing)")
     ap.add_argument("--screenshot", help="save the last frame here (with --ticks)")
-    ap.add_argument("--log-activity", action="store_true",
-                    help="log what each visitor does to ~/.life_lab/activity.jsonl (or set LIFE_LAB_ACTIVITY=1)")
+    ap.add_argument("--no-log", action="store_true",
+                    help="don't write to the play log, play_log/<machine>.csv (or set LIFE_LAB_ACTIVITY=0)")
     args = ap.parse_args()
     record = not args.demo and args.ticks is None
-    run(lambda: LifeSim(skip_boot=args.skip_boot, mute=args.mute, seed=args.seed, record=record,
-                        log_activity=args.log_activity, idle_exit=not args.demo,
-                        played_all=args.played_all), "Theories of Life",
+    rounds = 0
+
+    def make() -> LifeSim:
+        # --skip-boot and --played-all are for the first round only: after EXIT TO START SCREEN
+        # (or a timeout) the next visitor gets the start screen and the whole boot sequence
+        nonlocal rounds
+        first, rounds = rounds == 0, rounds + 1
+        return LifeSim(skip_boot=args.skip_boot and first, mute=args.mute, seed=args.seed, record=record,
+                       log_activity=not args.no_log, idle_exit=not args.demo,
+                       played_all=args.played_all and first)
+
+    run(make, "Theories of Life",
         scale=args.scale, fullscreen=args.fullscreen, autopilot=autopilot if args.demo else None,
         max_ticks=args.ticks, screenshot=args.screenshot)
 

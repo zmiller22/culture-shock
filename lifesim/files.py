@@ -14,7 +14,8 @@ it prints is the menu. It's all stick-and-button, like the visitor name entry:
                       locks a letter in, left backs up, and out from the first).
                       One of PASSWORDS gets ACCESS GRANTED; ANSWER (what the lab
                       tells you once you've tested every theory) plays the OOH
-                      sequence (see ooh.py); TRIP_CODE (hidden in the room) is a
+                      sequence (see ooh.py), and so does OLD_ANSWER, the code it
+                      used to be, as a backup; TRIP_CODE (hidden in the room) is a
                       psychedelic thank-you (see trip.py); anything else is
                       ACCESS DENIED and another go
 
@@ -62,8 +63,9 @@ ROLL_GRACE = 0.6            # s before we trust mixer.music.get_busy() to mean "
 FLASH_TIME = 2.2            # s a status message stays up
 REPEAT = (0.4, 0.09)        # s before a held stick repeats, then s per step
 LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
-PASSWORDS = ("XXX",)       # what UNLOCK.EXE says ACCESS GRANTED to, for now
-ANSWER = "OOH"              # the answer you get for testing every theory: it plays ooh.py
+PASSWORDS: tuple[str, ...] = ()   # what UNLOCK.EXE says ACCESS GRANTED to (none for now: XXX is the answer)
+ANSWER = "XXX"              # the answer you get for testing every theory: it plays ooh.py
+OLD_ANSWER = "OOH"          # what the answer used to be: still plays ooh.py, in case of a bug
 TRIP_CODE = "SEX"           # hidden somewhere in the room: it plays trip.py
 DENIED_TIME = 1.6           # s ACCESS DENIED stays up before another go
 
@@ -535,7 +537,7 @@ class FileTerminal:
                 self._run_code(self.code)
 
     def _run_code(self, code: str) -> None:
-        if code == ANSWER:
+        if code in (ANSWER, OLD_ANSWER):
             self.log("code", code=code, result="ooh")
             self.mode, self.ooh = "ooh", Ooh(self.mute)
             return
@@ -738,7 +740,7 @@ class FileTerminal:
             row = rows[j]
             y = top + (j - self.scroll) * ROW_H
             if row == "UP":
-                label, right = ".. EXIT TO THEORIES", "<DIR>"
+                label, right = ".. BACK TO THEORIES", "<DIR>"
             elif row == "CODE":
                 label, right = "UNLOCK.EXE", f"{self.locked()} LOCKED" if self.locked() else ""
             else:

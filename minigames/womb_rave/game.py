@@ -329,7 +329,7 @@ class WombRave:
         self.result: str | None = None
         self.done = False
         self.phase = "intro" if show_title else "walk"
-        self.intro = Intro("LIFE STARTS WHEN YOU ARE FEELING THE RHYTHM.", art.F["hi"])
+        self.intro = Intro("LIFE STARTS WHEN YOU ARE FEELING THE RHYTHM...", art.F["hi"])
         self.phase_t = 0.0
         self.howto: tutorial.Tutorial | None = None    # how to play, shown once after the first pick
         self.time = 0.0

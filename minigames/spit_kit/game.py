@@ -9,7 +9,10 @@ is the spit.
 
 The round:
     title     how-to pages
-    spit      SPIT IN THE JAR. Waits up to SPIT_TIMEOUT s, then gives up (lose)
+    spit      SPIT IN THE JAR. After MALFUNCTION_AFTER s with no spit, holding the
+              button goes ahead on DNA from a shed hair instead (the fallback for
+              a sensor that isn't working). Waits up to SPIT_TIMEOUT s, then
+              gives up (lose)
     got       SAMPLE RECEIVED
     analyze   centrifuge, sequence, cross-reference (button hurries it along)
     survey    partway through: the behavioral analysis survey (orifice, string,
@@ -17,7 +20,8 @@ The round:
               is the room you walk out into
     report    YOU ARE 40% DOM, 30% BANANA AND 30% GENIUS
     splice    the donors spin together, you get scanned in, mutations zap on
-    reveal    THIS IS YOU. Walk it around; walk out the EXIT to finish (win)
+    reveal    THIS IS YOU. Walk it around; walk out the door, ENTER SIMULATION, to
+              finish (win)
 
 Controls (keyboard, or an arcade stick / gamepad):
     SPACE / Z / ENTER / button 0    next / hurry / attack (and the spit, with no sensor); on the
@@ -50,6 +54,11 @@ from .jar import get_jar
 # -- tuning ------------------------------------------------------------------------
 SPIT_TIMEOUT = 90.0          # s of waiting at the jar before the lab gives up
 FALLBACK_AFTER = 6.0         # s a live sensor can be not-ready before the button counts as a spit
+MALFUNCTION_AFTER = 15.0     # s with no spit before SENSOR MALFUNCTION DETECTED offers the hair instead
+HAIR_HOLD = 1.5              # s of holding the button that takes the hair (under the main game's HOLD_ANYWHERE)
+MALFUNCTION_LINES = ("SENSOR MALFUNCTION DETECTED...",
+                     "USING DNA FROM HAIR YOU SHED WHEN YOU WALKED IN INSTEAD.",
+                     "HOLD DOWN ANY BUTTON TO CONTINUE.")
 GOT_TIME = 2.8               # s of SAMPLE RECEIVED
 REPORT_STEP = 2.8            # s per species in the report
 REPORT_HOLD = 6.0            # s on the finished report before it moves on by itself
@@ -172,7 +181,9 @@ class Survey:
                 self.press = None
 
 
-def volume_word(delta: float) -> str:
+def volume_word(delta: float, hair: bool = False) -> str:
+    if hair:
+        return "ONE HAIR"
     return next(word for limit, word in VOLUME if abs(delta) < limit)
 
 
@@ -210,6 +221,14 @@ def draw_jar(screen: pygame.Surface, x: int, y: int, level: float, t: float, sca
     label = txt("DNA", "#1b1430")
     pygame.draw.rect(screen, (230, 220, 190), (x - 9, jar.y + 9 * s, 18, 9))
     screen.blit(label, (x - label.get_width() // 2, jar.y + 9 * s + 2))
+
+
+def draw_arrow(screen: pygame.Surface, x: int, y: int, way: int = 1, color: str = ACCENT) -> None:
+    """A chunky pixel arrow, tip at (x, y), pointing right (way=+1) or left (-1)."""
+    shaft = [(-20, -3), (-9, -3), (-9, -8), (0, 0), (-9, 8), (-9, 3), (-20, 3)]
+    pts = [(x + way * dx, y + dy) for dx, dy in shaft]
+    pygame.draw.polygon(screen, (20, 12, 28), [(px + way, py + 1) for px, py in pts])     # drop shadow
+    pygame.draw.polygon(screen, rgb(color), pts)
 
 
 def draw_lab(screen: pygame.Surface, t: float) -> None:
@@ -273,6 +292,8 @@ class SpitKit:
         self.sample_no = self.rng.randrange(1000, 9999)
         self.delta = 0.0
         self.not_ready_t = 0.0
+        self.hair = False                                # went ahead on a shed hair, not a spit
+        self.hair_hold: float | None = None              # s the button's been held on the malfunction notice
         self.taunt = self.rng.randrange(len(TAUNTS))
         self.splash: list[list[float]] = []              # spit droplets on the SAMPLE RECEIVED screen
         self.idle_t = 0.0
@@ -344,7 +365,7 @@ class SpitKit:
         """(text, start, suffix, work) per line, with the placeholders filled in."""
         out, t = [], 0.0
         for label, work, suffix in ANALYSIS:
-            text = label.format(vol=volume_word(self.delta), n=len(self.profile) or dna.DONORS)
+            text = label.format(vol=volume_word(self.delta, self.hair), n=len(self.profile) or dna.DONORS)
             out.append((text, t, suffix, work))
             t += len(text) / TYPE_RATE + work + 0.1
         return out
@@ -381,7 +402,7 @@ class SpitKit:
                 self.jar.poll()
                 self._go("spit")
         elif self.phase == "spit":
-            self._update_spit(dt, pressed, events)
+            self._update_spit(dt, inp, pressed, events)
         elif self.phase == "got":
             for d in self.splash:
                 d[0] += d[2] * dt
@@ -418,16 +439,30 @@ class SpitKit:
             if pressed and self.phase_t > 1.0:
                 self.done = True
 
-    def _update_spit(self, dt: float, pressed: bool, events: list[tuple[str, float]]) -> None:
+    @property
+    def malfunction(self) -> bool:
+        """No spit for a while: the lab offers to go ahead on a shed hair."""
+        return self.phase == "spit" and self.phase_t > MALFUNCTION_AFTER
+
+    def _update_spit(self, dt: float, inp: Input, pressed: bool, events: list[tuple[str, float]]) -> None:
         jar = self.jar
         self.not_ready_t = 0.0 if jar.ready else self.not_ready_t + dt
         spit = next((d for e, d in events if e == "SPIT"), None)
         fallback = not jar.live or (jar.state in ("OFFLINE", "ERROR") and self.not_ready_t > FALLBACK_AFTER)
-        if spit is None and pressed and fallback and self.phase_t > 0.3:
+        held = inp.held or any(p.held for p in inp.players)
+        if self.malfunction:                                 # the hair: a hold, so a stray tap can't take it
+            if pressed:
+                self.hair_hold = 0.0
+            elif self.hair_hold is not None:
+                self.hair_hold = self.hair_hold + dt if held else None
+        elif spit is None and pressed and fallback and self.phase_t > 0.3:
             spit = self.rng.uniform(800, 9000)               # a pretend gob
         if spit is not None:
             self.delta = spit
             self.splash = [[100.0, 70.0, self.rng.uniform(-90, 90), self.rng.uniform(-160, -40)] for _ in range(14)]
+            self._go("got")
+        elif self.hair_hold is not None and self.hair_hold >= HAIR_HOLD:
+            self.hair, self.delta, self.splash = True, 0.0, []
             self._go("got")
         elif self.phase_t > SPIT_TIMEOUT:
             self.result = "lose"
@@ -499,8 +534,32 @@ class SpitKit:
         if status:
             screen.blit(txt(status, col), (x0, y0 + 12))
         left = max(0, int(SPIT_TIMEOUT - self.phase_t))
-        if left < 30:
+        if self.malfunction:
+            self._draw_malfunction(screen)
+        elif left < 30:
             screen.blit(txt(f"SAMPLE WINDOW CLOSES IN {left}", "#ff6a6a"), (x0, y0 + 22))
+
+    def _draw_malfunction(self, screen: pygame.Surface) -> None:
+        """SENSOR MALFUNCTION DETECTED, over the sensor readout, with the hold bar."""
+        panel = pygame.Rect(124, 96, W - 130, 72)
+        pygame.draw.rect(screen, (20, 12, 28), panel.inflate(4, 4))
+        pygame.draw.rect(screen, rgb(PHOS_BG), panel)
+        pygame.draw.rect(screen, rgb(PHOS_DIM), panel, 1)
+        blink = int(self.time * 3) % 2 == 0
+        first, *rest = MALFUNCTION_LINES
+        y = panel.y + 5
+        screen.blit(txt(first, "#ff6a6a" if blink else PHOS), (panel.x + 5, y))
+        y += 12
+        for line in rest:
+            for part in wrap(line, panel.w - 10):
+                screen.blit(txt(part, PHOS if part is not rest[-1] else ACCENT), (panel.x + 5, y))
+                y += 9
+            y += 3
+        k = 0.0 if self.hair_hold is None else min(1.0, self.hair_hold / HAIR_HOLD)
+        bar = pygame.Rect(panel.x + 5, panel.bottom - 9, panel.w - 10, 4)
+        pygame.draw.rect(screen, rgb(PHOS_DIM), bar, 1)
+        if k:
+            pygame.draw.rect(screen, rgb(ACCENT), (bar.x, bar.y, round(bar.w * k), bar.h))
 
     def _sensor_status(self) -> tuple[str, str]:
         jar = self.jar
@@ -528,7 +587,7 @@ class SpitKit:
         img = pygame.transform.scale_by(img, 0.5 + 0.5 * k) if k < 1 else img
         blit_c(screen, img, 214, 60)
         if self.phase_t > 0.6:
-            blit_c(screen, txt(f"VOLUME: {volume_word(self.delta)}", LAB_TEXT), 214, 80)
+            blit_c(screen, txt(f"VOLUME: {volume_word(self.delta, self.hair)}", LAB_TEXT), 214, 80)
         if self.phase_t > 1.6:
             blit_c(screen, txt("THANK YOU FOR YOUR SERVICE.", LAB_DIM), 214, 92)
 
@@ -737,15 +796,18 @@ class SpitKit:
             wash.fill(rgb(self.color))
             wash.set_alpha(ROOM_WASH)
             screen.blit(wash, (0, 0))
-        # the exit
+        # the way out, into the simulation
         door = pygame.Rect(W - 34, FLOOR_Y - 62, 30, 62)
         pygame.draw.rect(screen, (20, 12, 28), door.inflate(4, 4))
         pygame.draw.rect(screen, (40, 30, 70), door)
         pygame.draw.rect(screen, (90, 78, 130), door, 1)
-        sign = txt("EXIT", "#ff6a6a")
-        blit_c(screen, sign, door.centerx, door.y - 8)
-        if self.phase_t > 3 and int(self.time * 2) % 2 == 0:
-            blit_c(screen, txt(">>", ACCENT, 2), door.x - 14, door.centery)
+        for j, word in enumerate(("ENTER", "SIMULATION")):         # right-aligned: too wide to centre on the door
+            sign = txt(word, PHOS)
+            pad = pygame.Rect(W - 4 - sign.get_width() - 2, door.y - 21 + j * 9, sign.get_width() + 4, 9)
+            pygame.draw.rect(screen, (20, 12, 28), pad)
+            screen.blit(sign, (pad.x + 2, pad.y + 1))
+        if self.phase_t > 1.5:                                   # walk this way
+            draw_arrow(screen, door.x - 8 + round(4 * math.sin(self.time * 8)), door.centery + 6)
 
         frames = sp["final"][a.state][a.facing]
         img = frames[min(a.frame, len(frames) - 1)]

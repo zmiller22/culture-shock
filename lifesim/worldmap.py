@@ -2,7 +2,8 @@
 
 Every theory of life is a tile in a grid, playing a little looping clip of its
 simulation (baked by tools/make_map_previews.py), in the order life supposedly
-happens. SYSTEM FILES, the lab's file drawer, is a tall tile down the left.
+happens. SYSTEM FILES, the lab's file drawer, takes the grid slot after the last
+theory, and EXIT is a tall tile down the right.
 The stick floats the spirit from tile to tile.
 
 The map only knows about places and moving between them: LifeSim decides what
@@ -28,16 +29,15 @@ PREVIEW_FRAMES = 24             # a 4 s clip
 SPEED = 260.0                   # px/s the spirit floats between tiles
 VOID = (4, 6, 14)
 
-COLS = 2
+COLS = 3
 GRID_Y, GAP_X, GAP_Y = 22, 8, 15
-FILES_W, FILES_GAP = 54, 12      # the tall tiles either side of the grid, and the gap to it
+EXIT_W, EXIT_GAP = 44, 8         # the tall EXIT tile right of the grid, and the gap to it
 GRID_W = COLS * TILE_W + (COLS - 1) * GAP_X
-# SYSTEM FILES, the grid and EXIT, centred together
-GRID_X = (320 - (2 * (FILES_W + FILES_GAP) + GRID_W)) // 2 + FILES_W + FILES_GAP
-FILES = -1                      # the SYSTEM FILES tile, down the left; theories are 0, 1, 2...
+GRID_X = (320 - (GRID_W + EXIT_GAP + EXIT_W)) // 2       # the grid and EXIT, centred together
+FILES = -1                      # the SYSTEM FILES tile, in the grid after the theories; theories are 0, 1, 2...
 EXIT = -2                       # the EXIT tile, down the right
-FILES_RECT = pygame.Rect(GRID_X - FILES_GAP - FILES_W, GRID_Y, FILES_W, 2 * TILE_H + GAP_Y)
-EXIT_RECT = pygame.Rect(GRID_X + GRID_W + FILES_GAP, GRID_Y, FILES_W, 2 * TILE_H + GAP_Y)
+EXIT_RECT = pygame.Rect(GRID_X + GRID_W + EXIT_GAP, GRID_Y, EXIT_W, 2 * TILE_H + GAP_Y)
+FILES_SLOT = 5                  # the grid slot SYSTEM FILES sits in: right after the theories (set by WorldMap)
 
 
 def rgb(c: str) -> tuple[int, int, int]:
@@ -50,9 +50,20 @@ def tile_at(i: int) -> tuple[int, int]:
     return GRID_X + c * (TILE_W + GAP_X), GRID_Y + r * (TILE_H + GAP_Y)
 
 
+def slot_of(node: int) -> int:
+    """Where a node sits in the grid (SYSTEM FILES included)."""
+    return FILES_SLOT if node == FILES else node
+
+
+def node_at(slot: int) -> int | None:
+    if slot == FILES_SLOT:
+        return FILES
+    return slot if 0 <= slot < FILES_SLOT else None
+
+
 def tile_rect(node: int) -> pygame.Rect:
     if node == FILES:
-        return FILES_RECT
+        return pygame.Rect(*tile_at(FILES_SLOT), TILE_W, TILE_H)
     if node == EXIT:
         return EXIT_RECT
     return pygame.Rect(*tile_at(node), TILE_W, TILE_H)
@@ -72,7 +83,8 @@ def load_preview(code: str) -> list[pygame.Surface]:
 
 class WorldMap:
     def __init__(self, codes: list[str]) -> None:
-        self.n = len(codes)
+        global FILES_SLOT
+        self.n = FILES_SLOT = len(codes)
         self.previews = [load_preview(c) for c in codes]
         self.row = 0                    # the grid row it left by, to come back to it from FILES or EXIT
         self.place(0)
@@ -86,17 +98,15 @@ class WorldMap:
         self.pos = tile_rect(node).center
 
     def neighbour(self, node: int, dx: int, dy: int) -> int | None:
-        if node == FILES:
-            return min(self.row * COLS, self.n - 1) if dx > 0 else None
         if node == EXIT:
-            return min(self.row * COLS + COLS - 1, self.n - 1) if dx < 0 else None
-        c, r = node % COLS + dx, node // COLS + dy
-        if c < 0:
-            return FILES
+            return node_at(min(self.row * COLS + COLS - 1, FILES_SLOT)) if dx < 0 else None
+        slot = slot_of(node)
+        c, r = slot % COLS + dx, slot // COLS + dy
         if c >= COLS:
             return EXIT
-        nxt = r * COLS + c
-        return nxt if 0 <= c < COLS and 0 <= nxt < self.n and r >= 0 else None
+        if c < 0 or r < 0:
+            return None
+        return node_at(r * COLS + c)
 
     def update(self, dt: float, inp: Input) -> None:
         if self.target is None:
@@ -104,8 +114,8 @@ class WorldMap:
             d = (inp.x, 0) if inp.x else (0, inp.y) if inp.y else None
             nxt = self.neighbour(self.sel, *d) if d else None
             if nxt is not None:
-                if nxt in (FILES, EXIT):
-                    self.row = self.sel // COLS
+                if nxt == EXIT:
+                    self.row = slot_of(self.sel) // COLS
                 self.target = nxt
             return
         tx, ty = tile_rect(self.target).center
@@ -158,12 +168,12 @@ class WorldMap:
             screen.fill(col, (r.right - 1, y, 1, 2))
 
     def draw_files(self, screen: pygame.Surface, t: float, lit: bool) -> None:
-        """A tall tile with a little filing cabinet in it, three drawers."""
-        r = FILES_RECT
+        """A tile with a little filing cabinet in it, three drawers."""
+        r = tile_rect(FILES)
         screen.fill(rgb(CRT_BG), r)
         col = rgb(PHOSPHOR if lit else PHOSPHOR_DIM)
         w, h = 24, 30
-        x, y = r.centerx - w // 2, r.top + 14
+        x, y = r.centerx - w // 2, r.centery - h // 2 - 1
         pygame.draw.rect(screen, col, (x, y, w, h), 1)
         for i in range(3):
             dy = y + 2 + i * 9

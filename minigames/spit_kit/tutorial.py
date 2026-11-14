@@ -14,7 +14,7 @@ INK = (20, 12, 28)
 
 
 def make() -> Tutorial:
-    from .game import BASE_COLS, draw_helix, draw_jar, rgb
+    from .game import BASE_COLS, JAR_SIDE, draw_arrow, draw_helix, draw_jar, rgb
 
     floor = DEMO_H - 4
 
@@ -39,6 +39,12 @@ def make() -> Tutorial:
             pygame.draw.circle(s, SPIT, (round(gx), round(gy)), 3)
         if 1.2 < t < 1.8:
             caption(s, "SPLAT!", 160, 6, "#ffe14d")
+        # the real jar's next to the cabinet: point that way
+        nudge = round(3 * math.sin(t * 8))
+        if JAR_SIDE > 0:
+            draw_arrow(s, DEMO_W - 22 + nudge, 48, 1)
+        else:
+            draw_arrow(s, 22 - nudge, 48, -1)
         return 0, 0, 1.2 < t < 1.45
 
     # 2. the mainframe reads it
@@ -82,7 +88,8 @@ def make() -> Tutorial:
         title="SPIT KIT",
         premise="YOU ARE WHAT YOU SPIT.",
         pages=[
-            Page(("SPIT IN THE JAR NEXT TO THE CABINET.", "ONE GOOD GOB. WE'LL WAIT."), spit, ("jar",), time=7.0),
+            Page(("SPIT IN THE JAR NEXT TO THE CABINET.", "ONE GOOD GOB. WE'LL WAIT.",
+                  "PLEASE DO NOT TOUCH THE JAR."), spit, ("jar",), time=7.0),
             Page(("THE MAINFRAME READS YOUR DNA", "AND FINDS OUT WHAT YOU'RE MADE OF."), read, ("jar",), time=7.0),
             Page(("THEN SPLICES THE REAL YOU TOGETHER.", "NO REFUNDS."), you, ("button",), time=6.0),
         ],

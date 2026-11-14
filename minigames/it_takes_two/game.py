@@ -105,7 +105,10 @@ MAZE_IN = (DRIFT[0], DRIFT[0] + 1.6)                       # the walls fly in an
 DOTS_IN = (DRIFT[1], DRIFT[1] + 0.6)
 INTRO = DOTS_IN[1] + 0.6
 PRELUDE_TEXT = "WE KNOW THAT IT TAKES 2..."
-PRELUDE = (1.6, 3.4, 4.0)        # typed out by, held until, faded out by
+PRELUDE_ASK = ("FIND ANOTHER PLAYER,", "THEN HOLD ANY BUTTON TO CONTINUE")
+PRELUDE_TYPE = 1.6               # s to type the line out, before PRELUDE_ASK comes up under it
+PRELUDE_HOLD = 1.0               # s of holding a button that carries on (under the main game's HOLD_ANYWHERE)
+PRELUDE_FADE = 0.6               # s it fades out over, once they've held
 NAMES = {"condom": "CONDOM", "pill": "THE PILL", "spermicide": "SPERMICIDE", "iud": "COPPER IUD"}
 # the ring announcer: lead-in, nickname, and the spotlight colour
 HYPE = {
@@ -357,6 +360,8 @@ class ItTakesTwo:
         self.phase = "prelude"                        # WE KNOW THAT IT TAKES 2..., the delivery and the
                                                       # ring entrances, then the how-to
         self.phase_t = 0.0
+        self.prelude_hold: float | None = None       # s a button's been held on PRELUDE_ASK
+        self.prelude_out: float | None = None        # s into the fade, once they've held
         self.show_title = show_title
         self.howto = tutorial.make(self.art)
         self.card_text = {k: (text_surface(lead, LAB_DIM), big_text(NAMES[k], col), text_surface(nick, "#ffe14d"))
@@ -503,11 +508,19 @@ class ItTakesTwo:
             self.howto.update(dt, inp)
             if self.howto.done:
                 self._enter("ready")
-        elif self.phase == "prelude":
-            if self.phase_t > 0.4 and (inp.action or any(p.action for p in inp.players)):
-                self._end_intro()                     # skip the whole intro
-            elif self.phase_t >= PRELUDE[2]:
-                self._enter("intro")
+        elif self.phase == "prelude":                 # waits for a hold: it takes two, so find them first
+            if self.prelude_out is not None:
+                self.prelude_out += dt
+                if self.prelude_out >= PRELUDE_FADE:
+                    self._enter("intro")
+            elif self.phase_t > PRELUDE_TYPE:
+                if inp.action or any(p.action for p in inp.players):
+                    self.prelude_hold = 0.0
+                elif self.prelude_hold is not None:
+                    held = inp.held or any(p.held for p in inp.players)
+                    self.prelude_hold = self.prelude_hold + dt if held else None
+                if self.prelude_hold is not None and self.prelude_hold >= PRELUDE_HOLD:
+                    self.prelude_out = 0.0
         elif self.phase == "intro":
             self._update_intro(dt, inp)
         elif self.phase == "ready":
@@ -892,12 +905,13 @@ class ItTakesTwo:
             self._draw_labels(screen, t)
 
     def _draw_prelude(self, screen: pygame.Surface, t: float) -> None:
-        """WE KNOW THAT IT TAKES 2..., typed out on a dark screen, then faded."""
+        """WE KNOW THAT IT TAKES 2..., typed out on a dark screen, then FIND ANOTHER
+        PLAYER under it with a bar while the button's held, then faded."""
         screen.fill(rgb(F["void"]))
         k = self.phase_t
-        n = int(len(PRELUDE_TEXT) * min(1.0, k / PRELUDE[0]))
+        n = int(len(PRELUDE_TEXT) * min(1.0, k / PRELUDE_TYPE))
         full = big_text(PRELUDE_TEXT, LAB_TEXT)
-        x0, y0 = W / 2 - full.get_width() / 2, H / 2 - full.get_height() / 2
+        x0, y0 = W / 2 - full.get_width() / 2, H / 2 - full.get_height() / 2 - 14
         shown = PRELUDE_TEXT[:n]
         for i, ch in enumerate(shown):                     # the 2 in pink, the rest in white
             if ch == " ":
@@ -909,8 +923,17 @@ class ItTakesTwo:
         if n < len(PRELUDE_TEXT) or int(t * 3) % 2:        # a blinking cursor
             pre = big_text(shown, LAB_TEXT).get_width() if shown else 0
             screen.fill(rgb("#ff6a9a"), (round(x0 + pre + 3), round(y0), 3, full.get_height()))
-        if k > PRELUDE[1]:
-            fade = min(1.0, (k - PRELUDE[1]) / (PRELUDE[2] - PRELUDE[1]))
+        if k > PRELUDE_TYPE:
+            y = y0 + full.get_height() + 12
+            for line in PRELUDE_ASK:
+                self._label(screen, line, "#ffe14d" if int(t * 2) % 2 or self.prelude_hold else LAB_TEXT, W / 2, y)
+                y += 9
+            bw = 120
+            hk = 0.0 if self.prelude_hold is None else min(1.0, self.prelude_hold / PRELUDE_HOLD)
+            screen.fill(rgb(LAB_DIM), (round(W / 2 - bw / 2), round(y + 4), bw, 3))
+            screen.fill(rgb("#ff6a9a"), (round(W / 2 - bw / 2), round(y + 4), round(bw * hk), 3))
+        if self.prelude_out is not None:
+            fade = min(1.0, self.prelude_out / PRELUDE_FADE)
             fx = self.art.overlay
             fx.fill((*rgb(F["void"]), int(255 * fade)))
             screen.blit(fx, (0, 0))
@@ -1160,6 +1183,9 @@ def _route(game: ItTakesTwo, p: Player, goal) -> tuple[int, int]:
 
 
 def autopilot(game: ItTakesTwo) -> Input:
+    if game.phase == "prelude":                       # hold through FIND ANOTHER PLAYER
+        act = game.phase_t > PRELUDE_TYPE + 0.1 and game.prelude_hold is None
+        return Input(action=act, held=True, players=(Input(action=act, held=True), Input()))
     if game.phase in ("title", "end"):
         act = game.phase_t > 0.8
         return Input(action=act, players=(Input(action=act), Input()))
