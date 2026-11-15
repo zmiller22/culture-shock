@@ -62,8 +62,10 @@ MALFUNCTION_LINES = ("SENSOR MALFUNCTION DETECTED...",
 GOT_TIME = 2.8               # s of SAMPLE RECEIVED
 REPORT_STEP = 2.8            # s per species in the report
 REPORT_HOLD = 6.0            # s on the finished report before it moves on by itself
-SWIRL_TIME, FLASH_TIME, SCAN_TIME = 2.2, 0.3, 3.4
-ZAP_TIME = 2.6               # s per mutation
+SPLICE_PACE = 0.8            # the splice runs this much of its old length (0.8: 20% quicker)
+SWIRL_TIME, FLASH_TIME, SCAN_TIME = 2.2 * SPLICE_PACE, 0.3, 3.4 * SPLICE_PACE
+ZAP_TIME = 2.6 * SPLICE_PACE   # s per mutation
+ZAP_BOLT = 0.35 * SPLICE_PACE  # s of lightning at the start of each one
 DRIVE_TIMEOUT = 40.0         # s of nobody touching anything before the reveal ends itself
 JAR_SIDE = 1                 # which side of the cabinet the real jar is on: +1 right, -1 left
 VOLUME = ((600, "A DRIBBLE"), (2500, "ADEQUATE"), (8000, "GENEROUS"), (1e12, "FRANKLY ALARMING"))
@@ -387,7 +389,7 @@ class SpitKit:
     @property
     def splice_time(self) -> float:
         n = len(self.you.mutations) if self.you else 0
-        return SWIRL_TIME + FLASH_TIME + SCAN_TIME + n * ZAP_TIME + 0.6
+        return SWIRL_TIME + FLASH_TIME + SCAN_TIME + n * ZAP_TIME + 0.6 * SPLICE_PACE
 
     # -- update ------------------------------------------------------------------------
     def update(self, dt: float, inp: Input) -> None:
@@ -780,10 +782,10 @@ class SpitKit:
         t -= SCAN_TIME
         i = min(len(you.mutations), int(t / ZAP_TIME) + 1) if you.mutations else 0
         u = t - (i - 1) * ZAP_TIME if i else 99
-        step = i if u > 0.35 else i - 1
+        step = i if u > ZAP_BOLT else i - 1
         img = steps[max(0, step)][int(self.time * 4) % 4]
         x, y = cx - img.get_width() / 2, bottom - img.get_height()
-        if i and u < 0.35:                                   # lightning
+        if i and u < ZAP_BOLT:                               # lightning
             rnd = random.Random(int(self.time * 30))
             px, py = cx + rnd.uniform(-40, 40), 0
             while py < y + 40:
@@ -795,7 +797,7 @@ class SpitKit:
                 img.fill((255, 255, 255), special_flags=pygame.BLEND_RGB_MAX)
         screen.blit(img, (x, y))
         if i:
-            pop = min(1.0, u / 0.2)
+            pop = min(1.0, u / (0.2 * SPLICE_PACE))
             head = txt("MUTATION!", "#ff6a6a", 2)
             blit_c(screen, pygame.transform.scale_by(head, 0.5 + 0.5 * pop) if pop < 1 else head, W / 2, 12)
             blit_c(screen, txt(you.mutations[i - 1].label, ACCENT), W / 2, 28)
