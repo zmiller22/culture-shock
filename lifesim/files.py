@@ -463,6 +463,7 @@ class FileTerminal:
         self.ooh: Ooh | None = None
         self.trip: Trip | None = None
         self.lens: Lens | None = None
+        self.held = False               # the button's down this tick (the paint screen skips on a hold)
         self.boot_t = 0.0
         self.sel = 1                    # the first file, with .. (the way out) just above it
         self.scroll = 0
@@ -532,6 +533,7 @@ class FileTerminal:
             self.shown, self.mode_t = self.mode, 0.0
         self.mode_t += dt
         act = inp.action
+        self.held = bool(inp.held)
         if self.reading:
             act, sx = False, 0
         getattr(self, f"_update_{self.mode}")(dt, sx, sy, act)
@@ -616,7 +618,7 @@ class FileTerminal:
             self.mode = "list"
 
     def _update_lens(self, dt: float, sx: int, sy: int, act: bool) -> None:
-        self.lens.update(dt, sx, act)
+        self.lens.update(dt, self.held)
         if self.lens.done:
             self.log("lens_end", secs=round(self.lens.t, 1))
             self.lens = None
