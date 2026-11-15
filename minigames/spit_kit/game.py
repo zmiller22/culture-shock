@@ -78,6 +78,9 @@ BASE_COLS = {"A": "#e83b3b", "T": "#4aa3ff", "C": "#ffe14d", "G": "#39d353"}
 TAUNTS = ("DON'T BE SHY.", "HOCK ONE UP.", "IT'S FOR SCIENCE.", "WE'VE SEEN WORSE.",
           "ONE GOOD GOB IS ALL WE NEED.", "THE JAR IS WAITING.", "NO SPIT, NO SCIENCE.")
 
+REAL_JAR = ("NO SERIOUSLY, IT IS THE PHYSICAL JAR", "WITH THE GREEN LIGHT ON THE TABLE",
+            "TO YOUR {side}. SPIT IT IN.")      # under the taunt, pointing at the real jar
+
 # (label, seconds of work after it types, suffix once the work is done)
 ANALYSIS = (
     ("SAMPLE VOLUME: {vol}", 0.9, ""),
@@ -504,13 +507,12 @@ class SpitKit:
 
         # point at the real jar, next to the cabinet
         k = round(4 * math.sin(t * 8))
-        side = "THE REAL ONE IS RIGHT THERE"
+        for i, line in enumerate(REAL_JAR):
+            blit_c(screen, txt(line.format(side="RIGHT" if JAR_SIDE > 0 else "LEFT"), LAB_TEXT), 214, 52 + i * 8)
         if JAR_SIDE > 0:
-            blit_c(screen, txt(side, LAB_DIM), 214, 62)
-            blit_c(screen, txt(">>>", ACCENT, 3), 290 + k, 80)
+            blit_c(screen, txt(">>>", ACCENT, 3), 290 + k, 86)
         else:
-            blit_c(screen, txt(side, LAB_DIM), 214, 62)
-            blit_c(screen, txt("<<<", ACCENT, 3), 132 - k, 80)
+            blit_c(screen, txt("<<<", ACCENT, 3), 132 - k, 86)
 
         # the sensor readout
         x0, y0, w = 140, 112, 150
