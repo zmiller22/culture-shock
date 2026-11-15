@@ -25,7 +25,8 @@ The terminal uses the bigger 5x7 font, in one colour, so it reads easily on the
 cabinet.
 
 The two .VID files rick roll you, and they're the one place the game drops the
-pixels: the video plays over the whole window with its sound. It streams from
+pixels: the video plays over the whole window with its sound. From ROLL_SKIP_AT
+on, HOLD BUTTON: SKIP shows along the bottom and a ROLL_SKIP_HOLD hold skips it. It streams from
 the video in assets/files/ through ffmpeg (the soundtrack is pulled out once and
 cached). Without ffmpeg it falls back to the GIF there, silent; with no media at
 all you get a TAPE MISSING screen. See the README there.
@@ -46,7 +47,7 @@ import pygame
 
 from sprites.font import BIG_ADV, BIG_H, big_width
 
-from minigames.shell import PROMPT as VIOLET, READ_GRACE, SKIP_GRACE, ink   # (PROMPT here is the DOS prompt)
+from minigames.shell import PROMPT as VIOLET, READ_GRACE, SKIP_GRACE, ink, prompt_text   # (PROMPT here is the DOS prompt)
 
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
 from .ooh import Ooh
@@ -74,6 +75,8 @@ OLD_ANSWER = "OOH"          # what the answer used to be: still plays ooh.py, in
 TRIP_CODE = "SEX"           # hidden somewhere in the room: it plays trip.py
 LENS_CODE = "CUM"           # plays lens.py: the screen slowly covered in white paint
 DENIED_TIME = 1.6           # s ACCESS DENIED stays up before another go
+ROLL_SKIP_AT = 10.0         # s into a roll before HOLD BUTTON: SKIP comes up (and a hold works)
+ROLL_SKIP_HOLD = 1.0        # s of holding the button that skips the rest of it
 
 # the terminal fills the 320x180 screen, in the 5x7 font: 6 px a character, 10 px a line
 SW, SH = 320, 180
@@ -475,6 +478,7 @@ class FileTerminal:
         self.txt_scroll = 0             # first line of an open text file on screen
         self.msg: list[str] = []
         self.roll_t = 0.0
+        self.roll_hold: float | None = None   # s the button's been held toward skipping a roll
         self.closed = False
         self.stick = Stick()
 
@@ -638,7 +642,7 @@ class FileTerminal:
             if self.media.missing:
                 self.mode, self.msg = "msg", TAPE_MISSING
                 return
-            self.mode, self.roll_t = "roll", 0.0
+            self.mode, self.roll_t, self.roll_hold = "roll", 0.0, None
             window = pygame.display.get_surface()
             self.media.start(window.get_size() if window else None)     # decoding before the sound starts
             if self.media.audio and not self.mute:
@@ -683,7 +687,11 @@ class FileTerminal:
             over = self.media.ended or self.roll_t > self.media.length + 0.5
         else:
             over = self.roll_t > SILENT_ROLL
-        if self.roll_t > SKIP_GRACE and (act or sx < 0) or over:   # you can bail out (after a moment). it still counts
+        if self.roll_t >= ROLL_SKIP_AT and self.held:            # holding: a bar fills up to skipping it
+            self.roll_hold = (self.roll_hold or 0.0) + dt
+        else:
+            self.roll_hold = None
+        if self.roll_hold and self.roll_hold >= ROLL_SKIP_HOLD or over:   # skipping still counts as watched
             if music:
                 pygame.mixer.music.fadeout(400)
             self.media.stop()
@@ -693,9 +701,31 @@ class FileTerminal:
             self.mode = "msg"
 
     # -- drawing ---------------------------------------------------------------------------
+    @property
+    def skip_hold(self) -> bool:
+        """A sequence that's skipped by holding the button (a roll, the paint): a held
+        button here is for that, not the exit menu."""
+        return self.mode in ("roll", "lens")
+
     def overlay(self, window: pygame.Surface) -> None:
         if self.mode == "roll":
             self.media.blit(window, self.roll_t)
+            if self.roll_t >= ROLL_SKIP_AT:
+                self._draw_skip(window)
+
+    def _draw_skip(self, window: pygame.Surface) -> None:
+        """HOLD BUTTON: SKIP along the bottom of the video, at the window's scale, on a dark
+        strip, with a bar that fills while the button's held."""
+        k = max(1, window.get_height() // SH)
+        s = prompt_text("HOLD BUTTON: SKIP")
+        s = pygame.transform.scale(s, (s.get_width() * k, s.get_height() * k))
+        x, y = window.get_width() // 2 - s.get_width() // 2, window.get_height() - s.get_height() - 6 * k
+        window.fill((0, 0, 0), (x - 4 * k, y - 3 * k, s.get_width() + 8 * k, s.get_height() + 8 * k))
+        window.blit(s, (x, y))
+        if self.roll_hold:
+            f = min(1.0, self.roll_hold / ROLL_SKIP_HOLD)
+            window.fill((60, 60, 60), (x, y + s.get_height() + k, s.get_width(), 2 * k))
+            window.fill((234, 255, 234), (x, y + s.get_height() + k, round(s.get_width() * f), 2 * k))
 
     def draw(self, screen: pygame.Surface, text, time: float) -> None:
         """Paint the terminal over the whole screen, in the 5x7 font."""

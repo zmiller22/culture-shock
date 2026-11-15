@@ -750,8 +750,10 @@ class LifeSim:
         if not self.hold_exit or self.press is not None or self.countdown is not None or \
                 self.phase == "hub" and self.tutorial is not None or \
                 self.phase == "sim" and getattr(self.sim, "hold_in_use", False) or \
+                self.phase == "files" and self.term.skip_hold or \
                 self.phase == "return":                # (its choice is made by holding)
-            # (the tour's holds turn its pages, and a mini-game asking for a hold gets it)
+            # (the tour's holds turn its pages, a mini-game asking for a hold gets it, and so does
+            # a roll or the paint in the file system, which a hold skips)
             self.long_press = None
             return False
         if inp.action:
