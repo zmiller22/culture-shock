@@ -10,13 +10,19 @@ There are two kinds of page:
   stick and button icons act out what to do; after that they mirror the
   player's own hands. If nobody manages it in TRY_TIME seconds, it moves on
   anyway, so no one gets stuck.
-- A show-me page has only a looping `demo` (the rules, the win condition).
-  The button turns it, and it turns on its own after `Page.time` seconds,
-  except the last page, where the button starts the round.
+- A show-me page has a `demo` (the rules, the win condition), but it doesn't
+  play: it's a RULES card, a still picture (the demo at `Page.still` seconds)
+  with a short caption, and no controls, so it plainly isn't something to play.
+  Show-me pages next to each other go on one card, side by side. The button
+  turns it (on its own after RULES_TIME, except the last page, where the
+  button starts the round).
 
-Every page wears a badge saying which kind it is, WATCH or TRY IT!, and the
-captions, control labels and prompts are drawn big in PROMPT (violet), saying
-TAP or HOLD, so the instructions are the first thing anyone reads.
+A caption line written "LABEL|TEXT" goes in a labelled row (GOAL  GET 3 IN THE
+SOUP), so a card's rules read as sections.
+
+A try-it page wears a TRY IT! badge, with the controls acting it out down the
+left; its caption, the control labels and the prompts are drawn big in PROMPT
+(violet), saying TAP or HOLD, so the instructions are the first thing anyone reads.
 
 A game builds a Tutorial with its pages, calls update/draw while its title
 phase runs, and starts the round once `done` goes True.
@@ -43,6 +49,8 @@ from .shell import PROMPT, READ_GRACE, Input, prompt_text
 
 DEMO_X, DEMO_Y, DEMO_W, DEMO_H = 74, 32, 238, 104
 PAGE_TIME = 4.5                  # s a page shows before turning on its own
+RULES_Y = 24                     # top of a RULES card's pictures
+RULES_TIME = 12.0                # s a RULES card (not the last page) stays up before turning on its own
 MIN_SHOW = 0.35                  # s before a press counts (so the button that started the game doesn't skip)
 SLIDE = 0.25                     # s for a page to slide in
 TRY_TIME = 15.0                  # s a try-it page waits for the player to manage it before moving on anyway
@@ -58,6 +66,8 @@ Controls = tuple[int, int, bool]
 Demo = Callable[[pygame.Surface, float], "Controls | list[Controls] | None"]   # a list: one per control icon
 
 INK = (20, 12, 28)
+RULES_TAG = "#d8d2e8"            # a RULES card's tag and picture frames: pale grey, not the violet of things to do
+RULES_TEXT = "#f4f0ff"
 PANEL = (26, 20, 44)
 FRAME = (90, 78, 130)
 STICK_BALL, STICK_BALL_HI = (232, 59, 59), (255, 150, 140)
@@ -80,8 +90,11 @@ class Page:
     controls: tuple[str, ...] = ("stick",)         # icons in the left column: "stick", "button", "stick2", "jar"
     time: float = PAGE_TIME
     trial: Callable[[], Trial] | None = None       # a try-it page: makes the sandbox
-    lock: float = 0.0                              # s the demo plays before the button does anything (and
-                                                   # before the prompt shows), so nobody skips it by accident
+    lock: float = 0.0                              # s before the button does anything (and before the
+                                                   # prompt shows), so nobody skips it by accident
+    still: float | None = None                     # a show-me page: the moment of its demo the card shows
+                                                   # (None: halfway through `time`)
+    panels: list["Page"] = field(default_factory=list)   # a RULES card: the show-me pages on it
 
 
 class Intro:
@@ -169,12 +182,14 @@ class Tutorial:
     merged: Input = field(default_factory=Input)   # this tick's input from every stick and button
 
     def __post_init__(self) -> None:
+        self.pages = rules_cards(self.pages)
+        self._stills: dict[int, list[pygame.Surface]] = {}   # a RULES card's pictures, by page
         self.canvas = pygame.Surface((DEMO_W, DEMO_H))
         self.shade = pygame.Surface((W, H), pygame.SRCALPHA)
         self.shade.fill((*INK, 232))
         self._title = big(self.title, self.accent)
         self._premise = text_surface(self.premise, LAB_DIM)
-        self._badges = {kind: badge(kind) for kind in ("WATCH", "TRY IT!")}
+        self._badges = {"TRY IT!": badge("TRY IT!"), "RULES": badge("RULES", RULES_TAG)}
         self._intro = Intro(self.intro, self.accent) if self.intro else None
         self._open()
 
@@ -213,7 +228,7 @@ class Tutorial:
                 self.done = True
             else:
                 self._turn()
-        elif not self.last and self.t >= self.pages[self.page].time:
+        elif not self.last and self.t >= (RULES_TIME if self.pages[self.page].panels else self.pages[self.page].time):
             self._turn()
 
     def _turn(self) -> None:
@@ -256,6 +271,10 @@ class Tutorial:
             screen.blit(self._premise, (W // 2 - self._premise.get_width() // 2, 22))
 
         p = self.pages[self.page]
+        if p.panels:
+            self._draw_rules(screen, p)
+            self._draw_foot(screen, p)
+            return
         self.canvas.fill(PANEL)
         out = self.trial.draw(self.canvas, self.t) if self.trial else p.demo(self.canvas, self.t)
         controls = self._icons(out, p.controls)
@@ -291,15 +310,62 @@ class Tutorial:
             screen.blit(s, (W // 2 - s.get_width() // 2, y))
             y += BIG_H + 2
 
-        if self.last and EXIT_HINT:                          # the way out, on the last page
+        if self.trial:                                       # TRY IT!, top left over the controls column
+            b = self._badges["TRY IT!"]
+            screen.blit(b, (37 - b.get_width() // 2, DEMO_Y))
+        self._draw_foot(screen, p)
+
+    def _draw_rules(self, screen: pygame.Surface, p: Page) -> None:
+        """A RULES card: each show-me page's still picture, framed in pale grey, with its
+        caption under it, and no controls. Nothing on it moves."""
+        if self.page not in self._stills:
+            self._stills[self.page] = [self._still(q) for q in p.panels]
+        stills = self._stills[self.page]
+        b = self._badges["RULES"]
+        screen.blit(b, (8, 6))
+        n = len(stills)
+        gap = 10
+        w = DEMO_W if n == 1 else (W - 16 - gap * (n - 1)) // n
+        y0 = RULES_Y if n == 1 else RULES_Y + 8
+        for i, (q, img) in enumerate(zip(p.panels, stills)):
+            if img.get_width() != w:
+                img = pygame.transform.smoothscale(img, (w, round(DEMO_H * w / DEMO_W)))
+            x = W // 2 - w // 2 if n == 1 else 8 + i * (w + gap)
+            frame = pygame.Rect(x - 2, y0 - 2, img.get_width() + 4, img.get_height() + 4)
+            pygame.draw.rect(screen, INK, frame.inflate(2, 2))
+            pygame.draw.rect(screen, RULES_TAG, frame, 1)
+            screen.blit(img, (x, y0))
+            y = frame.bottom + 4
+            rows = [line.split("|", 1) for line in q.caption]
+            if any(len(r) == 2 for r in rows):              # LABEL|TEXT: labels in a column, in the accent colour
+                lw = max(prompt_text(r[0], self.accent).get_width() for r in rows if len(r) == 2) + 8
+                tw = max(prompt_text(r[-1], RULES_TEXT).get_width() for r in rows)
+                lx = W // 2 - (lw + tw) // 2
+                for r in rows:
+                    if len(r) == 2:
+                        lab = prompt_text(r[0], self.accent)
+                        screen.blit(lab, (lx + lw - 8 - lab.get_width(), y))
+                    screen.blit(prompt_text(r[-1], RULES_TEXT), (lx + lw, y))
+                    y += BIG_H + 3
+                continue
+            for line in q.caption:
+                for part in wrap(line, w):
+                    s = prompt_text(part, RULES_TEXT)
+                    screen.blit(s, (x + w // 2 - s.get_width() // 2, y))
+                    y += BIG_H + 2
+
+    def _still(self, q: Page) -> pygame.Surface:
+        """A show-me page's demo, stopped at its `still` moment."""
+        c = pygame.Surface((DEMO_W, DEMO_H))
+        c.fill(PANEL)
+        q.demo(c, q.time / 2 if q.still is None else q.still)
+        return c
+
+    def _draw_foot(self, screen: pygame.Surface, p: Page) -> None:
+        """The page dots and the prompt along the bottom (and on the last page, the way out)."""
+        if self.last and EXIT_HINT:
             s = prompt_text(EXIT_LINE)
             screen.blit(s, (W // 2 - s.get_width() // 2, H - 2 * BIG_H - 4))
-
-        # WATCH or TRY IT!, top left over the controls column
-        b = self._badges["TRY IT!" if self.trial else "WATCH"]
-        screen.blit(b, (37 - b.get_width() // 2, DEMO_Y))
-
-        # page dots and the prompt
         for i in range(len(self.pages)):
             col = self.accent if i == self.page else "#5a4e7a"
             pygame.draw.rect(screen, col, (8 + i * 7, H - 9, 4, 4))
@@ -315,11 +381,36 @@ class Tutorial:
             pygame.draw.rect(screen, "#5a4e7a", (DEMO_X, DEMO_Y + DEMO_H + 2, round(DEMO_W * k), 1))
 
 
-def badge(text: str) -> pygame.Surface:
-    """WATCH / TRY IT!: dark letters on a violet tag."""
+def rules_cards(pages: list[Page]) -> list[Page]:
+    """Show-me pages next to each other go onto one RULES card."""
+    out: list[Page] = []
+    for p in pages:
+        if p.demo is None or p.trial is not None:
+            out.append(p)
+        elif out and out[-1].panels:
+            out[-1].panels.append(p)
+            out[-1].lock = max(out[-1].lock, p.lock)
+        else:
+            out.append(Page((), lock=p.lock, panels=[p]))
+    return out
+
+
+def wrap(text: str, width: int) -> list[str]:
+    """Words onto lines that fit `width` px in the big font."""
+    lines: list[str] = []
+    for word in text.split():
+        if lines and prompt_text(f"{lines[-1]} {word}", RULES_TEXT).get_width() <= width:
+            lines[-1] += f" {word}"
+        else:
+            lines.append(word)
+    return lines
+
+
+def badge(text: str, color: str = PROMPT) -> pygame.Surface:
+    """TRY IT! / RULES: dark letters on a tag (violet unless said otherwise)."""
     t = prompt_text(text, "#140c1c")
     out = pygame.Surface((t.get_width() + 8, BIG_H + 6))
-    out.fill(PROMPT)
+    out.fill(color)
     out.blit(t, (4, 3))
     return out
 

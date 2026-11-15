@@ -859,8 +859,19 @@ class BuildABear:
         px, py = art.LEVER_PIVOT                                           # the knife switch
         k = min(len(a.blades) - 1, max(0, round(self.lever * (len(a.blades) - 1))))
         screen.blit(a.blades[k], (px - art.BLADE_BOX // 2, py - art.BLADE_BOX // 2))
-        if live and int(self.time * 4) % 2:                                # ready: a lamp and an arrow
-            pygame.draw.rect(screen, hex_to_rgba("#39ff14"), (art.SWITCH[0] + 4, art.SWITCH[1] + 14, 3, 3))
+        if live:                                                           # ready: lit up so it can't be missed
+            if int(self.time * 4) % 2:
+                pygame.draw.rect(screen, hex_to_rgba("#39ff14"), (art.SWITCH[0] + 4, art.SWITCH[1] + 14, 3, 3))
+            glow = 0.5 + 0.5 * math.sin(self.time * 8)                     # a pulsing frame round the panel
+            box = pygame.Rect(art.SWITCH).inflate(4 + round(glow * 4), 4 + round(glow * 4))
+            pygame.draw.rect(screen, hex_to_rgba("#ffd93a"), box, 2)
+            if glow > 0.5:
+                pygame.draw.rect(screen, hex_to_rgba("#fff6c0"), box.inflate(4, 4), 1)
+            tip = art.SWITCH[0] - 7 + round(2 * math.sin(self.time * 6))
+            ay = art.SWITCH[1] + art.SWITCH[3] - 8                       # (below the torch)
+            for k in range(5):                                             # an arrow pointing at it from the left
+                pygame.draw.rect(screen, hex_to_rgba("#ffd93a"), (tip - k, ay - k, 1, 2 * k + 1))
+            pygame.draw.rect(screen, hex_to_rgba("#ffd93a"), (tip - 11, ay - 1, 7, 3))
         if self.phase in ("zap", "won") and self.lever > 0.9 and int(self.time * 15) % 3 == 0:
             screen.blit(a.spark, (px - 3 + self.rng.randint(-3, 3), py - 20 + self.rng.randint(-2, 2)))
 

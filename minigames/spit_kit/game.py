@@ -679,8 +679,8 @@ class SpitKit:
             screen.set_clip(clip)
         # the instructions, big
         blit_c(screen, prompt_text("STICK LEFT / RIGHT: CHANGE ANSWER"), W / 2, H - 42)
-        blit_c(screen, prompt_text("STICK UP / DOWN: CHANGE QUESTION"), W / 2, H - 32)
-        submit = prompt_text("HOLD BUTTON DOWN TO SUBMIT YOUR ANSWERS")
+        blit_c(screen, prompt_text("STICK UP / DOWN: NAVIGATE QUESTIONS"), W / 2, H - 32)
+        submit = prompt_text("HOLD BUTTON DOWN TO SUBMIT YOUR FINAL ANSWERS")
         blit_c(screen, submit, W / 2, H - 21)
         if sv.hold_k > 0:                                 # holding: a bar fills up to handing it in
             x0, w = W // 2 - submit.get_width() // 2, submit.get_width()

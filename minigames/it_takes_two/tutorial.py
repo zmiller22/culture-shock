@@ -426,7 +426,7 @@ def make(a) -> Tutorial:
         [
             Page(("FIND EACH OTHER!",), controls=both, trial=Swim),
             Page(("EAT 4 NUTRIENTS TO GET FERTILE",), controls=both, trial=Feast),
-            Page(("DODGE THE CONTRACEPTIVES",), caught, both, time=SPAN),
+            Page(("DODGE THE CONTRACEPTIVES",), caught, both, time=SPAN, still=1.36),
             Page(("EAT FOLIC ACID, THEN EAT THEM!",), controls=both, trial=Fight),
             Page(("BAR FULL? TOUCH TO CONCEIVE!",), controls=both, trial=Meet),
         ],

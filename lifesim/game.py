@@ -117,6 +117,7 @@ FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF 
                   "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
 # the tour of the map, the first time on it: what to light up, and what to say
 RETURN_OPTIONS = ["PLAY AGAIN", "EXPLORE OTHER THEORIES"]   # after a simulation's verdict
+RETURN_BLINK = 3.0          # half-blinks a second on the picked option, so the cursor's easy to find
 # the first time on the map: one INSTRUCTIONS screen, arrows pointing down at the controls line
 TOUR_SHOW = 2.0             # s before HOLD BUTTON TO CONTINUE comes up (and a hold works)
 TOUR_HOLD = 1.0             # s of holding the button that goes on to the map
@@ -1625,10 +1626,16 @@ class LifeSim:
             for i, opt in enumerate(RETURN_OPTIONS):       # PLAY AGAIN / EXPLORE OTHER THEORIES
                 row = pygame.Rect(x, 120 + i * 14, bw, 12)
                 if i == self.return_sel:
-                    screen.fill(rgb(PHOSPHOR_DIM), row)
+                    for k in range(4):                     # a cursor arrow, always there
+                        screen.fill(rgb(PHOSPHOR), (x - 8 + k, row.centery - 3 + k, 1, 7 - 2 * k))
                     if self.return_press:                  # holding: the bar fills up to taking it
+                        screen.fill(rgb(PHOSPHOR_DIM), row)
                         screen.fill(rgb(PHOSPHOR), (row.x, row.y, int(bw * min(1.0, self.return_press / SELECT_HOLD)), row.h))
-                    s = self.text.get(opt, CRT_BG, big=True)
+                        s = self.text.get(opt, CRT_BG, big=True)
+                    else:                                  # blinking: a bright bar, then a dim one
+                        bright = int(self.time * RETURN_BLINK) % 2 == 0
+                        screen.fill(rgb(PHOSPHOR if bright else PHOSPHOR_DIM), row)
+                        s = self.text.get(opt, CRT_BG, big=True)
                 else:
                     pygame.draw.rect(screen, rgb(PHOSPHOR_DIM), row, 1)
                     s = self.text.get(opt, PHOSPHOR, big=True)

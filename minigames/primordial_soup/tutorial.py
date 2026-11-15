@@ -210,6 +210,7 @@ def make(a, need: int, time_limit: float) -> Tutorial:
         button throws it. Near the pot it goes in; too far and it lands dazed, to be caught again."""
         kind = "legfish"
         soup_hud = False
+        mark = False                                      # ring the critter and point at it (the pounce page)
 
         def __init__(self) -> None:
             super().__init__()
@@ -356,6 +357,8 @@ def make(a, need: int, time_limit: float) -> Tutorial:
             draw_sorted(s, items)
             if c.state == "air":                          # on top of everything, so it's seen going in
                 self.draw_crit(s)
+            if self.mark and c.state in ("roam", "stun"):  # this one: a pulsing ring and an arrow over it
+                self.draw_mark(s, c)
             if self.soup is not None:                     # splash
                 u = self.soup
                 rx, ry = POT[0], POT[1] - art.POT_FEET + art.POT_RIM[1]
@@ -377,8 +380,23 @@ def make(a, need: int, time_limit: float) -> Tutorial:
                 return 0, 0, k % 0.5 < 0.12
             return (dx, dy, False) if k < 0.6 else (0, 0, k < 0.72)
 
+        def draw_mark(self, s: pygame.Surface, c) -> None:
+            col = (255, 225, 77)
+            r = 13 + 2 * math.sin(self.t * 8)
+            pygame.draw.ellipse(s, (20, 12, 28), (round(c.x - r) - 1, round(c.y - r * 0.4) - 1,
+                                                  round(r * 2) + 2, round(r * 0.8) + 2), 3)
+            pygame.draw.ellipse(s, col, (round(c.x - r), round(c.y - r * 0.4), round(r * 2), round(r * 0.8)), 1)
+            tip = round(c.y - c.z - art.CRIT_FEET - 3 + 2 * math.sin(self.t * 6))
+            x = round(c.x)
+            for k in range(5):                            # an arrow pointing down at it
+                s.fill((20, 12, 28), (x - k - 1, tip - k - 1, 2 * k + 3, 1))
+                s.fill(col, (x - k, tip - k, 2 * k + 1, 1))
+            s.fill(col, (x - 1, tip - 11, 3, 7))
+            blit_c(s, inked("GRAB ME", "#ffe14d"), x, tip - 17)
+
     class Pounce(Hunt):
         cheer = "GOT ONE!"
+        mark = True
 
         def caught(self) -> None:
             self.won = 0.0
@@ -402,8 +420,8 @@ def make(a, need: int, time_limit: float) -> Tutorial:
                  trial=Pounce),
             Page(("TAP THE BUTTON AGAIN NEAR THE POT", "TO THROW IT IN THE SOUP"), controls=("stick", "button"),
                  trial=Toss),
-            Page((f"GET {need} IN THE SOUP IN {int(time_limit)} SECONDS.", "DODGE THE TOOLS FLYING OFF THE WALL!"),
-                 dodge),
+            Page((f"GOAL|GET {need} IN THE SOUP IN {int(time_limit)} SECONDS", "DANGER|DODGE THE TOOLS FLYING OFF THE WALL"),
+                 dodge, still=1.64),
         ],
         intro="LIFE STARTED IN A WARM BROTH. COOK SOME UP.",
     )

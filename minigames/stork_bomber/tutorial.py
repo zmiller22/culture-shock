@@ -163,10 +163,10 @@ def make(a, need: int, babies: int) -> Tutorial:
         "STORK BOMBER", "",
         [
             Page(("PUSH THE STICK TO FLY THE STORK", "DOWN AND RIGHT TO THE GLOWING RING"), trial=Flight),
-            Page(("TAP THE BUTTON TO DROP THE BABY. IT KEEPS", "YOUR SPEED, SO LET GO EARLY. HIT THE TARGET!"),
+            Page(("TAP THE BUTTON TO DROP THE BABY", "ON THE TARGET"),
                  controls=("stick", "button"), trial=Delivery),
-            Page((f"DELIVER {need} OF {babies} TO WIN. OUTFLY THE", "SPAGHETTI MONSTER OR IT STEALS THE BABY"),
-                 chase),
+            Page((f"GOAL|DELIVER {need} OF {babies} BABIES", "DANGER|OUTFLY THE SPAGHETTI MONSTER"),
+                 chase, still=2.45),
         ],
         intro="OUTSIDE MATERIALS INDICATE STORKS ARE INVOLVED IN CONCEPTION. YOU ARE THE STORK.",
     )

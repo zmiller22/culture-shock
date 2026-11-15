@@ -16,8 +16,10 @@ it prints is the menu. It's all stick-and-button, like the visitor name entry:
                       tells you once you've explored 3 theories) plays the OOH
                       sequence (see ooh.py), and so does OLD_ANSWER, the code it
                       used to be, as a backup; TRIP_CODE (hidden in the room) is a
-                      psychedelic thank-you (see trip.py); anything else is
-                      ACCESS DENIED and another go
+                      psychedelic thank-you (see trip.py); LENS_CODE covers the
+                      screen in white paint (see lens.py); a locked file's code
+                      (DNA, LAB) unlocks that file and opens it; anything
+                      else is ACCESS DENIED and another go
 
 The terminal uses the bigger 5x7 font, in one colour, so it reads easily on the
 cabinet.
@@ -49,6 +51,7 @@ from minigames.shell import PROMPT as VIOLET, READ_GRACE, SKIP_GRACE, ink   # (P
 from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
 from .ooh import Ooh
 from .trip import Trip
+from .lens import Lens
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 MEDIA_DIR = ASSETS / "files"
@@ -69,6 +72,7 @@ PASSWORDS: tuple[str, ...] = ()   # what UNLOCK.EXE says ACCESS GRANTED to (none
 ANSWER = "XXX"              # the answer you get for exploring 3 theories: it plays ooh.py
 OLD_ANSWER = "OOH"          # what the answer used to be: still plays ooh.py, in case of a bug
 TRIP_CODE = "SEX"           # hidden somewhere in the room: it plays trip.py
+LENS_CODE = "CUM"           # plays lens.py: the screen slowly covered in white paint
 DENIED_TIME = 1.6           # s ACCESS DENIED stays up before another go
 
 # the terminal fills the 320x180 screen, in the 5x7 font: 6 px a character, 10 px a line
@@ -149,6 +153,22 @@ FILES = [
         "Then comes marriage",
         "Then comes a baby in a baby carriage.",
     )),
+    # locked: typing the code into UNLOCK.EXE opens the file and adds it to the listing.
+    # (Sample text for now: edit freely.)
+    LabFile("DNA_RESULTS.TXT", "txt", (
+        "SAMPLE PAGE: EDIT ME (CODE DNA)",
+        "",
+        "Subject: you",
+        "Result: mostly water",
+        "Remainder: inconclusive",
+    ), code="DNA"),
+    LabFile("LAB_SAFETY.TXT", "txt", (
+        "SAMPLE PAGE: EDIT ME (CODE LAB)",
+        "",
+        "1. Goggles on",
+        "2. No eating the specimens",
+        "3. See rule 2",
+    ), code="LAB"),
 ]
 TXT_Y = 24                                   # the first line of an open text file
 TEXT_MODES = ("txt", "img", "msg", "granted")   # new text on screen: READ_GRACE before the button leaves it
@@ -439,9 +459,10 @@ class FileTerminal:
     # -- state ---------------------------------------------------------------------------
     def open(self) -> None:
         self.shown, self.mode_t = "", 0.0       # the mode on screen last tick, and s it's been up
-        self.mode = "boot"              # boot (the DIR typing out), list, code, granted, ooh, trip, txt, img, roll, msg
+        self.mode = "boot"              # boot (the DIR typing out), list, code, granted, ooh, trip, lens, txt, img, roll, msg
         self.ooh: Ooh | None = None
         self.trip: Trip | None = None
+        self.lens: Lens | None = None
         self.boot_t = 0.0
         self.sel = 1                    # the first file, with .. (the way out) just above it
         self.scroll = 0
@@ -559,9 +580,21 @@ class FileTerminal:
             self.log("code", code=code, result="ooh")
             self.mode, self.ooh = "ooh", Ooh(self.mute)
             return
+        if code == LENS_CODE:
+            self.log("code", code=code, result="lens")
+            self.mode, self.lens = "lens", Lens()
+            return
         if code == TRIP_CODE:
             self.log("code", code=code, result="trip")
             self.mode, self.trip = "trip", Trip()
+            return
+        hidden = next((f for f in FILES if f.code == code), None)
+        if hidden:                                          # a locked file's code: unlock it and open it
+            self.log("code", code=code, result="file")
+            self.unlocked.add(code)
+            self.sel = self.rows().index(hidden)            # (so closing it lands back on it in the list)
+            self._follow()
+            self._open_file(hidden, "code")
             return
         ok = code in PASSWORDS
         self.log("code", code=code, result="granted" if ok else "denied")
@@ -580,6 +613,13 @@ class FileTerminal:
             self.log("ooh_end", secs=round(self.ooh.t, 1))
             self.ooh.stop()
             self.ooh = None
+            self.mode = "list"
+
+    def _update_lens(self, dt: float, sx: int, sy: int, act: bool) -> None:
+        self.lens.update(dt, sx, act)
+        if self.lens.done:
+            self.log("lens_end", secs=round(self.lens.t, 1))
+            self.lens = None
             self.mode = "list"
 
     def _update_trip(self, dt: float, sx: int, sy: int, act: bool) -> None:
@@ -673,6 +713,8 @@ class FileTerminal:
             self.ooh.draw(screen)
         elif self.mode == "trip":
             self.trip.draw(screen)
+        elif self.mode == "lens":
+            self.lens.draw(screen)
         elif self.mode == "txt":
             self._header(screen, self.viewing.name)
             lines, s = self.viewing.lines, self.txt_scroll
