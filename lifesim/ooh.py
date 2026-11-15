@@ -1,4 +1,4 @@
-"""OOH: what UNLOCK.EXE does with the answer the lab gives you for testing every theory.
+"""OOH: what UNLOCK.EXE does with the answer the lab gives you for exploring 3 theories.
 
 Type OOH into UNLOCK.EXE and the terminal goes dark. To the 2001 fanfare
 (assets/sounds/ooh_2001.mp3, the track from 0:20 for a minute), noodles creep

@@ -20,7 +20,7 @@ Events:
     theory_start / theory_end      a game was picked / ended. theory_end has result
                                    (win, lose, quit = left from the exit menu) and secs played
     tutorial_done                  finished the tour of the map
-    frontier                       every theory tested: the CONGRATULATIONS! screen (XXX IS THE ANSWER)
+    frontier                       3 theories explored: the CONGRATULATIONS! screen (XXX IS THE ANSWER)
     files_open / files_close       C:/> FILES opened / backed out of
     file_open                      a file was opened. detail via=list, code or next
     code                           a password typed into UNLOCK.EXE. result: granted, denied, ooh or trip

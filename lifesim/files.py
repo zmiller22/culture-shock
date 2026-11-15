@@ -13,7 +13,7 @@ it prints is the menu. It's all stick-and-button, like the visitor name entry:
                       name entry (down rolls A -> B, up rolls back, button or right
                       locks a letter in, left backs up, and out from the first).
                       One of PASSWORDS gets ACCESS GRANTED; ANSWER (what the lab
-                      tells you once you've tested every theory) plays the OOH
+                      tells you once you've explored 3 theories) plays the OOH
                       sequence (see ooh.py), and so does OLD_ANSWER, the code it
                       used to be, as a backup; TRIP_CODE (hidden in the room) is a
                       psychedelic thank-you (see trip.py); anything else is
@@ -66,7 +66,7 @@ FLASH_TIME = 2.2            # s a status message stays up
 REPEAT = (0.4, 0.09)        # s before a held stick repeats, then s per step
 LETTERS = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
 PASSWORDS: tuple[str, ...] = ()   # what UNLOCK.EXE says ACCESS GRANTED to (none for now: XXX is the answer)
-ANSWER = "XXX"              # the answer you get for testing every theory: it plays ooh.py
+ANSWER = "XXX"              # the answer you get for exploring 3 theories: it plays ooh.py
 OLD_ANSWER = "OOH"          # what the answer used to be: still plays ooh.py, in case of a bug
 TRIP_CODE = "SEX"           # hidden somewhere in the room: it plays trip.py
 DENIED_TIME = 1.6           # s ACCESS DENIED stays up before another go

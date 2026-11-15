@@ -4,8 +4,9 @@
 
 You're a spirit with no body yet. The Life Lab Mainframe, a 1970s machine the
 scientist insists is state of the art, runs a simulation of each theory of how
-life begins. Push the button to boot it: the camera dives into the CRT, the
-lab welcomes you as its next visitor, and you sign in with a 1-4 letter name,
+life begins. Push the button to boot it: the camera dives into the CRT, a page
+shows how the stick, a tap and a hold of the button work and where the
+instructions go (hold the button to go on), the lab welcomes you as its next visitor, and you sign in with a 1-4 letter name,
 arcade high-score style. Then the genesis program runs: code pours down the
 screen and it zooms out from the Earth to the edge of everything (see
 intro.py), where you form as a spirit. WE KNOW LIFE STARTS WITH DNA, so to get a body you spit in the jar
@@ -32,7 +33,7 @@ screen for the next visitor. Because of the hold, menus act when the button
 is let go.
 
 Win a simulation and the theory is CONFIRMED; lose and it's REFUTED. The
-terminal keeps score for the session. Test every theory and the lab says
+terminal keeps score for the session. Explore FRONTIER_AT theories (won or lost) and the lab says
 CONGRATULATIONS! and lets slip that XXX IS THE ANSWER: typed into UNLOCK.EXE in
 the file system, it plays the OOH sequence (see ooh.py). OOH, the old answer, still works too.
 
@@ -109,7 +110,8 @@ JOURNEY_TIME = 4.0         # s on the journey screen before the genesis program 
 SPIRIT_LINES = ["YOU ARE A SPIRIT!", "BUT HOW DO YOU", "BECOME A LIFE?"]
 DNA_LINES = ["WE KNOW LIFE", "STARTS WITH DNA."]
 DNA_HOLD = 1.5             # s the DNA line stays up once it's typed, before the Spit Kit
-# once every theory's been tested: the lab's thanks, and the answer to type into UNLOCK.EXE (see ooh.py)
+# once FRONTIER_AT theories have been explored: the lab's thanks, and the answer to type into UNLOCK.EXE (see ooh.py)
+FRONTIER_AT = 3
 FRONTIER_LINES = ["CONGRATULATIONS!", "", "YOU HAVE EXPANDED THE FRONTIER", "OF OUR KNOWLEDGE.", "",
                   "WHAT YOU LEARNED...", "XXX IS THE ANSWER.", "",
                   "MAYBE THERE IS SOMEWHERE IN THE", "FILE SYSTEM YOU COULD USE THAT..."]
@@ -118,6 +120,10 @@ RETURN_OPTIONS = ["PLAY AGAIN", "EXPLORE OTHER THEORIES"]   # after a simulation
 # the first time on the map: one INSTRUCTIONS screen, arrows pointing down at the controls line
 TOUR_SHOW = 2.0             # s before HOLD BUTTON TO CONTINUE comes up (and a hold works)
 TOUR_HOLD = 1.0             # s of holding the button that goes on to the map
+# the very first screen, before the welcome: how the stick and button work, and where instructions go
+HOWTO_ROWS = (("stick", "PUSH THE STICK", "TO CHOOSE SOMETHING, OR TO MOVE AROUND"),
+              ("tap", "TAP THE BUTTON", "A QUICK PRESS AND LET GO: ENTER, GO ON"),
+              ("hold", "HOLD THE BUTTON DOWN", "KEEP IT DOWN TILL THE BAR FILLS: SELECT"))
 
 
 def next_visitor() -> int:
@@ -576,6 +582,8 @@ class LifeSim:
             self.rain = Rain(SCREEN[2], SCREEN[3], seed=self.rng.random())
         elif phase == "cosmos":
             self.cosmos = Cosmos(seed=self.rng.random())
+        elif phase == "howto":                  # how the controls work: hold the button to go on
+            self.tour_t, self.tour_press, self.tour_armed = 0.0, None, False
         elif phase == "summon":                 # sign in: the welcome, then the name entry
             self.entry = None
             self.typer = Typer([s.format(num=f"{self.visitor:04d}") for s in SIGN_IN_LINES])
@@ -923,6 +931,10 @@ class LifeSim:
                 self._go("dive")
         elif self.phase == "dive":
             if self.phase_t > ENTER_TIME + 0.1:
+                self._go("howto")
+        elif self.phase == "howto":
+            if self._hold_page(dt, inp):
+                self.activity("howto_done")
                 self._go("summon")
         elif self.phase == "rain":
             self.rain.update(dt)
@@ -1023,13 +1035,13 @@ class LifeSim:
 
     def _after_return(self, option: str) -> None:
         """Off the verdict screen: the same simulation again, or back to the map (by way of
-        CONGRATULATIONS! the first time every theory's been tested)."""
+        CONGRATULATIONS! the first time FRONTIER_AT theories have been explored)."""
         self.activity("return_choice", option=option, theory=self.last[0].code)
         self.map.place(self.theories.index(self.last[0]))
         if option == "PLAY AGAIN":
             self.replay = True                  # same simulation, no how-to this time
             self._go("load")
-        elif all(self.results.values()) and not self.frontier_shown:   # every theory tested
+        elif sum(1 for r in self.results.values() if r) >= FRONTIER_AT and not self.frontier_shown:
             self.prev_sim = None
             self.frontier_shown = True
             self._save_game()
@@ -1050,6 +1062,8 @@ class LifeSim:
             self.cosmos.draw(screen)
             if self.phase_t < RAIN_FADE:                  # the code rain clears off the start of the program
                 self._draw_rain_fullscreen(screen, 1 - self.phase_t / RAIN_FADE)
+        elif self.phase == "howto":
+            self._draw_howto(screen)
         elif self.phase == "summon":
             self._draw_sign_in(screen)
         elif self.phase == "journey":
@@ -1446,23 +1460,89 @@ class LifeSim:
             screen.blit(ink, (px + ox, py + oy))
         screen.blit(img, (px, py))
 
-    def _tutorial(self, dt: float, inp: Input) -> None:
-        """The INSTRUCTIONS screen: once it's been up TOUR_SHOW, holding the button for
-        TOUR_HOLD goes on to the map. A tap does nothing; a button already down when it
-        came up has to be let go first."""
+    def _hold_page(self, dt: float, inp: Input) -> bool:
+        """A page you hold the button to leave (the map's INSTRUCTIONS, the controls page):
+        once it's been up TOUR_SHOW, holding the button for TOUR_HOLD goes on (True). A tap
+        does nothing; a button already down when it came up has to be let go first."""
         self.tour_t += dt
         if not self.tour_armed:
             self.tour_armed = not inp.held
-            return
+            return False
         if not inp.held or self.tour_t < TOUR_SHOW:
             self.tour_press = None
-            return
+            return False
         self.tour_press = (self.tour_press or 0.0) + dt
-        if self.tour_press >= TOUR_HOLD:
+        if self.tour_press < TOUR_HOLD:
+            return False
+        self.tour_press = None
+        self.swallow = True                                # (that hold isn't for what comes next)
+        return True
+
+    def _tutorial(self, dt: float, inp: Input) -> None:
+        """The INSTRUCTIONS screen: holding the button goes on to the map."""
+        if self._hold_page(dt, inp):
             self.tutorial = None
-            self.tour_press = None
-            self.swallow = True                            # (that hold isn't for the map)
             self.activity("tutorial_done")
+
+    def _draw_howto(self, screen: pygame.Surface) -> None:
+        """The very first page: the stick, a tap and a hold, each with a little picture,
+        then an arrow down at the instructions line along the bottom, which says to hold
+        the button to go on (a bar fills while it's held)."""
+        self._draw_void(screen)
+        self._header(screen, "PROGRAM: RESEARCH EXPLORATION")
+        title = self.text.get("HOW THE CONTROLS WORK", PHOSPHOR, 2, big=True)
+        screen.blit(title, (art.W // 2 - title.get_width() // 2, 19))
+        col = rgb(PHOSPHOR)
+        for i, (kind, head, sub) in enumerate(HOWTO_ROWS):
+            y = 42 + i * 24
+            self._draw_control(screen, kind, 34, y + 8)
+            screen.blit(self.text.get(head, PHOSPHOR, big=True), (60, y + 1))
+            screen.blit(self.text.get(sub, PHOSPHOR_DIM), (60, y + 11))
+        # where the instructions go, with an arrow down at them
+        s = self.text.get("WHAT TO DO IS ALWAYS DOWN HERE", PHOSPHOR, big=True)
+        screen.blit(s, (art.W // 2 - s.get_width() // 2, 118))
+        bob = round(2 * math.sin(self.time * 6))
+        x, tip = art.W // 2, 162 + bob
+        screen.fill(col, (x - 1, 129, 3, tip - 6 - 129))               # the shaft
+        for k in range(6):                                             # the head
+            screen.fill(col, (x - k, tip - k, 2 * k + 1, 1))
+        # the instructions line itself
+        screen.fill(rgb(PHOSPHOR_FAINT), (4, 164, art.W - 8, 1))
+        h = self.text.get("HOLD BUTTON DOWN: CONTINUE", PROMPT, big=True)
+        hx = art.W // 2 - h.get_width() // 2
+        screen.blit(h, (hx, 168))
+        if self.tour_press:                                # holding: a bar fills up to going on
+            k = min(1.0, self.tour_press / TOUR_HOLD)
+            screen.fill(rgb(PHOSPHOR_FAINT), (hx, 176, h.get_width(), 2))
+            screen.fill(rgb("#eaffea"), (hx, 176, int(h.get_width() * k), 2))
+        screen.blit(self.art.scanlines, (0, 0))
+
+    def _draw_control(self, screen: pygame.Surface, kind: str, x: int, y: int) -> None:
+        """A little moving picture of a control, centred on (x, y): the stick rocking side
+        to side, the button tapped, or the button held down while a bar fills."""
+        col, dim = rgb(PHOSPHOR), rgb(PHOSPHOR_DIM)
+        if kind == "stick":
+            tilt = round(4 * math.sin(self.time * 3))
+            screen.fill(dim, (x - 8, y + 6, 17, 3))                    # the base
+            pygame.draw.line(screen, col, (x, y + 6), (x + tilt, y - 2))
+            pygame.draw.circle(screen, col, (x + tilt, y - 4), 3)      # the ball on top
+            for k in range(3):                                         # arrows either side
+                screen.fill(dim, (x - 14 + k, y - 1 - k, 1, 2 * k + 1))
+                screen.fill(dim, (x + 14 - k, y - 1 - k, 1, 2 * k + 1))
+            return
+        pygame.draw.ellipse(screen, dim, (x - 8, y + 2, 17, 7))        # the button's housing
+        if kind == "tap":
+            down = (self.time % 1.0) < 0.15                            # a quick press, once a second
+        else:
+            down = True
+        top = y + (2 if down else -1)
+        pygame.draw.ellipse(screen, col, (x - 6, top, 13, 6))
+        if not down:
+            screen.fill(col, (x - 6, top + 3, 13, 2))
+        if kind == "hold":                                             # held: a bar fills, over and over
+            k = (self.time % 1.6) / 1.2
+            screen.fill(rgb(PHOSPHOR_FAINT), (x - 10, y + 11, 21, 2))
+            screen.fill(rgb("#eaffea"), (x - 10, y + 11, int(21 * min(1.0, k)), 2))
 
     def _draw_tutorial(self, screen: pygame.Surface) -> None:
         """INSTRUCTIONS across the top, the map dimmed, the controls line along the bottom
@@ -1722,7 +1802,7 @@ def autopilot(game: LifeSim) -> Input:
     if game.phase == "sim":
         return game.sim_theory.autopilot(game.sim)
     inp = Input()
-    if game.phase == "hub" and game.tutorial is not None:
+    if game.phase == "howto" or game.phase == "hub" and game.tutorial is not None:
         inp.held = game.tour_t > TOUR_SHOW                   # hold, once it says to
         return inp
     if game.phase == "hub":
