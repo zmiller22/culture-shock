@@ -18,8 +18,9 @@ it prints is the menu. It's all stick-and-button, like the visitor name entry:
                       used to be, as a backup; TRIP_CODE (hidden in the room) is a
                       psychedelic thank-you (see trip.py); LENS_CODE covers the
                       screen in white paint (see lens.py); LAB_CODE is Langton's
-                      ants (see langton.py); a locked file's code (DNA)
-                      unlocks that file and opens it; anything
+                      ants (see langton.py); DNA_CODE is a D-loop love story
+                      (see dloop.py); a locked file's code unlocks that file
+                      and opens it (none for now); anything
                       else is ACCESS DENIED and another go
 
 The terminal uses the bigger 5x7 font, in one colour, so it reads easily on the
@@ -55,6 +56,7 @@ from .ooh import Ooh
 from .trip import Trip
 from .lens import Lens
 from .langton import Langton
+from .dloop import DLoop
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 MEDIA_DIR = ASSETS / "files"
@@ -75,6 +77,7 @@ PASSWORDS: tuple[str, ...] = ()   # what UNLOCK.EXE says ACCESS GRANTED to (none
 ANSWER = "XXX"              # the answer you get for exploring 3 theories: it plays ooh.py
 OLD_ANSWER = "OOH"          # what the answer used to be: still plays ooh.py, in case of a bug
 TRIP_CODE = "SEX"           # hidden somewhere in the room: it plays trip.py
+DNA_CODE = "DNA"            # plays dloop.py: a single strand of DNA chats up a double helix
 LAB_CODE = "LAB"            # plays langton.py: Langton's ants, BROUGHT TO YOU BY LANGTON LABS
 LENS_CODE = "CUM"           # plays lens.py: the screen slowly covered in white paint
 DENIED_TIME = 1.6           # s ACCESS DENIED stays up before another go
@@ -159,15 +162,6 @@ FILES = [
         "Then comes marriage",
         "Then comes a baby in a baby carriage.",
     )),
-    # locked: typing the code into UNLOCK.EXE opens the file and adds it to the listing.
-    # (Sample text for now: edit freely.)
-    LabFile("DNA_RESULTS.TXT", "txt", (
-        "SAMPLE PAGE: EDIT ME (CODE DNA)",
-        "",
-        "Subject: you",
-        "Result: mostly water",
-        "Remainder: inconclusive",
-    ), code="DNA"),
 ]
 TXT_Y = 24                                   # the first line of an open text file
 TEXT_MODES = ("txt", "img", "msg", "granted")   # new text on screen: READ_GRACE before the button leaves it
@@ -458,11 +452,12 @@ class FileTerminal:
     # -- state ---------------------------------------------------------------------------
     def open(self) -> None:
         self.shown, self.mode_t = "", 0.0       # the mode on screen last tick, and s it's been up
-        self.mode = "boot"              # boot (the DIR typing out), list, code, granted, ooh, trip, lens, langton, txt, img, roll, msg
+        self.mode = "boot"              # boot (the DIR typing out), list, code, granted, ooh, trip, lens, langton, dloop, txt, img, roll, msg
         self.ooh: Ooh | None = None
         self.trip: Trip | None = None
         self.lens: Lens | None = None
         self.langton: Langton | None = None
+        self.dloop: DLoop | None = None
         self.held = False               # the button's down this tick (the paint screen skips on a hold)
         self.boot_t = 0.0
         self.sel = 1                    # the first file, with .. (the way out) just above it
@@ -583,6 +578,10 @@ class FileTerminal:
             self.log("code", code=code, result="ooh")
             self.mode, self.ooh = "ooh", Ooh(self.mute)
             return
+        if code == DNA_CODE:
+            self.log("code", code=code, result="dloop")
+            self.mode, self.dloop = "dloop", DLoop()
+            return
         if code == LAB_CODE:
             self.log("code", code=code, result="langton")
             self.mode, self.langton = "langton", Langton()
@@ -620,6 +619,13 @@ class FileTerminal:
             self.log("ooh_end", secs=round(self.ooh.t, 1))
             self.ooh.stop()
             self.ooh = None
+            self.mode = "list"
+
+    def _update_dloop(self, dt: float, sx: int, sy: int, act: bool) -> None:
+        self.dloop.update(dt, self.held)
+        if self.dloop.done:
+            self.log("dloop_end", secs=round(self.dloop.t, 1))
+            self.dloop = None
             self.mode = "list"
 
     def _update_langton(self, dt: float, sx: int, sy: int, act: bool) -> None:
@@ -711,9 +717,9 @@ class FileTerminal:
     # -- drawing ---------------------------------------------------------------------------
     @property
     def skip_hold(self) -> bool:
-        """A sequence that's skipped by holding the button (a roll, the paint, the ants): a held
+        """A sequence that's skipped by holding the button (a roll, the paint, the ants, the D loop): a held
         button here is for that, not the exit menu."""
-        return self.mode in ("roll", "lens", "langton")
+        return self.mode in ("roll", "lens", "langton", "dloop")
 
     def overlay(self, window: pygame.Surface) -> None:
         if self.mode == "roll":
@@ -757,6 +763,8 @@ class FileTerminal:
             self.lens.draw(screen)
         elif self.mode == "langton":
             self.langton.draw(screen)
+        elif self.mode == "dloop":
+            self.dloop.draw(screen)
         elif self.mode == "txt":
             self._header(screen, self.viewing.name)
             lines, s = self.viewing.lines, self.txt_scroll
