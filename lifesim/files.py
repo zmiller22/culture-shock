@@ -81,7 +81,7 @@ DNA_CODE = "DNA"            # plays dloop.py: a single strand of DNA chats up a 
 LAB_CODE = "LAB"            # plays langton.py: Langton's ants, BROUGHT TO YOU BY LANGTON LABS
 LENS_CODE = "CUM"           # plays lens.py: the screen slowly covered in white paint
 DENIED_TIME = 1.6           # s ACCESS DENIED stays up before another go
-ROLL_SKIP_AT = 10.0         # s into a roll before HOLD BUTTON: SKIP comes up (and a hold works)
+ROLL_SKIP_AT = 7.0          # s into a roll before HOLD BUTTON: SKIP comes up (and a hold works)
 ROLL_SKIP_HOLD = 1.0        # s of holding the button that skips the rest of it
 
 # the terminal fills the 320x180 screen, in the 5x7 font: 6 px a character, 10 px a line
