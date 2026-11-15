@@ -52,6 +52,9 @@ import math
 import os
 from pathlib import Path
 import random
+import sys
+import time as clock
+import traceback
 from dataclasses import dataclass, replace
 from typing import Callable
 
@@ -76,6 +79,7 @@ from .worldmap import COLS, EXIT, EXIT_RECT, FILES, TILE_H, TILE_W, VOID, WorldM
 #  roughly what its autopilot scores, so a great human run lands near 1000)
 TYPE_RATE = 70.0           # characters/s the terminal types at
 LINE_PAUSE = 0.12          # s between lines
+CRASH_LOG = Path(os.environ.get("LIFE_LAB_CRASHES", Path.home() / ".life_lab" / "crashes.log"))
 VISITOR_LOG = Path(os.environ.get("LIFE_LAB_VISITORS", Path.home() / ".life_lab" / "visitors.txt"))
 NAME_LEN = 4               # letters in a visitor's name, like an arcade high score
 NAME_HOLD = 0.8            # s of holding the button that signs off a name shorter than NAME_LEN
@@ -905,7 +909,11 @@ class LifeSim:
             self.reel_angle[i] = (self.reel_angle[i] + self.reel_speed * dt * (1.0 + 0.15 * i)) % 360
 
         if self.phase == "sim":
-            self.sim.update(dt, inp)
+            try:
+                self.sim.update(dt, inp)
+            except Exception:                     # a mini-game's bug shouldn't end the visit
+                self._sim_crashed("update")
+                return
             if self.sim.done and self.sim_theory is self.splicer:
                 self._take_body(self.sim)
             elif self.sim.done:
@@ -1060,7 +1068,11 @@ class LifeSim:
             self._draw_scores(screen)
             return
         if self.phase == "sim":
-            self.sim.draw(screen)
+            try:
+                self.sim.draw(screen)
+            except Exception:
+                self._sim_crashed("draw")
+                screen.fill(VOID)
         elif self.phase == "cosmos":
             self.cosmos.draw(screen)
             if self.phase_t < RAIN_FADE:                  # the code rain clears off the start of the program
@@ -1409,6 +1421,37 @@ class LifeSim:
         if self.map.target is not None:
             dx = tile_rect(self.map.target).centerx - self.map.pos[0]
             self.facing = 1 if dx > 0 else -1 if dx < 0 else self.facing
+
+    def _sim_crashed(self, where: str) -> None:
+        """A mini-game threw an error. Write it down (stderr and CRASH_LOG), stop its sound,
+        and carry on: back to the map, or after Spit Kit, on with a random body."""
+        tb = traceback.format_exc()
+        theory = self.sim_theory
+        print(f"mini-game crashed in {where}: {theory.game if theory else '?'}\n{tb}", file=sys.stderr, flush=True)
+        try:
+            CRASH_LOG.parent.mkdir(parents=True, exist_ok=True)
+            with CRASH_LOG.open("a") as f:
+                f.write(f"=== {clock.strftime('%Y-%m-%d %H:%M:%S')} {theory.game if theory else '?'} "
+                        f"({where}), visitor {self.visitor} {self.name}\n{tb}\n")
+        except OSError:
+            pass
+        self.activity("sim_crash", theory=theory.code if theory else None,
+                      detail=tb.strip().splitlines()[-1][:120])
+        if pygame.mixer.get_init():
+            pygame.mixer.stop()
+            pygame.mixer.music.stop()
+        self.sim, self.prev_sim, self.replay = None, None, False
+        self.swallow = True                     # (whatever they were pressing isn't for the map)
+        if theory is self.splicer:              # no body from it: splice one at random
+            self._random_avatar()
+            self.has_save = True
+            self._save_game()
+            self.tutorial = 0
+            self.tour_t, self.tour_press, self.tour_armed = 0.0, None, False
+            self.hold_exit = True
+        elif theory is not None:
+            self.map.place(self.theories.index(theory))
+        self._go("hub")
 
     def _start_splicer(self) -> None:
         """Off to get a body: spit in the jar."""

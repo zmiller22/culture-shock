@@ -70,6 +70,18 @@ cd ~/dev/culture-shock && ./play.sh
 cd ~/dev/culture-shock && ./play.sh --scale 3 --skip-boot
 ```
 
+At boot the cabinet runs the game under `tools/run_cabinet.sh` (through
+`tools/cabinet_start.sh`), a monitor that restarts it if it crashes or freezes.
+Under the monitor, killing the game makes it start again with the latest code,
+which is the easy way to restart it. To stop it for good, run
+`tools/stop_cabinet.sh`. The game's output goes to `~/.life_lab/game.log` and
+each crash or freeze to `~/.life_lab/crashes.log`. A mini-game that throws an
+error goes back to the map, and the error is logged there too.
+
+```bash
+cd ~/dev/culture-shock && setsid nohup tools/cabinet_start.sh >/dev/null 2>&1 &
+```
+
 For anything else, use `python3` directly (`python3 -m lifesim ...`).
 
 **Mac (conda):** the project runs in the `8-bit` conda environment (see

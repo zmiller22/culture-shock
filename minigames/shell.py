@@ -30,6 +30,8 @@ On screen, instructions for the stick and the button are drawn in PROMPT
 from __future__ import annotations
 
 import functools
+import os
+import time
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
@@ -45,6 +47,9 @@ READ_GRACE = 1.5           # s new text (a page, a file, a verdict, a banner) st
                            # so the rapid taps that got them here don't click straight through it
 SKIP_GRACE = 3.0           # s a video or visual sequence plays before the button can skip it (people tap fast
                            # to pick things, and the extra taps shouldn't skip what they just picked)
+
+
+HEARTBEAT_EVERY = 2.0      # s between touches of the heartbeat file (see tools/run_cabinet.sh)
 
 
 def prompt_color() -> str:
@@ -139,7 +144,15 @@ def run(make_game: Callable[[], MiniGame], caption: str, scale: int = 4, fullscr
     game = make_game()
     ticks = 0
     running = True
+    beat = os.environ.get("LIFE_LAB_HEARTBEAT")    # tools/run_cabinet.sh: touched every few s while the loop runs
+    last_beat = 0.0
     while running:
+        if beat and time.monotonic() - last_beat > HEARTBEAT_EVERY:
+            last_beat = time.monotonic()
+            try:
+                os.utime(beat) if os.path.exists(beat) else open(beat, "a").close()
+            except OSError:
+                pass
         dt = min(clock.tick(60) / 1000, 1 / 20)       # don't tunnel through things after a hitch
         inp = Input()
         pressed_keys: set[int] = set()
