@@ -17,8 +17,9 @@ it prints is the menu. It's all stick-and-button, like the visitor name entry:
                       sequence (see ooh.py), and so does OLD_ANSWER, the code it
                       used to be, as a backup; TRIP_CODE (hidden in the room) is a
                       psychedelic thank-you (see trip.py); LENS_CODE covers the
-                      screen in white paint (see lens.py); a locked file's code
-                      (DNA, LAB) unlocks that file and opens it; anything
+                      screen in white paint (see lens.py); LAB_CODE is Langton's
+                      ants (see langton.py); a locked file's code (DNA)
+                      unlocks that file and opens it; anything
                       else is ACCESS DENIED and another go
 
 The terminal uses the bigger 5x7 font, in one colour, so it reads easily on the
@@ -53,6 +54,7 @@ from .art import CRT_BG, PHOSPHOR, PHOSPHOR_DIM, PHOSPHOR_FAINT
 from .ooh import Ooh
 from .trip import Trip
 from .lens import Lens
+from .langton import Langton
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 MEDIA_DIR = ASSETS / "files"
@@ -73,6 +75,7 @@ PASSWORDS: tuple[str, ...] = ()   # what UNLOCK.EXE says ACCESS GRANTED to (none
 ANSWER = "XXX"              # the answer you get for exploring 3 theories: it plays ooh.py
 OLD_ANSWER = "OOH"          # what the answer used to be: still plays ooh.py, in case of a bug
 TRIP_CODE = "SEX"           # hidden somewhere in the room: it plays trip.py
+LAB_CODE = "LAB"            # plays langton.py: Langton's ants, BROUGHT TO YOU BY LANGTON LABS
 LENS_CODE = "CUM"           # plays lens.py: the screen slowly covered in white paint
 DENIED_TIME = 1.6           # s ACCESS DENIED stays up before another go
 ROLL_SKIP_AT = 10.0         # s into a roll before HOLD BUTTON: SKIP comes up (and a hold works)
@@ -165,13 +168,6 @@ FILES = [
         "Result: mostly water",
         "Remainder: inconclusive",
     ), code="DNA"),
-    LabFile("LAB_SAFETY.TXT", "txt", (
-        "SAMPLE PAGE: EDIT ME (CODE LAB)",
-        "",
-        "1. Goggles on",
-        "2. No eating the specimens",
-        "3. See rule 2",
-    ), code="LAB"),
 ]
 TXT_Y = 24                                   # the first line of an open text file
 TEXT_MODES = ("txt", "img", "msg", "granted")   # new text on screen: READ_GRACE before the button leaves it
@@ -462,10 +458,11 @@ class FileTerminal:
     # -- state ---------------------------------------------------------------------------
     def open(self) -> None:
         self.shown, self.mode_t = "", 0.0       # the mode on screen last tick, and s it's been up
-        self.mode = "boot"              # boot (the DIR typing out), list, code, granted, ooh, trip, lens, txt, img, roll, msg
+        self.mode = "boot"              # boot (the DIR typing out), list, code, granted, ooh, trip, lens, langton, txt, img, roll, msg
         self.ooh: Ooh | None = None
         self.trip: Trip | None = None
         self.lens: Lens | None = None
+        self.langton: Langton | None = None
         self.held = False               # the button's down this tick (the paint screen skips on a hold)
         self.boot_t = 0.0
         self.sel = 1                    # the first file, with .. (the way out) just above it
@@ -586,6 +583,10 @@ class FileTerminal:
             self.log("code", code=code, result="ooh")
             self.mode, self.ooh = "ooh", Ooh(self.mute)
             return
+        if code == LAB_CODE:
+            self.log("code", code=code, result="langton")
+            self.mode, self.langton = "langton", Langton()
+            return
         if code == LENS_CODE:
             self.log("code", code=code, result="lens")
             self.mode, self.lens = "lens", Lens()
@@ -619,6 +620,13 @@ class FileTerminal:
             self.log("ooh_end", secs=round(self.ooh.t, 1))
             self.ooh.stop()
             self.ooh = None
+            self.mode = "list"
+
+    def _update_langton(self, dt: float, sx: int, sy: int, act: bool) -> None:
+        self.langton.update(dt, self.held)
+        if self.langton.done:
+            self.log("langton_end", secs=round(self.langton.t, 1))
+            self.langton = None
             self.mode = "list"
 
     def _update_lens(self, dt: float, sx: int, sy: int, act: bool) -> None:
@@ -703,9 +711,9 @@ class FileTerminal:
     # -- drawing ---------------------------------------------------------------------------
     @property
     def skip_hold(self) -> bool:
-        """A sequence that's skipped by holding the button (a roll, the paint): a held
+        """A sequence that's skipped by holding the button (a roll, the paint, the ants): a held
         button here is for that, not the exit menu."""
-        return self.mode in ("roll", "lens")
+        return self.mode in ("roll", "lens", "langton")
 
     def overlay(self, window: pygame.Surface) -> None:
         if self.mode == "roll":
@@ -747,6 +755,8 @@ class FileTerminal:
             self.trip.draw(screen)
         elif self.mode == "lens":
             self.lens.draw(screen)
+        elif self.mode == "langton":
+            self.langton.draw(screen)
         elif self.mode == "txt":
             self._header(screen, self.viewing.name)
             lines, s = self.viewing.lines, self.txt_scroll
